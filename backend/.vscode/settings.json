@@ -1,0 +1,6 @@
+{
+    "python.defaultInterpreterPath": "/.venv/bin/python",
+    "python.analysis.importFormat": "absolute",
+    "python.analysis.typeCheckingMode": "basic",
+    "python.terminal.activateEnv": false
+}

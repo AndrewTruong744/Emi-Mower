@@ -1,5 +1,2 @@
-# Backend
-
-# To run
-- ./mvnw clean package
-- ./mvnw spring-boot:run
+# To Run
+- uv run uvicorn main:app --reload
