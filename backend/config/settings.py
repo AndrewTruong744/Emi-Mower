@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 # Load env file if it exists at root
 load_dotenv()
 
+
 class Settings:
     # Postgres configuration
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
@@ -32,5 +33,6 @@ class Settings:
     def VALKEY_URL(self) -> str:
         password_part = f":{self.VALKEY_PASSWORD}@" if self.VALKEY_PASSWORD else ""
         return f"redis://{password_part}{self.VALKEY_HOST}:{self.VALKEY_PORT}/{self.VALKEY_DB}"
+
 
 settings = Settings()

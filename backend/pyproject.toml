@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "cloud-sql-python-connector[asyncpg]>=1.20.3",
     "fastapi>=0.138.0",
@@ -17,3 +18,24 @@ dependencies = [
     "uvicorn>=0.49.0",
     "valkey>=6.1.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.19",
+]
+
+[tool.ruff]
+# Target Python version
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+# Enable Pyflakes (F), Pycodestyle (E, W), and Isort (I)
+select = ["E", "F", "W", "I"]
+fixable = ["ALL"]
+
+[tool.ruff.format]
+# Use double quotes for strings (just like Prettier defaults!)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false

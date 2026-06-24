@@ -18,9 +18,11 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+
 # Base class for defining database models
 class Base(DeclarativeBase):
     pass
+
 
 # FastAPI dependency to yield database sessions
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
