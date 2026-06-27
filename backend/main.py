@@ -1,19 +1,21 @@
-from contextlib import asynccontextmanager
 import logging
-from typing import Any
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException, status
+import valkey.asyncio as valkey
+from fastapi import Depends, FastAPI, HTTPException, status
+
+from backend.api.routers.protected import router as auth_router
+from api.routers.public import router as public_router
+
 from pydantic import BaseModel
 from sqlalchemy import String, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from sqlalchemy.orm import Mapped, mapped_column
-import valkey.asyncio as valkey
 
-from config.database import engine, Base, get_db
-from config.settings import settings
-from config.valkey_client import get_valkey, close_valkey_pool
+from config.database import Base, engine, get_db
+from config.mqtt import start_mqtt, stop_mqtt
 from config.socketio import sio_app
+from config.valkey_client import close_valkey_pool, get_valkey
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -53,9 +55,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Valkey connection failed: {e}")
 
+    # Startup: Start MQTT client
+    logger.info("Starting MQTT client...")
+    await start_mqtt()
+
     yield
 
     # Shutdown: Clean up connections
+    logger.info("Stopping MQTT client...")
+    await stop_mqtt()
+
     logger.info("Closing Valkey connection pool...")
     await close_valkey_pool()
     logger.info("Valkey connection pool closed.")
@@ -67,6 +76,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(public_router, prefix="/public", tags=["public"])
 
 # Mount Socket.IO ASGI application under /ws
 # The client can connect to: http://<host>:<port>/ws/socket.io

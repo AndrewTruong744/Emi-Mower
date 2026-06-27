@@ -17,5 +17,29 @@
 - sudo cp bin/valkey-server bin/valkey-cli /usr/local/bin/
 - valkey-server &
 
+## Tailscale
+- curl -fsSL https://tailscale.com/install.sh | sh
+- sudo tailscale up
+
+## Mosquitto (MQTT Broker)
+- sudo apt update
+- sudo apt install mosquitto mosquitto-clients -y
+
 # To Run
 - uv run uvicorn main:app --reload
+
+# Migrations
+- uv run alembic revision --autogenerate -m "message"
+- uv run alembic upgrade head
+
+# Postgres
+- sudo -u postgres psql -d EmiMower (access)
+
+# Valkey
+- valkey-server (starts server)
+- valkey-cli (enters server)
+
+# Linting
+- To check: uv run ruff check .
+- To lint: uv run ruff check . --fix
+- To format: uv run ruff format .

@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load env file if it exists at root
@@ -33,6 +34,13 @@ class Settings:
     def VALKEY_URL(self) -> str:
         password_part = f":{self.VALKEY_PASSWORD}@" if self.VALKEY_PASSWORD else ""
         return f"redis://{password_part}{self.VALKEY_HOST}:{self.VALKEY_PORT}/{self.VALKEY_DB}"
+
+    # MQTT Configuration
+    MQTT_HOST: str = os.getenv("MQTT_HOST", "localhost")
+    MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
+    MQTT_USERNAME: str | None = os.getenv("MQTT_USERNAME", None) or None
+    MQTT_PASSWORD: str | None = os.getenv("MQTT_PASSWORD", None) or None
+    MQTT_KEEPALIVE: int = int(os.getenv("MQTT_KEEPALIVE", "60"))
 
 
 settings = Settings()

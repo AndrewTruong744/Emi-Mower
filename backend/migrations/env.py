@@ -9,7 +9,9 @@ from alembic import context
 # Import settings and metadata
 from config.settings import settings
 from config.database import Base
-from model.user import UserModel  # registers UserModel with Base.metadata
+from models.user import UserModel
+from models.mower import MowerModel, MowerTelemetryModel, MowerImuModel
+from models.yard import YardModel, YardCoordinateModel
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
