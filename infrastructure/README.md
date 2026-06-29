@@ -15,3 +15,8 @@
 - echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
 - sudo apt update && sudo apt install terraform
 - terraform init
+
+## Service Account
+- go to IAM and Admin
+- create a service account with necessary permissions
+- create a Json key and import it to your project

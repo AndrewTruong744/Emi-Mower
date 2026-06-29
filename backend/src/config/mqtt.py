@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 
 import aiomqtt
 
-from config.settings import settings
+from src.config.settings import settings
 
 # Configure logging
 logger = logging.getLogger("mqtt")

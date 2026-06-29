@@ -3,19 +3,19 @@ from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
 from fastapi import Depends, FastAPI, HTTPException, status
-
-from backend.api.routers.protected import router as auth_router
-from api.routers.public import router as public_router
-
 from pydantic import BaseModel
 from sqlalchemy import String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from config.database import Base, engine, get_db
-from config.mqtt import start_mqtt, stop_mqtt
-from config.socketio import sio_app
-from config.valkey_client import close_valkey_pool, get_valkey
+from src.config.database import Base, engine, get_db
+from src.config.mqtt import start_mqtt, stop_mqtt
+from src.config.socketio import sio_app
+from src.config.valkey_client import close_valkey_pool, get_valkey
+from backend.src.api.protected.protected import router as auth_router
+from backend.src.api.public.public import router as public_router
+from src.services.auth import verify_gcp_identity
+from src.services.firebase_init import initialize_backend_auth
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +34,9 @@ class Item(Base):
 # Lifespan manager for startup and shutdown events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Initialize Firebase Admin SDK
+    initialize_backend_auth()
+
     # Startup: Initialize database tables
     logger.info("Initializing database tables (if they don't exist)...")
     try:
@@ -46,7 +49,7 @@ async def lifespan(app: FastAPI):
     # Startup: Verify Valkey connection
     logger.info("Testing Valkey connection...")
     try:
-        from config.valkey_client import get_valkey_client
+        from src.config.valkey_client import get_valkey_client
 
         v_client = get_valkey_client()
         await v_client.ping()
@@ -77,7 +80,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(
+    auth_router,
+    prefix="/auth",
+    tags=["auth"],
+    dependencies=[Depends(verify_gcp_identity)],  # ◄── FORCES SECURITY ON ALL CHILDS
+)
 app.include_router(public_router, prefix="/public", tags=["public"])
 
 # Mount Socket.IO ASGI application under /ws

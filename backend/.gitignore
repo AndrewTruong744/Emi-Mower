@@ -150,3 +150,8 @@ cython_debug/
 
 # UV / local project locks
 .uv/
+
+# Google IAM Secrets
+service-account.json
+
+.vscode/

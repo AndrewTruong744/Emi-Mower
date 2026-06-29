@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Import settings and metadata
-from config.settings import settings
-from config.database import Base
-from models.user import UserModel
-from models.mower import MowerModel, MowerTelemetryModel, MowerImuModel
-from models.yard import YardModel, YardCoordinateModel
+from src.config.settings import settings
+from src.config.database import Base
+from src.models.user import UserModel
+from src.models.mower import MowerModel, MowerTelemetryModel, MowerImuModel
+from src.models.yard import YardModel, YardCoordinateModel
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

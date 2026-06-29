@@ -1,6 +1,6 @@
 from typing import AsyncGenerator
 import valkey.asyncio as valkey
-from config.settings import settings
+from src.config.settings import settings
 
 # Initialize Valkey connection pool
 # decode_responses=True automatically decodes binary responses to string UTF-8

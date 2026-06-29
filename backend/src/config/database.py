@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from config.settings import settings
+from src.config.settings import settings
 
 # Create database engine for async PostgreSQL connection
 # echo=True prints SQL statements to console, which is helpful during local development

@@ -26,7 +26,7 @@
 - sudo apt install mosquitto mosquitto-clients -y
 
 # To Run
-- uv run uvicorn main:app --reload
+- uv run uvicorn src.main:app --reload
 
 # Migrations
 - uv run alembic revision --autogenerate -m "message"

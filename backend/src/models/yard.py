@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import String, ForeignKey, Float, Integer, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from config.database import Base
+from src.config.database import Base
 
 
 class YardModel(Base):
