@@ -1,9 +1,11 @@
 import uuid
-from sqlalchemy import Float, String, ForeignKey, Boolean, DateTime, Integer
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from src.config.database import Base
-from datetime import datetime, timezone
 
 
 class MowerModel(Base):

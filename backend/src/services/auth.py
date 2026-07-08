@@ -1,14 +1,18 @@
 # src/services/auth.py
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
 
-# auto_error=True forces FastAPI to automatically reject requests missing an Authorization header
+# auto_error=True forces FastAPI to automatically reject requests
+# missing an Authorization header
 security_scheme = HTTPBearer(auto_error=True)
 
-async def verify_gcp_identity(cred: HTTPAuthorizationCredentials = Depends(security_scheme)) -> dict:
+
+async def verify_gcp_identity(
+    cred: HTTPAuthorizationCredentials = Depends(security_scheme),
+) -> dict:
     """
-    FastAPI dependency that extracts the Bearer token, validates it against 
+    FastAPI dependency that extracts the Bearer token, validates it against
     GCP Identity Platform, and returns the decoded user profile claims.
     """
     token = cred.credentials

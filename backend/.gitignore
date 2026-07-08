@@ -155,3 +155,6 @@ cython_debug/
 service-account.json
 
 .vscode/
+
+# Agentic Coding Agent
+agents/

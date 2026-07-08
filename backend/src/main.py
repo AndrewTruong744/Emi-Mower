@@ -2,6 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
+from backend.src.api.protected.protected import router as auth_router
+from backend.src.api.public.public import router as public_router
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import String, text
@@ -12,8 +14,6 @@ from src.config.database import Base, engine, get_db
 from src.config.mqtt import start_mqtt, stop_mqtt
 from src.config.socketio import sio_app
 from src.config.valkey_client import close_valkey_pool, get_valkey
-from backend.src.api.protected.protected import router as auth_router
-from backend.src.api.public.public import router as public_router
 from src.services.auth import verify_gcp_identity
 from src.services.firebase_init import initialize_backend_auth
 
@@ -60,6 +60,8 @@ async def lifespan(app: FastAPI):
 
     # Startup: Start MQTT client
     logger.info("Starting MQTT client...")
+    # Register MQTT callbacks
+    import src.services.mqtt.handle_mower_offer  # noqa: F401
     await start_mqtt()
 
     yield
