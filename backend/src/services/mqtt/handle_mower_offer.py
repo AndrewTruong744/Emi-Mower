@@ -85,7 +85,7 @@ async def handle_mower_offer_callback(topic: str, payload: bytes) -> None:
             # 3. Save sessionId and trackId in Valkey
             v_client = get_valkey_client()
             try:
-                valkey_key = f"mower-{uuid}-stream"
+                valkey_key = f"mower:{uuid}:stream"
                 valkey_value = json.dumps(
                     {"sessionId": session_id, "trackId": track_id}
                 )

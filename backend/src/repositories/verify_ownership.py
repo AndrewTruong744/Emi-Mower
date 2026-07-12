@@ -1,3 +1,7 @@
+"""
+May need to replace with check_mower_ownership instead
+"""
+
 import json
 import logging
 import uuid
@@ -18,7 +22,7 @@ async def verify_ownership(user_id: str, mower_uuid: str | uuid.UUID) -> bool:
     On cache miss, queries Postgres and populates the Valkey cache.
     """
     mower_uuid_str = str(mower_uuid).strip().lower()
-    valkey_key = f"user-{user_id}-mowers"
+    valkey_key = f"user:{user_id}:mowers"
 
     v_client = get_valkey_client()
     try:

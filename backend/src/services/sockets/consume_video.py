@@ -11,7 +11,7 @@ from src.repositories.verify_ownership import verify_ownership
 logger = logging.getLogger("socketio.consume_video")
 
 
-@sio.on("consume-video")
+@sio.on("consume.video")
 async def handle_consume_video(sid, data):
     """
     Socket.IO handler for consuming mower video stream.
@@ -31,7 +31,7 @@ async def handle_consume_video(sid, data):
     if not mower_uuid:
         logger.warning(f"No mower uuid provided by sid {sid}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Missing mower_uuid parameter"},
             to=sid,
         )
@@ -44,7 +44,7 @@ async def handle_consume_video(sid, data):
     if not user_id:
         logger.warning(f"Unauthenticated session {sid} attempted to consume video.")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Session is not authenticated"},
             to=sid,
         )
@@ -55,7 +55,7 @@ async def handle_consume_video(sid, data):
     if not is_owner:
         logger.warning(f"User {user_id} does not own mower {mower_uuid}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Lack of ownership error"},
             to=sid,
         )
@@ -69,7 +69,7 @@ async def handle_consume_video(sid, data):
     except Exception as e:
         logger.error(f"Failed to query Valkey for stream info: {e}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Internal cache error"},
             to=sid,
         )
@@ -80,7 +80,7 @@ async def handle_consume_video(sid, data):
     if not cached_stream:
         logger.warning(f"No active video stream found for mower {mower_uuid}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "No active stream for this mower"},
             to=sid,
         )
@@ -93,7 +93,7 @@ async def handle_consume_video(sid, data):
     except Exception as e:
         logger.error(f"Failed to parse Valkey stream info: {e}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Failed to parse stream info"},
             to=sid,
         )
@@ -102,7 +102,7 @@ async def handle_consume_video(sid, data):
     if not publisher_session_id or not publisher_track_id:
         logger.error(f"Valkey stream info incomplete for mower {mower_uuid}")
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Stream session information is incomplete"},
             to=sid,
         )
@@ -127,7 +127,7 @@ async def handle_consume_video(sid, data):
             if not consumer_session_id:
                 logger.error("Failed to retrieve sessionId from Cloudflare response")
                 await sio.emit(
-                    "consume-video",
+                    "consume.video",
                     {"error": "Failed to create video session"},
                     to=sid,
                 )
@@ -161,7 +161,7 @@ async def handle_consume_video(sid, data):
                     "Cloudflare track response missing sessionDescription.sdp"
                 )
                 await sio.emit(
-                    "consume-video",
+                    "consume.video",
                     {"error": "Failed to retrieve video session description"},
                     to=sid,
                 )
@@ -169,7 +169,7 @@ async def handle_consume_video(sid, data):
 
             # 3. Emit SDP offer back to the user
             await sio.emit(
-                "consume-video",
+                "consume.video",
                 {
                     "sdp_offer": sdp_offer,
                     "sdp": sdp_offer,
@@ -186,14 +186,14 @@ async def handle_consume_video(sid, data):
             f"Cloudflare Calls API error: {e.response.status_code} - {e.response.text}"
         )
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": f"Cloudflare API error: {e.response.status_code}"},
             to=sid,
         )
     except Exception as e:
         logger.error(f"Error handling video consumption: {e}", exc_info=True)
         await sio.emit(
-            "consume-video",
+            "consume.video",
             {"error": "Internal server error during video consumption"},
             to=sid,
         )

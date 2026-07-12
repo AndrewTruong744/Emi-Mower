@@ -2,8 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
-from backend.src.api.protected.protected import router as auth_router
-from backend.src.api.public.public import router as public_router
+from backend.src.api.api_v1 import router as api_v1_router
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import String, text
@@ -14,7 +13,6 @@ from src.config.database import Base, engine, get_db
 from src.config.mqtt import start_mqtt, stop_mqtt
 from src.config.socketio import sio_app
 from src.config.valkey_client import close_valkey_pool, get_valkey
-from src.services.auth import verify_gcp_identity
 from src.services.firebase_init import initialize_backend_auth
 
 # Configure logging
@@ -62,6 +60,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting MQTT client...")
     # Register MQTT callbacks
     import src.services.mqtt.handle_mower_offer  # noqa: F401
+    import src.services.mqtt.handle_mower_status  # noqa: F401
+    import src.services.mqtt.handle_telemetry_data  # noqa: F401
     await start_mqtt()
 
     yield
@@ -82,13 +82,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(
-    auth_router,
-    prefix="/auth",
-    tags=["auth"],
-    dependencies=[Depends(verify_gcp_identity)],  # ◄── FORCES SECURITY ON ALL CHILDS
-)
-app.include_router(public_router, prefix="/public", tags=["public"])
+app.include_router(api_v1_router, prefix="/api/v1", tags=["api"])
 
 # Mount Socket.IO ASGI application under /ws
 # The client can connect to: http://<host>:<port>/ws/socket.io

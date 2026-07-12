@@ -18,7 +18,8 @@ async def verify_gcp_identity(
     token = cred.credentials
     try:
         # Perform offline cryptographical signature and expiration validation
-        decoded_token = auth.verify_id_token(token)
+        # clock_skew_seconds accounts for minor synchronization offsets on mobile devices.
+        decoded_token = auth.verify_id_token(token, clock_skew_seconds=10)
         return decoded_token
     except Exception:
         raise HTTPException(

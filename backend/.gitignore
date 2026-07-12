@@ -158,3 +158,6 @@ service-account.json
 
 # Agentic Coding Agent
 agents/
+
+# Certificate Authority (CA) & Server Key
+*.key

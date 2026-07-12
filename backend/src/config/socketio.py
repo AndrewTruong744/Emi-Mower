@@ -25,5 +25,7 @@ sio_app = socketio.ASGIApp(socketio_server=sio, socketio_path="socket.io")
 import src.services.sockets.connect  # noqa: F401
 import src.services.sockets.consume_video  # noqa: F401
 import src.services.sockets.disconnect  # noqa: F401
+import src.services.sockets.mower_command  # noqa: F401
+import src.services.sockets.mower_telemetry  # noqa: F401
 import src.services.sockets.ping  # noqa: F401
-import src.services.sockets.stream_video  # noqa: F401
+
