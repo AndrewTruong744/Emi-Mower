@@ -5,6 +5,8 @@ import 'react-native-reanimated';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PaperProvider } from 'react-native-paper';
+import '../../global.css';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -16,19 +18,21 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <GestureHandlerRootView>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            </Stack>
-          </GestureHandlerRootView>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </SafeAreaView>
-    </SafeAreaProvider>
+    <PaperProvider>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <GestureHandlerRootView>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+              </Stack>
+            </GestureHandlerRootView>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </PaperProvider>
   );
 }
 

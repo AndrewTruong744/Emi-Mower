@@ -11,10 +11,11 @@ const path = require("path");
 const readline = require("readline");
 
 const root = process.cwd();
+const srcRoot = path.join(root, "src");
 const oldDirs = ["app", "components", "hooks", "constants", "scripts"];
 const exampleDir = "app-example";
 const newAppDir = "app";
-const exampleDirPath = path.join(root, exampleDir);
+const exampleDirPath = path.join(srcRoot, exampleDir);
 
 const indexContent = `import { Text, View } from "react-native";
 
@@ -55,10 +56,10 @@ const moveDirectories = async (userInput) => {
 
     // Move old directories to new app-example directory or delete them
     for (const dir of oldDirs) {
-      const oldDirPath = path.join(root, dir);
+      const oldDirPath = path.join(srcRoot, dir);
       if (fs.existsSync(oldDirPath)) {
         if (userInput === "y") {
-          const newDirPath = path.join(root, exampleDir, dir);
+          const newDirPath = path.join(srcRoot, exampleDir, dir);
           await fs.promises.rename(oldDirPath, newDirPath);
           console.log(`➡️ /${dir} moved to /${exampleDir}/${dir}.`);
         } else {
@@ -71,7 +72,7 @@ const moveDirectories = async (userInput) => {
     }
 
     // Create new /app directory
-    const newAppDirPath = path.join(root, newAppDir);
+    const newAppDirPath = path.join(srcRoot, newAppDir);
     await fs.promises.mkdir(newAppDirPath, { recursive: true });
     console.log("\n📁 New /app directory created.");
 
