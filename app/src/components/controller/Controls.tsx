@@ -29,7 +29,7 @@ export default function Controls() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
-  function handleMove(normalizedComponents : {x: number, y: number}) {
+  function handleMove(normalizedComponents: { x: number; y: number }) {
     console.log(`Config ${selectedId} move:`, normalizedComponents);
   }
 
@@ -60,9 +60,9 @@ export default function Controls() {
         );
       } else {
         Alert.alert(
-          "EMERGENCY STOP",
+          'EMERGENCY STOP',
           `Robot hardware execution for Config ${selectedId} has been halted immediately.`,
-          [{ text: "OK" }]
+          [{ text: 'OK' }]
         );
       }
       updateCurrentConfig({ estop: true, power: false });
@@ -102,7 +102,7 @@ export default function Controls() {
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
   }));
 
-  return (   
+  return (
     <View style={styles.controls}>
       <View style={styles.bar}>
         {/* CONFIG DROPDOWN */}
@@ -111,8 +111,8 @@ export default function Controls() {
             visible={menuVisible}
             onDismiss={() => setMenuVisible(false)}
             anchor={
-              <Button 
-                mode="outlined" 
+              <Button
+                mode="outlined"
                 onPress={() => setMenuVisible(true)}
                 style={styles.dropdownButton}
                 labelStyle={styles.dropdownButtonLabel}
@@ -121,40 +121,59 @@ export default function Controls() {
               </Button>
             }
           >
-            <Menu.Item onPress={() => { setSelectedId(1); setMenuVisible(false); }} title="Config 1" />
-            <Menu.Item onPress={() => { setSelectedId(2); setMenuVisible(false); }} title="Config 2" />
-            <Menu.Item onPress={() => { setSelectedId(3); setMenuVisible(false); }} title="Config 3" />
-            <Menu.Item onPress={() => { setSelectedId(4); setMenuVisible(false); }} title="Config 4" />
+            <Menu.Item
+              onPress={() => {
+                setSelectedId(1);
+                setMenuVisible(false);
+              }}
+              title="Config 1"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSelectedId(2);
+                setMenuVisible(false);
+              }}
+              title="Config 2"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSelectedId(3);
+                setMenuVisible(false);
+              }}
+              title="Config 3"
+            />
+            <Menu.Item
+              onPress={() => {
+                setSelectedId(4);
+                setMenuVisible(false);
+              }}
+              title="Config 4"
+            />
           </Menu>
         </View>
 
         {/* E-STOP BUTTON */}
-        <Button 
+        <Button
           mode="contained"
           onPress={handleEStop}
-          style={[styles.estopButton, currentConfig.estop ? styles.estopActive : styles.estopInactive]}
+          style={[
+            styles.estopButton,
+            currentConfig.estop ? styles.estopActive : styles.estopInactive,
+          ]}
           labelStyle={styles.estopLabel}
         >
-          {currentConfig.estop ? "STOPPED" : "E-STOP"}
+          {currentConfig.estop ? 'STOPPED' : 'E-STOP'}
         </Button>
 
         {/* POWER SYSTEM TOGGLE SWITCH */}
         <View style={styles.toggleContainer}>
-          <Text style={styles.toggleLabel}>
-            {currentConfig.power ? "SYS: ON" : "SYS: OFF"}
-          </Text>
-          <Switch
-            value={currentConfig.power}
-            onValueChange={handlePower}
-            color="#22c55e"
-          />
+          <Text style={styles.toggleLabel}>{currentConfig.power ? 'SYS: ON' : 'SYS: OFF'}</Text>
+          <Switch value={currentConfig.power} onValueChange={handlePower} color="#22c55e" />
         </View>
 
         {/* AUTONOMOUS MODE TOGGLE SWITCH */}
         <View style={styles.toggleContainer}>
-          <Text style={styles.toggleLabel}>
-            {currentConfig.autonomous ? "AUTO" : "MAN"}
-          </Text>
+          <Text style={styles.toggleLabel}>{currentConfig.autonomous ? 'AUTO' : 'MAN'}</Text>
           <Switch
             value={currentConfig.autonomous}
             onValueChange={handleAutonomous}
@@ -164,12 +183,10 @@ export default function Controls() {
       </View>
       <View style={styles.base}>
         <GestureDetector gesture={gesture}>
-          <Animated.View 
-            style={[styles.knob, animatedStyle]} 
-          />
+          <Animated.View style={[styles.knob, animatedStyle]} />
         </GestureDetector>
       </View>
-    </View> 
+    </View>
   );
 }
 
