@@ -3,7 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator } from 'react-native-paper';
 import '../../global.css';
@@ -14,6 +14,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useBoundStore } from '@/store/useBoundStore';
 import { auth } from '@/config/firebase';
+import { useGetUserData } from '@/hooks/api/user/useGetUserData';
+import { usePostUserData } from '@/hooks/api/user/usePostUserData';
 
 // Create a single client instance outside the component scope to keep it stable
 const queryClient = new QueryClient({
@@ -41,6 +43,60 @@ function RootLayoutNav() {
   const clearUser = useBoundStore((state) => state.clearUser);
 
   const [isInitializing, setIsInitializing] = useState(true);
+  const user_id = useBoundStore((state) => state.user_id);
+  const [hasTriedPost, setHasTriedPost] = useState(false);
+
+  const { data: userData, isError: isGetError, isSuccess: isGetSuccess } = useGetUserData(user_id);
+  const {
+    mutate: postUser,
+    isError: isPostError,
+    isSuccess: isPostSuccess,
+    data: postData,
+  } = usePostUserData();
+
+  // Reset fallback state on logout
+  useEffect(() => {
+    if (!idToken) {
+      setHasTriedPost(false);
+    }
+  }, [idToken]);
+
+  // Handle get user data success
+  useEffect(() => {
+    if (isGetSuccess && userData?.user_data) {
+      setUser({
+        user_id: userData.user_data.id,
+        email: userData.user_data.email,
+        displayName: userData.user_data.name,
+      });
+    }
+  }, [isGetSuccess, userData, setUser]);
+
+  // Fallback to post user data if get fails
+  useEffect(() => {
+    if (isGetError && user_id && !hasTriedPost) {
+      setHasTriedPost(true);
+      postUser(user_id);
+    }
+  }, [isGetError, user_id, hasTriedPost, postUser]);
+
+  // Handle post user data success
+  useEffect(() => {
+    if (isPostSuccess && postData?.user_data) {
+      setUser({
+        user_id: postData.user_data.id,
+        email: postData.user_data.email,
+        displayName: postData.user_data.name,
+      });
+    }
+  }, [isPostSuccess, postData, setUser]);
+
+  // Handle both get and post failure
+  useEffect(() => {
+    if (isPostError) {
+      Alert.alert('Backend Down', 'The backend might be down. Please try again later.');
+    }
+  }, [isPostError]);
 
   // Sync Firebase auth state with Zustand store
   useEffect(() => {

@@ -7,8 +7,8 @@ router = APIRouter()
 
 router.include_router(
     auth_router,
-    prefix="/auth",
-    tags=["auth"],
+    prefix="/protected",
+    tags=["protected"],
     dependencies=[Depends(verify_gcp_identity)],  # ◄── FORCES SECURITY ON ALL CHILDS
 )
 router.include_router(public_router, prefix="/public", tags=["public"])

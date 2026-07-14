@@ -57,9 +57,15 @@ In your phone do these:
 - change from charge only to transfer files / android auto
 
 ### After every native package that talks or modifies kotlin/java, run these
+
 - rm -rf android ios
 - npx expo prebuild --platform android --clean
 - npx expo run:android
+
+### Linting and formatting
+
+- npm run lint
+- npx prettier --write .
 
 # To run
 

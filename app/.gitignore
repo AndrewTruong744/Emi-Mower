@@ -45,3 +45,5 @@ app-example
 agents/
 
 .env
+
+google-services.json
