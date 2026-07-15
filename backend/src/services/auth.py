@@ -21,7 +21,9 @@ async def verify_gcp_identity(
         # clock_skew_seconds accounts for minor synchronization offsets on mobile devices.
         decoded_token = auth.verify_id_token(token, clock_skew_seconds=10)
         return decoded_token
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger("backend").error(f"Token verification failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid, expired, or tampered authentication credentials",

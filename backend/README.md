@@ -1,7 +1,6 @@
 # To install
 
 - install uv
-- install fastapi
 - uv sync
 
 ## postgres
@@ -11,6 +10,8 @@
 - sudo apt update
 - sudo apt install -y postgresql-18 postgresql-contrib-18
 - sudo -u postgres psql
+- CREATE DATABASE "EmiMower";
+- ALTER USER postgres WITH PASSWORD 'password';
 
 ## valkey
 
@@ -62,7 +63,7 @@
 
 # To Run
 
-- uv run uvicorn src.main:app --reload
+- uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 # Migrations
 

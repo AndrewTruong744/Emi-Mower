@@ -1,8 +1,11 @@
 import { create } from 'axios';
 import { useBoundStore } from '../store/useBoundStore';
 
+const rawBaseURL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const cleanedBaseURL = rawBaseURL.replace(/^['"]|['"]$/g, '');
+
 const client = create({
-  baseURL: process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1',
+  baseURL: cleanedBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },

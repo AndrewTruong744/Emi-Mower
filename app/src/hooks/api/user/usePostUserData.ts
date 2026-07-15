@@ -3,6 +3,9 @@ import { postUserData } from '@/api/user';
 
 export const usePostUserData = () => {
   return useMutation({
-    mutationFn: (userId: string) => postUserData(userId),
+    mutationFn: (userId: string) => {
+      console.log('usePostUserData mutationFn executing for userId:', userId);
+      return postUserData(userId);
+    },
   });
 };

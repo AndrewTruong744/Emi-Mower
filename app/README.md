@@ -69,6 +69,8 @@ In your phone do these:
 
 # To run
 
+- npx expo run:android
+
 ## To connect phone to windows device
 
 ### In Windows:

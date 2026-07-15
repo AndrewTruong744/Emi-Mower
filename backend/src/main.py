@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
-from backend.src.api.api_v1 import router as api_v1_router
+from src.api.api_v1 import router as api_v1_router
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import String, text

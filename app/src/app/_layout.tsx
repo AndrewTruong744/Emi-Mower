@@ -24,6 +24,10 @@ const queryClient = new QueryClient({
       retry: 2, // Auto-retry failed requests twice before displaying error
       staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
       refetchOnWindowFocus: true, // Refetch when user returns to the app
+      networkMode: 'always',
+    },
+    mutations: {
+      networkMode: 'always',
     },
   },
 });
@@ -91,9 +95,16 @@ function RootLayoutNav() {
     }
   }, [isPostSuccess, postData, setUser]);
 
+  console.log('RootLayoutNav Render:');
+  console.log('  user_id:', user_id);
+  console.log('  isGetSuccess:', isGetSuccess, 'isGetError:', isGetError);
+  console.log('  isPostSuccess:', isPostSuccess, 'isPostError:', isPostError);
+  console.log('  hasTriedPost:', hasTriedPost);
+
   // Handle both get and post failure
   useEffect(() => {
     if (isPostError) {
+      console.log('RootLayoutNav: isPostError is true, alerting Backend Down!');
       Alert.alert('Backend Down', 'The backend might be down. Please try again later.');
     }
   }, [isPostError]);

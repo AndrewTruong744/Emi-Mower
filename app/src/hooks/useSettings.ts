@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import { useBoundStore } from '@/store/useBoundStore';
 import { usePatchUsername } from './api/user/usePatchUsername';
 import { usePatchUserEmail } from './api/user/usePatchUserEmail';
@@ -6,13 +7,15 @@ import { useChangeEmail } from './useChangeEmail';
 import { useLogout } from './useLogout';
 
 export const useSettings = () => {
-  const { user_id, email, displayName, setUser, setAuthTokens } = useBoundStore((state) => ({
-    user_id: state.user_id,
-    email: state.email,
-    displayName: state.displayName,
-    setUser: state.setUser,
-    setAuthTokens: state.setAuthTokens,
-  }));
+  const { user_id, email, displayName, setUser, setAuthTokens } = useBoundStore(
+    useShallow((state) => ({
+      user_id: state.user_id,
+      email: state.email,
+      displayName: state.displayName,
+      setUser: state.setUser,
+      setAuthTokens: state.setAuthTokens,
+    }))
+  );
 
   const patchUsernameMutation = usePatchUsername();
   const patchUserEmailMutation = usePatchUserEmail();
