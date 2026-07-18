@@ -3,14 +3,15 @@ import logging
 
 import httpx
 
-from src.config.mqtt import publish_message, register_mqtt_callback
+from src.config.mqtt import fast_mqtt, publish_message
 from src.config.settings import settings
 from src.config.valkey_client import get_valkey_client
 
 logger = logging.getLogger("mqtt.handle_mower_offer")
 
 
-async def handle_mower_offer_callback(topic: str, payload: bytes) -> None:
+@fast_mqtt.subscribe("/mower/+/video/offer")
+async def handle_mower_offer_callback(client, topic: str, payload: bytes, qos: int, properties) -> None:
     logger.info(f"Received mower offer on topic: {topic}")
     try:
         data = json.loads(payload.decode("utf-8"))
@@ -36,17 +37,22 @@ async def handle_mower_offer_callback(topic: str, payload: bytes) -> None:
         return
 
     # Call Cloudflare Realtime API
-    secret = settings.secret
+    secret = settings.CLOUDFLARE_API_TOKEN
     rtc_url = settings.CF_RTC_URL
 
     headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as http_client:
             # 1. Create a session on Cloudflare Calls
             session_url = f"{rtc_url}/sessions/new"
             logger.info(f"Creating Cloudflare Calls session at {session_url}...")
-            session_resp = await client.post(session_url, headers=headers, json={})
+
+            session_payload = {
+                "sessionDescription": {"type": "offer", "sdp": sdp_offer}
+            }
+
+            session_resp = await http_client.post(session_url, headers=headers, json=session_payload)
             session_resp.raise_for_status()
             session_data = session_resp.json()
             session_id = session_data.get("sessionId")
@@ -60,11 +66,10 @@ async def handle_mower_offer_callback(topic: str, payload: bytes) -> None:
             logger.info(f"Adding track to session at {track_url}...")
 
             track_payload = {
-                "sessionDescription": {"type": "offer", "sdp": sdp_offer},
-                "tracks": [{"location": "local", "mid": "0", "trackName": "video"}],
+                "tracks": [{"mid": "0", "trackName": "video"}],
             }
 
-            track_resp = await client.post(
+            track_resp = await http_client.post(
                 track_url, headers=headers, json=track_payload
             )
             track_resp.raise_for_status()
@@ -109,7 +114,3 @@ async def handle_mower_offer_callback(topic: str, payload: bytes) -> None:
         )
     except Exception as e:
         logger.error(f"Error handling mower offer: {e}", exc_info=True)
-
-
-# Register the callback automatically on import
-register_mqtt_callback("/mower/+/video/offer", handle_mower_offer_callback)

@@ -254,6 +254,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "cloud-sql-python-connector", extra = ["asyncpg"] },
     { name = "fastapi" },
+    { name = "fastapi-mqtt" },
     { name = "firebase-admin" },
     { name = "google-cloud-storage" },
     { name = "motor" },
@@ -276,6 +277,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "cloud-sql-python-connector", extras = ["asyncpg"], specifier = ">=1.20.3" },
     { name = "fastapi", specifier = ">=0.138.0" },
+    { name = "fastapi-mqtt", specifier = ">=2.2.0" },
     { name = "firebase-admin", specifier = ">=7.4.0" },
     { name = "google-cloud-storage", specifier = ">=3.12.0" },
     { name = "motor", specifier = ">=3.7.1" },
@@ -569,6 +571,19 @@ wheels = [
 ]
 
 [[package]]
+name = "fastapi-mqtt"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gmqtt" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2b/fd/2eb9400ac35f1cad795d76688e801e43f1a48c2bf869ee856bac16a1b921/fastapi_mqtt-2.2.0.tar.gz", hash = "sha256:68308fe47c068b4d2146b3eb10aa198fa08d827aa3dc3d081dd5821e53090b2b", size = 9572, upload-time = "2024-05-22T08:59:07.231Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/6e/01ee90c935f0eb52e69eac18baf7f8ef14f926d9cc2c04b52df1cba07b17/fastapi_mqtt-2.2.0-py3-none-any.whl", hash = "sha256:1bb5e5cca39457c72d9cd0e36b56817923f49ee1a9605fe8dbad36d5ce450c36", size = 9288, upload-time = "2024-05-22T08:59:04.621Z" },
+]
+
+[[package]]
 name = "firebase-admin"
 version = "7.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -672,6 +687,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/89/76/c615883b7b521ead2944bb3480398cbb07e12b7b4e4d073d3752eb721558/frozenlist-1.8.0-cp314-cp314t-win_amd64.whl", hash = "sha256:06be8f67f39c8b1dc671f5d83aaefd3358ae5cdcf8314552c57e7ed3e6475bdd", size = 49451, upload-time = "2025-10-06T05:37:53.425Z" },
     { url = "https://files.pythonhosted.org/packages/e0/a3/5982da14e113d07b325230f95060e2169f5311b1017ea8af2a29b374c289/frozenlist-1.8.0-cp314-cp314t-win_arm64.whl", hash = "sha256:102e6314ca4da683dca92e3b1355490fed5f313b768500084fbe6371fddfdb79", size = 42507, upload-time = "2025-10-06T05:37:54.513Z" },
     { url = "https://files.pythonhosted.org/packages/9a/9a/e35b4a917281c0b8419d4207f4334c8e8c5dbf4f3f5f9ada73958d937dcc/frozenlist-1.8.0-py3-none-any.whl", hash = "sha256:0c18a16eab41e82c295618a77502e17b195883241c563b00f0aa5106fc4eaa0d", size = 13409, upload-time = "2025-10-06T05:38:16.721Z" },
+]
+
+[[package]]
+name = "gmqtt"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/70/73ec54da16079da319b035af48b908204f9629ecd1187720d11799ac35d8/gmqtt-0.7.0.tar.gz", hash = "sha256:bedfec7bac26b6b4ce1f0c4c32cff3d663526a54c882d323d41560fc3b9b44a2", size = 27663, upload-time = "2024-11-22T13:13:48.679Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/2f/63922e256799a74b0e1fb1c12e98dc435edf1ddaa7e31eaadc60cbd16593/gmqtt-0.7.0-py3-none-any.whl", hash = "sha256:3e5571a20e9c115d83d600caa228b06f716087653e241035e29cec73277b52cc", size = 30688, upload-time = "2024-11-22T13:13:46.479Z" },
 ]
 
 [[package]]

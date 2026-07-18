@@ -44,22 +44,6 @@ class Settings:
 
     CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "your_account_id")
     CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
-    CLOUDFLARE_CLIENT_ID: str = os.getenv(
-        "CLOUDFLARE_CLIENT_ID",
-        os.getenv("CLOUDFLARE_ACCOUNT_ID", "your_client_id"),
-    )
-    CLOUDFLARE_SECRET: str = os.getenv(
-        "CLOUDFLARE_SECRET",
-        os.getenv("CLOUDFLARE_API_TOKEN", "your_secret"),
-    )
-
-    @property
-    def clientId(self) -> str:
-        return self.CLOUDFLARE_CLIENT_ID
-
-    @property
-    def secret(self) -> str:
-        return self.CLOUDFLARE_SECRET
 
     @property
     def CF_API_URL(self) -> str:
@@ -67,7 +51,7 @@ class Settings:
 
     @property
     def CF_RTC_URL(self) -> str:
-        return f"https://rtc.live.cloudflare.com/v1/apps/{self.clientId}"
+        return f"https://rtc.live.cloudflare.com/v1/apps/{self.CLOUDFLARE_ACCOUNT_ID}"
 
 
 settings = Settings()

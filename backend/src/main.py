@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.config.database import Base, engine, get_db
-from src.config.mqtt import start_mqtt, stop_mqtt
+from src.config.mqtt import fast_mqtt, register_mqtt_routes
 from src.config.socketio import sio_app
 from src.config.valkey_client import close_valkey_pool, get_valkey
 from src.services.firebase_init import initialize_backend_auth
@@ -57,18 +57,24 @@ async def lifespan(app: FastAPI):
         logger.error(f"Valkey connection failed: {e}")
 
     # Startup: Start MQTT client
-    logger.info("Starting MQTT client...")
-    # Register MQTT callbacks
-    import src.services.mqtt.handle_mower_offer  # noqa: F401
-    import src.services.mqtt.handle_mower_status  # noqa: F401
-    import src.services.mqtt.handle_telemetry_data  # noqa: F401
-    await start_mqtt()
+    logger.info("Starting MQTT client connection...")
+    register_mqtt_routes()
+    try:
+        # Replaces your manual start_mqtt() function
+        await fast_mqtt.mqtt_startup()
+        logger.info("MQTT client started and subscriptions established.")
+    except Exception as e:
+        # Defensive catch: logs the failure but yields anyway 
+        # so the REST API and database stack can still boot up.
+        logger.error(f"MQTT failed to connect on server startup: {e}")
+        logger.warning("Application running without active MQTT connection. Retrying in background.")
 
     yield
 
     # Shutdown: Clean up connections
     logger.info("Stopping MQTT client...")
-    await stop_mqtt()
+    await fast_mqtt.mqtt_shutdown()
+    logger.info("MQTT connection cleanly closed.")
 
     logger.info("Closing Valkey connection pool...")
     await close_valkey_pool()

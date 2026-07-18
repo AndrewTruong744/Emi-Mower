@@ -109,35 +109,19 @@ async def handle_consume_video(sid, data):
         return
 
     # Call Cloudflare Realtime API to consume the track
-    secret = settings.secret
+    secret = settings.CLOUDFLARE_API_TOKEN
     rtc_url = settings.CF_RTC_URL
 
     headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
 
     try:
         async with httpx.AsyncClient() as client:
-            # 1. Create a consumer session
+            # 1. Unified Call: Allocate consumer session AND bind the remote track instantly
             session_url = f"{rtc_url}/sessions/new"
             logger.info(f"Creating consumer Calls session at {session_url}...")
-            session_resp = await client.post(session_url, headers=headers, json={})
-            session_resp.raise_for_status()
-            session_data = session_resp.json()
-            consumer_session_id = session_data.get("sessionId")
 
-            if not consumer_session_id:
-                logger.error("Failed to retrieve sessionId from Cloudflare response")
-                await sio.emit(
-                    "consume.video",
-                    {"error": "Failed to create video session"},
-                    to=sid,
-                )
-                return
-
-            # 2. Pull the publisher's track into the consumer session
-            track_url = f"{rtc_url}/sessions/{consumer_session_id}/tracks/new"
-            logger.info(f"Pulling track into session at {track_url}...")
-
-            track_payload = {
+            # In this unified payload, Cloudflare generates the initial SDP offer tailored to this remote track
+            unified_payload = {
                 "tracks": [
                     {
                         "location": "remote",
@@ -147,22 +131,19 @@ async def handle_consume_video(sid, data):
                 ]
             }
 
-            track_resp = await client.post(
-                track_url, headers=headers, json=track_payload
-            )
-            track_resp.raise_for_status()
-            track_data = track_resp.json()
+            session_resp = await client.post(session_url, headers=headers, json=unified_payload)
+            session_resp.raise_for_status()
+            session_data = session_resp.json()
+            
+            consumer_session_id = session_data.get("sessionId")
+            # Extract the generated SDP offer from the response sessionDescription
+            sdp_offer = session_data.get("sessionDescription", {}).get("sdp")
 
-            # Extract the SDP offer from response sessionDescription
-            sdp_offer = track_data.get("sessionDescription", {}).get("sdp")
-
-            if not sdp_offer:
-                logger.error(
-                    "Cloudflare track response missing sessionDescription.sdp"
-                )
+            if not consumer_session_id or not sdp_offer:
+                logger.error("Unified Cloudflare response missing critical consumer session/SDP structures.")
                 await sio.emit(
                     "consume.video",
-                    {"error": "Failed to retrieve video session description"},
+                    {"error": "Failed to negotiate remote video stream session"},
                     to=sid,
                 )
                 return
@@ -172,7 +153,6 @@ async def handle_consume_video(sid, data):
                 "consume.video",
                 {
                     "sdp_offer": sdp_offer,
-                    "sdp": sdp_offer,
                     "sessionId": consumer_session_id,
                 },
                 to=sid,
