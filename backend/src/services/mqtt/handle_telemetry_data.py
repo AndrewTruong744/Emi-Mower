@@ -2,13 +2,14 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from src.config.mqtt import register_mqtt_callback
+from src.config.mqtt import fast_mqtt
 from src.config.valkey_client import get_valkey_client
 
 logger = logging.getLogger("mqtt.handle_telemetry_data")
 
 
-async def handle_telemetry_data_callback(topic: str, payload: bytes) -> None:
+@fast_mqtt.subscribe("/mower/+/telemetry/data")
+async def handle_telemetry_data_callback(client, topic: str, payload: bytes, qos: int, properties) -> None:
     """
     MQTT callback for receiving telemetry data from the mower.
     Parses the JSON payload (expecting a single outer key with a nested object),
@@ -66,9 +67,3 @@ async def handle_telemetry_data_callback(topic: str, payload: bytes) -> None:
         logger.error(f"Failed to store telemetry data in Valkey: {e}")
     finally:
         await v_client.close()
-
-
-# Register the callback automatically on import
-register_mqtt_callback(
-    "/mower/+/telemetry/data", handle_telemetry_data_callback
-)

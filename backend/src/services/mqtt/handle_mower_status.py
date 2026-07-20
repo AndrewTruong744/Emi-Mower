@@ -1,6 +1,6 @@
 import logging
 
-from src.config.mqtt import register_mqtt_callback
+from src.config.mqtt import fast_mqtt
 from src.config.socketio import sio
 from src.config.valkey_client import get_valkey_client
 from src.repositories.find_user_by_mower import find_user_by_mower
@@ -8,7 +8,8 @@ from src.repositories.find_user_by_mower import find_user_by_mower
 logger = logging.getLogger("mqtt.handle_mower_status")
 
 
-async def handle_mower_status_callback(topic: str, payload: bytes) -> None:
+@fast_mqtt.subscribe("/mower/+/status")
+async def handle_mower_status_callback(client, topic: str, payload: bytes, qos: int, properties) -> None:
     """
     MQTT callback for mower online/offline status updates.
     1. Extracts mower_id from topic.
@@ -84,7 +85,3 @@ async def handle_mower_status_callback(topic: str, payload: bytes) -> None:
         )
     finally:
         await v_client.close()
-
-
-# Register the callback automatically on import
-register_mqtt_callback("/mower/+/status", handle_mower_status_callback)

@@ -7,13 +7,28 @@ from src.config.settings import settings
 logger = logging.getLogger("mqtt")
 logger.setLevel(logging.INFO)
 
-# 1. Define the core MQTT configuration profile
+# Build the secure Mutual TLS context
+import ssl
+
+ssl_context = ssl.create_default_context(
+    purpose=ssl.Purpose.SERVER_AUTH, 
+    cafile="/home/andrewt/Repos/Emi-Mower/backend/certs/ca/ca.crt"  # Trust the CA
+)
+
+# Load the FastAPI backend's specific client identity files
+ssl_context.load_cert_chain(
+    certfile="/home/andrewt/Repos/Emi-Mower/backend/certs/fastapi/server.crt",
+    keyfile="/home/andrewt/Repos/Emi-Mower/backend/certs/fastapi/server.key"
+)
+
+# Define the core MQTT configuration profile
 mqtt_config = MQTTConfig(
     host=settings.MQTT_HOST,
     port=settings.MQTT_PORT,
     username=settings.MQTT_USERNAME,
     password=settings.MQTT_PASSWORD,
     keepalive=settings.MQTT_KEEPALIVE,
+    ssl=ssl_context
 )
 
 # 2. Instantiate the FastMQTT manager
