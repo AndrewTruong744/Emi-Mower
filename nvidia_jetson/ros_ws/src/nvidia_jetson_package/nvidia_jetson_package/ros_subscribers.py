@@ -39,6 +39,5 @@ class MowerRosSubscribers:
 
     def _push_to_async_queue(self, packet: dict):
         """Helper method to thread-safely drop packages into the async queue."""
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.call_soon_threadsafe(self.outbound_queue.put_nowait, packet)
+        if hasattr(self, 'main_loop') and self.main_loop.is_running():
+            self.main_loop.call_soon_threadsafe(self.outbound_queue.put_nowait, packet)

@@ -1,24 +1,26 @@
+#!/usr/bin/env python3
 import asyncio
 import os
 import ssl
+import threading
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-import rasyncio
 import aiomqtt
 
-from .ros_subscribers import MowerRosSubscribers
-from .mqtt_listeners import MqttCloudListeners
+# Internal module imports from your package
+from nvidia_jetson_package.ros_subscribers import MowerRosSubscribers
+from nvidia_jetson_package.mqtt_listeners import MqttCloudListeners
 
 class CleanMqttNode(Node, MowerRosSubscribers, MqttCloudListeners):
-    def __init__(self):
+    def __init__(self, main_loop):
         super().__init__('mqtt_bridge_node')
+        self.main_loop = main_loop
         
         # 1. Fetch parameters
-        # Make sure to update paths
         self.declare_parameter('broker_host', '192.168.1.50')
         self.declare_parameter('broker_port', 8883)
-        self.declare_parameter('cert_dir', '/home/andrewt/Repos/Emi-Mower/nvidia-jetson/certs')
+        self.declare_parameter('cert_dir', '/home/andrewt/Repos/Emi-Mower/nvidia_jetson/certs')
         self.declare_parameter('mower_uuid', 'default_mower_uuid')
         
         self.broker_host = self.get_parameter('broker_host').value
@@ -36,9 +38,6 @@ class CleanMqttNode(Node, MowerRosSubscribers, MqttCloudListeners):
 
         self.setup_ros_subscriptions()
         self.setup_ros_publishers()
-        
-        # Hand off the primary network thread tasks to rasyncio
-        rasyncio.create_task(self.mqtt_network_loop())
 
     def get_ssl_context(self) -> ssl.SSLContext | None:
         """Loads keys for mutual authentication verification."""
@@ -66,12 +65,10 @@ class CleanMqttNode(Node, MowerRosSubscribers, MqttCloudListeners):
                 ) as client:
                     self.get_logger().info("Connected via mTLS!")
                     
-                    # Track subscriptions
                     await client.subscribe("/mower/+/video/answer")
                     await client.subscribe("/mower/+/telemetry/command")
                     await client.subscribe("/mower/+/command")
                     
-                    # Concurrently run inbound listener and outbound sender
                     await asyncio.gather(
                         self.listen_mqtt(client),
                         self.publish_outbound(client)
@@ -89,7 +86,7 @@ class CleanMqttNode(Node, MowerRosSubscribers, MqttCloudListeners):
                 packet = data.get("payload")
                 await client.publish(target_mqtt_topic, payload=packet, qos=1)
             except aiomqtt.MqttError as e:
-                await self.outbound_queue.put(data)  # Requeue on failure
+                await self.outbound_queue.put(data)
                 raise e
             finally:
                 self.outbound_queue.task_done()
@@ -97,10 +94,20 @@ class CleanMqttNode(Node, MowerRosSubscribers, MqttCloudListeners):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CleanMqttNode()
+    loop = asyncio.get_event_loop()
+    node = CleanMqttNode(loop)
     
-    # rasyncio handles the executor spinning entirely behind the scenes
-    rasyncio.spin(node)
+    # Spin ROS 2 in a background thread so asyncio isn't blocked
+    ros_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    ros_thread.start()
     
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        loop.run_until_complete(node.mqtt_network_loop())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

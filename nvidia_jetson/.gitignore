@@ -1,0 +1,11 @@
+# Ignore local ROS workspace build directories
+**/ros_ws/build/
+**/ros_ws/install/
+**/ros_ws/log/
+
+# Ignore local editor caching data
+.vscode/
+
+# Ignore Python compiler caches
+__pycache__/
+*.pyc

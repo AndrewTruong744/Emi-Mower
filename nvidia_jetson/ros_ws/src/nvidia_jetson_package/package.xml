@@ -1,17 +1,14 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>my_mqtt_bridge</name>
+  <name>nvidia_jetson_package</name>
   <version>0.0.1</version>
-  <description>MQTT bridge node using aiomqtt</description>
+  <description>Ros Package for the Nvidia Jetson Orin Nano</description>
   <maintainer email="andrewtruong40024@gmail.com">Andrew Truong</maintainer>
   <license>AGPL-3.0</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
 
-  <exec_depend>python3-pip</exec_depend>
-  <exec_depend>aiomqtt</exec_depend>
-  <exec_depend>python3-rasyncio</exec_depend>
   <exec_depend>ros2launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
