@@ -1,0 +1,58 @@
+{
+  "mode": "router",
+
+  "listen": {
+    "endpoints": [
+      "tls/0.0.0.0:7447" // Public endpoint for mobile / client apps
+    ]
+  },
+
+  // Establishes persistent router-to-router link to Router A
+  "connect": {
+    "endpoints": [
+      "tls/127.0.0.1:7448"
+    ]
+  },
+
+  "transport": {
+    "link": {
+      "tls": {
+        "root_ca_certificate": "certs/ca/ca.crt",
+        // Client certs used by Router B to authenticate to Router A on port 7448
+        "connect_certificate": "certs/zenoh_external/router.crt",
+        "connect_private_key": "certs/zenoh_external/router.key",
+        
+        "listen_certificate": "certs/zenoh_external/router.crt",
+        "listen_private_key": "certs/zenoh_external/router.key",
+        "enable_mtls": true
+      }
+    },
+    "auth": {
+      "usrpwd": {}
+    }
+  },
+
+  "plugins": {
+    "rest": {
+      "http_port": 8001
+    }
+  },
+
+  "access_control": {
+    "enabled": true,
+    "default_permission": "deny", // Denies app users until FastAPI pushes dynamic REST rules
+
+    "rules": [
+      // Base rules added dynamically via http://127.0.0.1:8001 by FastAPI
+    ],
+
+    "subjects": [
+      {
+        "id": "app_users",
+        "usernames": ["*"] // Catch-all for authenticated users in passwords.json
+      }
+    ],
+
+    "policies": []
+  }
+}

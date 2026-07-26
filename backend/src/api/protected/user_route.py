@@ -8,6 +8,7 @@ from src.services.auth import verify_gcp_identity
 from src.services.user_service import (
     create_user_service,
     get_user_data_service,
+    get_zenoh_jwt_service,
     update_user_email_service,
     update_user_name_service,
 )
@@ -145,9 +146,7 @@ async def update_user_email_endpoint(
     elif result == "success":
         # Retrieve the updated user data to get the new email
         user_data = await get_user_data_service(user_id)
-        new_email = (
-            user_data.get("email") if isinstance(user_data, dict) else None
-        )
+        new_email = user_data.get("email") if isinstance(user_data, dict) else None
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -227,4 +226,38 @@ async def update_user_name_endpoint(
         )
 
 
+@router.get("/zenoh")
+async def get_zenoh_token_endpoint(
+    id_token: dict = Depends(verify_gcp_identity),
+):
+    """
+    GET route to generate and return a Zenoh JWT token for the authenticated user.
+    Calls user service to generate JWT and configure Zenoh ACL rules/passwords.
+    Returns 200 with JWT token or 500 on failure.
+    """
+    logger.info("GET /zenoh endpoint triggered")
+    user_id = id_token.get("uid") or id_token.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: User ID missing from token",
+        )
 
+    jwt_token = await get_zenoh_jwt_service(user_id)
+
+    if jwt_token == "fail":
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "Failed to generate Zenoh JWT token",
+                "token": None,
+            },
+        )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Zenoh JWT token generated successfully",
+            "token": jwt_token,
+        },
+    )

@@ -8,7 +8,7 @@ distinguished_name = dn
 [dn]
 C = US
 O = EmiSamaTechnologies
-CN = Emi Mower Backend
+CN = Emi Mower Zenoh Internal
 
 [req_ext]
 subjectAltName = @alt_names

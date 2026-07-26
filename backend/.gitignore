@@ -161,3 +161,6 @@ agents/
 
 # Certificate Authority (CA) & Server Key
 *.key
+
+# Zenoh
+dump.rdb

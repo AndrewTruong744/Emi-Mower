@@ -31,7 +31,7 @@
 - openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt \
   -subj "/CN=Emi Mower CA/O=EmiSamaTechnologies/C=US"
 
-## Server key (in both fastapi and mosquitto)
+## Server key (fastapi)
 
 - make sure to edit IP.3 to point to your development ipv4 addr (ip a)
 - openssl genrsa -out server.key 2048
@@ -41,20 +41,24 @@
   -out server.crt -days 365 -sha256 \
   -extfile server.cnf -extensions req_ext
 
-## Mosquitto (MQTT Broker)
+## Server key (zenoh_internal and zenoh_external)
 
+- make sure to edit IP.3 to point to your development ipv4 addr (ip a)
+- openssl genrsa -out router.key 2048
+- openssl req -new -key router.key -out router.csr -config router.cnf
+- openssl x509 -req -in router.csr \
+  -CA ../ca/ca.crt -CAkey ../ca/ca.key -CAcreateserial \
+  -out router.crt -days 365 -sha256 \
+  -extfile router.cnf -extensions req_ext
+
+## Zenoh
+- sudo mkdir -p /etc/apt/keyrings
+- curl -L https://download.eclipse.org/zenoh/debian-repo/zenoh-public-key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/zenoh-public-key.gpg
+- echo "deb [signed-by=/etc/apt/keyrings/zenoh-public-key.gpg] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list > /dev/null
 - sudo apt update
-- sudo apt install mosquitto mosquitto-clients -y
-- sudo mv /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf.bak
-- sudo ln -s /home/andrewt/Repos/Emi-Mower/backend/mosquitto.conf /etc/mosquitto/mosquitto.conf
-- sudo cp /home/andrewt/Repos/Emi-Mower/backend/certs/ca/ca.crt /etc/mosquitto/certs/
-- sudo cp /home/andrewt/Repos/Emi-Mower/backend/certs/mosquitto/server.crt /etc/mosquitto/certs/
-- sudo cp /home/andrewt/Repos/Emi-Mower/backend/certs/mosquitto/server.key /etc/mosquitto/certs/
-- sudo chown -R mosquitto:mosquitto /etc/mosquitto/certs
-- sudo chmod 600 /etc/mosquitto/certs/server.key
-- sudo chmod 644 /etc/mosquitto/certs/server.crt /etc/mosquitto/certs/ca.crt
-- sudo systemctl restart mosquitto.service
-- systemctl status mosquitto.service
+- sudo apt install zenoh
+- sudo ufw allow 7447/tcp
+- sudo ufw deny 8001/tcp
 
 ## Remember to get secret keys
 
@@ -78,6 +82,9 @@
 
 - valkey-server (starts server)
 - valkey-cli (enters server)
+
+# Zenoh
+- zenohd --config zenoh-router.json5 (in backend/)
 
 # Linting
 

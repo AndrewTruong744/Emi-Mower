@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
+import zenoh
 from src.api.api_v1 import router as api_v1_router
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
@@ -10,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.config.database import Base, engine, get_db
-from src.config.mqtt import fast_mqtt, register_mqtt_routes
-from src.config.socketio import sio_app
 from src.config.valkey_client import close_valkey_pool, get_valkey
+from src.config.zenoh import get_zenoh_config
 from src.services.firebase_init import initialize_backend_auth
 
 # Configure logging
@@ -56,25 +56,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Valkey connection failed: {e}")
 
-    # Startup: Start MQTT client
-    logger.info("Starting MQTT client connection...")
-    register_mqtt_routes()
+    # Startup: Initialize Zenoh session
+    logger.info("Starting Zenoh client connection...")
     try:
-        # Replaces your manual start_mqtt() function
-        await fast_mqtt.mqtt_startup()
-        logger.info("MQTT client started and subscriptions established.")
+        zenoh_config = get_zenoh_config()
+        app.state.zenoh_session = zenoh.open(zenoh_config)
+        logger.info("Zenoh session started successfully.")
     except Exception as e:
-        # Defensive catch: logs the failure but yields anyway 
-        # so the REST API and database stack can still boot up.
-        logger.error(f"MQTT failed to connect on server startup: {e}")
-        logger.warning("Application running without active MQTT connection. Retrying in background.")
+        logger.error(f"Zenoh failed to connect on server startup: {e}")
+        logger.warning("Application running without active Zenoh connection.")
 
     yield
 
     # Shutdown: Clean up connections
-    logger.info("Stopping MQTT client...")
-    await fast_mqtt.mqtt_shutdown()
-    logger.info("MQTT connection cleanly closed.")
+    if hasattr(app.state, "zenoh_session") and app.state.zenoh_session is not None:
+        logger.info("Closing Zenoh session...")
+        try:
+            app.state.zenoh_session.close()
+            logger.info("Zenoh session cleanly closed.")
+        except Exception as e:
+            logger.error(f"Error closing Zenoh session: {e}")
 
     logger.info("Closing Valkey connection pool...")
     await close_valkey_pool()
@@ -89,10 +90,6 @@ app = FastAPI(
 )
 
 app.include_router(api_v1_router, prefix="/api/v1", tags=["api"])
-
-# Mount Socket.IO ASGI application under /ws
-# The client can connect to: http://<host>:<port>/ws/socket.io
-app.mount("/ws", sio_app)
 
 
 # Pydantic schemas for endpoint data validation

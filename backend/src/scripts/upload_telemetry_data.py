@@ -167,8 +167,6 @@ async def run_sync_cycle() -> None:
 
     except Exception as e:
         logger.error(f"Error in sync cycle: {e}", exc_info=True)
-    finally:
-        await v_client.close()
 
 
 async def main():

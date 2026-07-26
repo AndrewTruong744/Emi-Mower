@@ -1,0 +1,54 @@
+{
+  "mode": "router",
+
+  "listen": {
+    "endpoints": [
+      "tls/127.0.0.1:7448" // Private mTLS listener for FastAPI & Router B
+    ]
+  },
+
+  "transport": {
+    "link": {
+      "tls": {
+        "root_ca_certificate": "certs/ca/ca.crt",
+        "listen_certificate": "certs/zenoh_internal/router.crt",
+        "listen_private_key": "certs/zenoh_internal/router.key",
+        "enable_mtls": true // Forces client X.509 cert validation
+      }
+    }
+  },
+
+  "access_control": {
+    "enabled": true,
+    "default_permission": "deny",
+
+    "rules": [
+      {
+        "id": "full_access",
+        "permission": "allow",
+        "flows": ["ingress", "egress"],
+        "messages": ["put", "declare_subscriber", "query", "reply", "delete"],
+        "key_exprs": ["**"]
+      }
+    ],
+
+    "subjects": [
+      {
+        "id": "fastapi_admin",
+        "cert_common_names": ["Emi Mower Backend"]
+      },
+      {
+        "id": "router_b_peer",
+        "cert_common_names": ["Emi Mower Zenoh External"] // Cert used by Router B to link
+      }
+    ],
+
+    "policies": [
+      {
+        "id": "internal_mesh_policy",
+        "subjects": ["fastapi_admin", "router_b_peer"],
+        "rules": ["full_access"]
+      }
+    ]
+  }
+}

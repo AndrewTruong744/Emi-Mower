@@ -35,15 +35,10 @@ class Settings:
         password_part = f":{self.VALKEY_PASSWORD}@" if self.VALKEY_PASSWORD else ""
         return f"redis://{password_part}{self.VALKEY_HOST}:{self.VALKEY_PORT}/{self.VALKEY_DB}"
 
-    # MQTT Configuration
-    MQTT_HOST: str = os.getenv("MQTT_HOST", "localhost")
-    MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
-    MQTT_USERNAME: str | None = os.getenv("MQTT_USERNAME", None) or None
-    MQTT_PASSWORD: str | None = os.getenv("MQTT_PASSWORD", None) or None
-    MQTT_KEEPALIVE: int = int(os.getenv("MQTT_KEEPALIVE", "60"))
-
     CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "your_account_id")
     CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")
+
 
     @property
     def CF_API_URL(self) -> str:

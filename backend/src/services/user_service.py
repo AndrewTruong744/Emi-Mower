@@ -2,13 +2,18 @@ import logging
 import random
 import string
 
+import httpx
 from fastapi.security import HTTPAuthorizationCredentials
 
 from src.repositories.create_user import create_user
+from src.repositories.get_mowers_of_user import (
+    get_mowers_of_user,
+)
 from src.repositories.get_user_data import get_user_data
 from src.repositories.update_user_email import update_user_email
 from src.repositories.update_user_name import update_user_name
 from src.services.auth import verify_gcp_identity
+from src.services.temp_jwt import generate_jwt_token
 
 logger = logging.getLogger("services.user_service")
 
@@ -62,14 +67,10 @@ async def update_user_email_service(user_id: str, new_id_token: str) -> str:
 
     try:
         # Utilize verify_gcp_identity to verify and decode the token
-        cred = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials=new_id_token
-        )
+        cred = HTTPAuthorizationCredentials(scheme="Bearer", credentials=new_id_token)
         decoded_token = await verify_gcp_identity(cred)
     except Exception as verify_err:
-        logger.warning(
-            f"Failed to verify ID token for user email update: {verify_err}"
-        )
+        logger.warning(f"Failed to verify ID token for user email update: {verify_err}")
         return "not allowed"
 
     # Verify that the token claims match the user_id we are trying to update
@@ -108,3 +109,98 @@ async def update_user_name_service(user_id: str, new_user_name: str) -> str:
     return await update_user_name(user_id, new_user_name)
 
 
+async def get_zenoh_jwt_service(user_id: str) -> str:
+    """
+    Generates a JWT token for the user, uses user_id as key and JWT token as password,
+    and calls http://127.0.0.1:8001 to update the auth userpwd password store.
+    Calls get_mowers_of_user to get the list of mowers owned by the user
+    and configures ACL rules, subject, and policy for /mower/{mower_id} routes.
+    Returns the JWT token string or "fail".
+    """
+    logger.info(f"get_zenoh_jwt_service called for user: {user_id}")
+
+    try:
+        # 1. Retrieve list of mowers owned by user
+        mowers_res = await get_mowers_of_user(user_id)
+        if mowers_res == "fail":
+            logger.error(f"Failed to retrieve mowers for user: {user_id}")
+            return "fail"
+
+        mower_ids = []
+        if isinstance(mowers_res, list):
+            for item in mowers_res:
+                if isinstance(item, dict) and "id" in item:
+                    mower_ids.append(str(item["id"]))
+                else:
+                    mower_ids.append(str(item))
+
+        # 2. Generate JWT token
+        jwt_token = generate_jwt_token(user_id)
+        if not jwt_token:
+            logger.error(f"Failed to generate JWT token for user: {user_id}")
+            return "fail"
+
+        # 3. Call http://127.0.0.1:8001 to update Zenoh usrpwd & ACL
+        zenoh_url = "http://127.0.0.1:8001"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Add user_id as key and jwt token as password to usrpwd password store
+            pwd_resp = await client.put(
+                f"{zenoh_url}/config/transport/auth/usrpwd/passwords/{user_id}",
+                content=jwt_token,
+                headers={"Content-Type": "text/plain"},
+            )
+            if pwd_resp.status_code >= 400:
+                logger.warning(
+                    f"Zenoh usrpwd PUT returned status {pwd_resp.status_code},"
+                    " retrying with json..."
+                )
+                await client.put(
+                    f"{zenoh_url}/config/transport/auth/usrpwd/{user_id}",
+                    json={"username": user_id, "password": jwt_token},
+                )
+
+            # Add ACL rules for each mower owned by user
+            rule_ids = []
+            for mower_id in mower_ids:
+                rule_id = f"rule_{user_id}_{mower_id}"
+                rule_ids.append(rule_id)
+                rule_payload = {
+                    "id": rule_id,
+                    "key_expr": f"/mower/{mower_id}/**",
+                    "permission": "allow",
+                }
+                await client.put(
+                    f"{zenoh_url}/config/access_control/rules/{rule_id}",
+                    json=rule_payload,
+                )
+
+            # Add ACL subject for user
+            subject_id = f"subject_{user_id}"
+            subject_payload = {
+                "id": subject_id,
+                "usernames": [user_id],
+            }
+            await client.put(
+                f"{zenoh_url}/config/access_control/subjects/{subject_id}",
+                json=subject_payload,
+            )
+
+            # Add ACL policy linking subject and rules
+            policy_id = f"policy_{user_id}"
+            policy_payload = {
+                "id": policy_id,
+                "subjects": [subject_id],
+                "rules": rule_ids,
+            }
+            await client.put(
+                f"{zenoh_url}/config/access_control/policies/{policy_id}",
+                json=policy_payload,
+            )
+
+        return jwt_token
+    except Exception as err:
+        logger.error(
+            f"Failed to generate Zenoh JWT / configure ACL for user {user_id}: {err}",
+            exc_info=True,
+        )
+        return "fail"
