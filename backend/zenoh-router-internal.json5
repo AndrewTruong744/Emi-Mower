@@ -3,7 +3,7 @@
 
   "listen": {
     "endpoints": [
-      "tls/127.0.0.1:7448" // Private mTLS listener for FastAPI & Router B
+      "tls/0.0.0.0:7448" // Private mTLS listener for FastAPI & Router B
     ]
   },
 
@@ -15,6 +15,12 @@
         "listen_private_key": "certs/zenoh_internal/router.key",
         "enable_mtls": true // Forces client X.509 cert validation
       }
+    }
+  },
+
+  "plugins": {
+    "rest": {
+      "http_port": "127.0.0.1:8002"
     }
   },
 

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -7,36 +8,52 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.database import Base
 
+if TYPE_CHECKING:
+    from src.models.user import UserModel
+
 
 class MowerModel(Base):
     __tablename__ = "mowers"
 
-    # Native PostgreSQL UUID, auto-generated on insert using Python's uuid4
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-
-    serial_number: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    serial_number: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
-    # Foreign key linking back to your String-based Firebase User ID table
-    owner_id: Mapped[str] = mapped_column(
-        String(128), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    owner: Mapped["UserModel | None"] = relationship(
+        "UserModel", back_populates="mowers"
+    )
+    telemetry_records: Mapped[list["MowerTelemetryModel"]] = relationship(
+        "MowerTelemetryModel",
+        back_populates="mower",
+        cascade="all, delete-orphan",
     )
 
 
 class MowerTelemetryModel(Base):
     __tablename__ = "mower_telemetry"
 
-    # Primary Tracking Core
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     mower_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("mowers.id", ondelete="CASCADE"), index=True
+        UUID(as_uuid=True),
+        ForeignKey("mowers.id", ondelete="CASCADE"),
+        index=True,
     )
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
     )
 
     # Location Indicators
@@ -44,7 +61,8 @@ class MowerTelemetryModel(Base):
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     battery_percentage: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Actuator & Motor Metrics (Speed as Float, Direction as Integer: 1=Forward, -1=Reverse, 0=Stopped)
+    # Actuator & Motor Metrics
+    # (Speed as Float, Direction as Integer: 1=Forward, -1=Reverse, 0=Stopped)
     left_motor_speed: Mapped[float] = mapped_column(Float, default=0.0)
     left_motor_direction: Mapped[int] = mapped_column(Integer, default=0)
     right_motor_speed: Mapped[float] = mapped_column(Float, default=0.0)
@@ -86,12 +104,12 @@ class MowerImuModel(Base):
     accel_y: Mapped[float] = mapped_column(Float, nullable=False)
     accel_z: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Gyroscope (rad/s) - Measures rotational orientation changes (pitch, roll, yaw)
+    # Gyroscope (rad/s) - Measures rotational orientation (pitch, roll, yaw)
     gyro_x: Mapped[float] = mapped_column(Float, nullable=False)
     gyro_y: Mapped[float] = mapped_column(Float, nullable=False)
     gyro_z: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Magnetometer (uT) - Acts as a compass to navigate headings relative to Earth's field
+    # Magnetometer (uT) - Compass heading relative to Earth's field
     mag_x: Mapped[float] = mapped_column(Float, nullable=False)
     mag_y: Mapped[float] = mapped_column(Float, nullable=False)
     mag_z: Mapped[float] = mapped_column(Float, nullable=False)

@@ -1,5 +1,12 @@
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.exceptions import (
+    MowerNotFoundError,
+    OwnershipError,
+    ValidationError,
+)
 from src.repositories.add_mower_to_user import add_mower_to_user
 from src.repositories.check_mower_ownership import check_mower_ownership
 from src.repositories.get_mower_data import get_mower_data
@@ -9,20 +16,16 @@ from src.repositories.verify_ownership import verify_ownership
 logger = logging.getLogger("services.mower_service")
 
 
-async def get_mower_data_service(user_id: str, mower_id: str) -> dict | str:
+async def get_mower_data_service(user_id: str, mower_id: str, db: AsyncSession) -> dict:
     """
     Service to retrieve a specific mower's data for a user.
     Calls get_mower_data to fetch all mowers owned by the user
     and returns the one matching mower_id.
-    Returns the mower data dict or "fail".
+    Raises MowerNotFoundError if mower does not exist or user does not own it.
     """
-    logger.info(
-        f"get_mower_data_service called for user {user_id}, mower {mower_id}"
-    )
+    logger.info(f"get_mower_data_service called for user {user_id}, mower {mower_id}")
 
-    mowers = await get_mower_data(user_id)
-    if mowers == "fail":
-        return "fail"
+    mowers = await get_mower_data(user_id, db=db)
 
     # Find the specific mower by ID (which verifies ownership implicitly)
     for mower in mowers:
@@ -32,17 +35,19 @@ async def get_mower_data_service(user_id: str, mower_id: str) -> dict | str:
     logger.warning(
         f"User {user_id} does not own mower {mower_id} or mower does not exist"
     )
-    return "fail"
+    raise MowerNotFoundError(
+        f"Mower '{mower_id}' not found or not owned by user '{user_id}'"
+    )
 
 
 async def update_mower_name_service(
-    user_id: str, mower_id: str, new_name: str
-) -> str:
+    user_id: str, mower_id: str, new_name: str, db: AsyncSession
+) -> None:
     """
     Service to update the nickname of a mower.
     First verifies ownership, then checks that the new name is alphanumeric,
     and finally calls update_mower_name repository.
-    Returns "success", "not allowed", or "fail".
+    Raises ValidationError, OwnershipError, MowerNotFoundError, or RepositoryError.
     """
     logger.info(
         "update_mower_name_service called for user %s, mower %s, name %s",
@@ -53,35 +58,34 @@ async def update_mower_name_service(
 
     # 1. Verify alphanumeric format
     if not new_name.isalnum():
-        logger.warning(
-            f"Nickname update rejected: '{new_name}' is not alphanumeric."
-        )
-        return "fail"
+        logger.warning(f"Nickname update rejected: '{new_name}' is not alphanumeric.")
+        raise ValidationError(f"Nickname '{new_name}' is not alphanumeric")
 
     # 2. Verify ownership
-    is_owner = await verify_ownership(user_id, mower_id)
+    is_owner = await verify_ownership(user_id, mower_id, db=db)
     if not is_owner:
         logger.warning(
             "Ownership verification failed: User %s does not own mower %s",
             user_id,
             mower_id,
         )
-        return "not allowed"
+        raise OwnershipError(f"User {user_id} does not own mower {mower_id}")
 
     # 3. Call repository to update DB and cache
-    return await update_mower_name(mower_id, new_name)
+    await update_mower_name(mower_id, new_name, db=db)
 
 
 async def update_mower_ownership_service(
     current_owner_id: str | None,
     new_owner_id: str | None,
     mower_id: str,
-) -> str:
+    db: AsyncSession,
+) -> None:
     """
     Service to update/transfer mower ownership.
     Checks the actual owner first. If none exists, adds new_owner_id.
     If an owner exists, verifies it matches current_owner_id before transferring.
-    Returns "success", "not_allowed", or "fail".
+    Raises OwnershipError, MowerNotFoundError, or RepositoryError.
     """
     logger.info(
         "update_mower_ownership_service: current=%s, new=%s, mower=%s",
@@ -90,9 +94,7 @@ async def update_mower_ownership_service(
         mower_id,
     )
 
-    actual_owner = await check_mower_ownership(mower_id)
-    if actual_owner == "fail":
-        return "fail"
+    actual_owner = await check_mower_ownership(mower_id, db=db)
 
     # If there is no owner, automatically add new_owner_id
     if actual_owner is None:
@@ -101,7 +103,8 @@ async def update_mower_ownership_service(
             mower_id,
             new_owner_id,
         )
-        return await add_mower_to_user(new_owner_id, mower_id)
+        await add_mower_to_user(new_owner_id, mower_id, db=db)
+        return
 
     # If there is an owner, verify current_owner_id matches actual_owner
     if current_owner_id != actual_owner:
@@ -110,7 +113,9 @@ async def update_mower_ownership_service(
             current_owner_id,
             actual_owner,
         )
-        return "not_allowed"
+        raise OwnershipError(
+            f"Current user {current_owner_id} is not actual owner {actual_owner}"
+        )
 
     logger.info(
         "Transferring mower %s ownership from %s to: %s",
@@ -118,6 +123,4 @@ async def update_mower_ownership_service(
         current_owner_id,
         new_owner_id,
     )
-    return await add_mower_to_user(new_owner_id, mower_id)
-
-
+    await add_mower_to_user(new_owner_id, mower_id, db=db)

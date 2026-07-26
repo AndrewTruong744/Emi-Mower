@@ -39,10 +39,12 @@ class Settings:
     CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")
 
-
     @property
     def CF_API_URL(self) -> str:
-        return os.getenv("CF_API_URL", f"https://api.cloudflare.com/client/v4/accounts/{self.CLOUDFLARE_ACCOUNT_ID}/calls/apps")
+        return os.getenv(
+            "CF_API_URL",
+            f"https://api.cloudflare.com/client/v4/accounts/{self.CLOUDFLARE_ACCOUNT_ID}/calls/apps",
+        )
 
     @property
     def CF_RTC_URL(self) -> str:

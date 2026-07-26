@@ -56,9 +56,7 @@ async def process_key(v_client, temp_key: str) -> None:
         if isinstance(timestamp_val, str):
             try:
                 # fromisoformat handles standard UTC Z/offsets in python 3.11+
-                timestamp = datetime.fromisoformat(
-                    timestamp_val.replace("Z", "+00:00")
-                )
+                timestamp = datetime.fromisoformat(timestamp_val.replace("Z", "+00:00"))
             except Exception as e:
                 logger.warning(
                     "Failed to parse timestamp '%s': %s. Using current UTC.",

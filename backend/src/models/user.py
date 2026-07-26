@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.database import Base
+
+if TYPE_CHECKING:
+    from src.models.mower import MowerModel
 
 
 class UserModel(Base):
@@ -14,3 +19,7 @@ class UserModel(Base):
     )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
+
+    mowers: Mapped[list["MowerModel"]] = relationship(
+        "MowerModel", back_populates="owner"
+    )

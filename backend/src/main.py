@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 
 import valkey.asyncio as valkey
 import zenoh
-from src.api.api_v1 import router as api_v1_router
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.api.api_v1 import router as api_v1_router
 from src.config.database import Base, engine, get_db
 from src.config.valkey_client import close_valkey_pool, get_valkey
 from src.config.zenoh import get_zenoh_config

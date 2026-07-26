@@ -1,7 +1,8 @@
+from fastapi import APIRouter, Depends
+
 from src.api.protected.protected_route import router as auth_router
 from src.api.public.public_route import router as public_router
 from src.services.auth import verify_gcp_identity
-from fastapi import APIRouter, Depends
 
 router = APIRouter()
 
