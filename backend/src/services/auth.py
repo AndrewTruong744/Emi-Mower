@@ -1,12 +1,11 @@
-# src/services/auth.py
 import logging
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
 
-# auto_error=True forces FastAPI to automatically reject requests
-# missing an Authorization header
+from src.exceptions import AuthenticationError
+
 security_scheme = HTTPBearer(auto_error=True)
 logger = logging.getLogger("services.auth")
 
@@ -17,17 +16,14 @@ async def verify_gcp_identity(
     """
     FastAPI dependency that extracts the Bearer token, validates it against
     GCP Identity Platform, and returns the decoded user profile claims.
+    Raises AuthenticationError on failure.
     """
     token = cred.credentials
     try:
-        # Perform offline cryptographical signature & expiration validation
-        # clock_skew_seconds accounts for minor clock drift on mobile devices.
         decoded_token = auth.verify_id_token(token, clock_skew_seconds=10)
         return decoded_token
-    except Exception as e:
-        logger.error(f"Token verification failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid, expired, or tampered authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except Exception as err:
+        logger.error(f"Token verification failed: {err}", exc_info=True)
+        raise AuthenticationError(
+            "Invalid, expired, or tampered authentication credentials"
+        ) from err

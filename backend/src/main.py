@@ -9,11 +9,17 @@ from sqlalchemy import String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.api.api_v1 import router as api_v1_router
-from src.config.database import Base, engine, get_db
-from src.config.valkey_client import close_valkey_pool, get_valkey
-from src.config.zenoh import get_zenoh_config
-from src.services.firebase_init import initialize_backend_auth
+from src.api import api_v1_router
+from src.config import (
+    Base,
+    close_valkey_pool,
+    engine,
+    get_db,
+    get_valkey,
+    get_zenoh_config,
+)
+from src.exception_handlers import register_exception_handlers
+from src.services import initialize_backend_auth
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,7 +53,7 @@ async def lifespan(app: FastAPI):
     # Startup: Verify Valkey connection
     logger.info("Testing Valkey connection...")
     try:
-        from src.config.valkey_client import get_valkey_client
+        from src.config import get_valkey_client
 
         v_client = get_valkey_client()
         await v_client.ping()
@@ -88,6 +94,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+register_exception_handlers(app)
 
 app.include_router(api_v1_router, prefix="/api/v1", tags=["api"])
 

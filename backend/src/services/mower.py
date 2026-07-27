@@ -7,11 +7,13 @@ from src.exceptions import (
     OwnershipError,
     ValidationError,
 )
-from src.repositories.add_mower_to_user import add_mower_to_user
-from src.repositories.check_mower_ownership import check_mower_ownership
-from src.repositories.get_mower_data import get_mower_data
-from src.repositories.update_mower_name import update_mower_name
-from src.repositories.verify_ownership import verify_ownership
+from src.repositories import (
+    add_mower_to_user,
+    check_mower_ownership,
+    get_mower_data,
+    update_mower_name,
+    verify_ownership,
+)
 
 logger = logging.getLogger("services.mower_service")
 

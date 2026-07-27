@@ -12,11 +12,13 @@ from src.exceptions import (
     ForbiddenError,
     ValidationError,
 )
-from src.repositories.create_user import create_user
-from src.repositories.get_mowers_of_user import get_mowers_of_user
-from src.repositories.get_user_data import get_user_data
-from src.repositories.update_user_email import update_user_email
-from src.repositories.update_user_name import update_user_name
+from src.repositories import (
+    create_user,
+    get_mowers_of_user,
+    get_user_data,
+    update_user_email,
+    update_user_name,
+)
 from src.services.auth import verify_gcp_identity
 from src.services.temp_jwt import generate_jwt_token
 
@@ -130,20 +132,9 @@ async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
     """
     logger.info(f"get_zenoh_jwt_service called for user: {user_id}")
 
-    mowers_res = await get_mowers_of_user(user_id, db=db)
-
-    mower_ids = []
-    if isinstance(mowers_res, list):
-        for item in mowers_res:
-            if isinstance(item, dict) and "id" in item:
-                mower_ids.append(str(item["id"]))
-            else:
-                mower_ids.append(str(item))
+    mower_ids = await get_mowers_of_user(user_id, db=db)
 
     jwt_token = generate_jwt_token(user_id)
-    if not jwt_token:
-        logger.error(f"Failed to generate JWT token for user: {user_id}")
-        raise ExternalServiceError(f"Failed to generate JWT token for user: {user_id}")
 
     rule_id = f"rule_{user_id}"
     subject_id = f"subject_{user_id}"

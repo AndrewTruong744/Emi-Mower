@@ -55,3 +55,17 @@ class ExternalServiceError(BaseAppException):
     """Raised when an external service call fails (e.g., Zenoh REST API, Cloudflare)."""
 
     pass
+
+
+class TokenGenerationError(BaseAppException):
+    """Raised when JWT or security token generation fails."""
+
+    pass
+
+
+class AuthenticationError(BaseAppException):
+    """Raised when user token verification or GCP Identity authentication fails."""
+
+    pass
+
+

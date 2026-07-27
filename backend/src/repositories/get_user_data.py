@@ -25,7 +25,7 @@ async def get_user_data(user_id: str, db: AsyncSession) -> dict:
         # 1. Check Valkey
         async with get_valkey_client() as v_client:
             cached = await v_client.get(valkey_key)
-            if cached:
+            if cached is not None:
                 logger.info(f"Valkey cache hit for user data key: {valkey_key}")
                 try:
                     user_data = json.loads(cached)

@@ -21,7 +21,7 @@ async def get_mower_data(user_id: str, db: AsyncSession) -> list[dict]:
     try:
         async with get_valkey_client() as v_client:
             cached_mower_ids = await v_client.get(valkey_user_mowers_key)
-            if cached_mower_ids:
+            if cached_mower_ids is not None:
                 mower_ids = json.loads(cached_mower_ids)
                 pipeline = v_client.pipeline()
                 for m_id in mower_ids:

@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from src.api.protected.mower_route import router as mower_router
-from src.api.protected.user_route import router as user_router
-from src.api.protected.yard_route import router as yard_router
+from src.api.protected.mower import router as mower_router
+from src.api.protected.user import router as user_router
+from src.api.protected.yard import router as yard_router
 
 router = APIRouter()
 
