@@ -7,6 +7,7 @@ import httpx
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import ZenohAdminClient
 from src.exceptions import (
     ExternalServiceError,
     ForbiddenError,
@@ -22,7 +23,7 @@ from src.repositories import (
 from src.services.auth import verify_gcp_identity
 from src.services.temp_jwt import generate_jwt_token
 
-logger = logging.getLogger("services.user_service")
+logger = logging.getLogger("services.user")
 
 
 async def create_user_service(id_token: dict, db: AsyncSession) -> dict:
@@ -102,18 +103,16 @@ async def update_user_name_service(
     user_id: str, new_user_name: str, db: AsyncSession
 ) -> None:
     """
-    Service to update the name of a user.
-    First ensures the name is alphanumeric, then calls update_user_name CRUD.
+    Service to update the nickname/user name of a user.
+    Verifies that the new name is alphanumeric and non-empty.
     Raises ValidationError, UserNotFoundError, or RepositoryError.
     """
     logger.info(
         f"update_user_name_service called for user: {user_id}, name: {new_user_name}"
     )
 
-    if not new_user_name.isalnum():
-        logger.warning(
-            f"User name update rejected: '{new_user_name}' is not alphanumeric."
-        )
+    if not new_user_name or not new_user_name.isalnum():
+        logger.warning(f"User name update rejected: '{new_user_name}' is not alphanumeric.")
         raise ValidationError(f"User name '{new_user_name}' is not alphanumeric")
 
     await update_user_name(user_id, new_user_name, db=db)
@@ -121,110 +120,19 @@ async def update_user_name_service(
 
 async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
     """
-    Generates a JWT token for the user, uses user_id as key and JWT token as password.
-    Executes 4 targeted individual HTTP PUT requests to Zenoh REST API:
-    - dictionary/{user_id}
-    - rules/{rule_id}
-    - subjects/{subject_id}
-    - policies/{policy_id}
-    Safely updates user credentials and ACLs without overwriting other users' ACLs.
+    Generates a JWT token for the user and configures Zenoh router ACLs via ZenohAdminClient.
     Returns the JWT token string or raises ExternalServiceError / RepositoryError.
     """
     logger.info(f"get_zenoh_jwt_service called for user: {user_id}")
 
     mower_ids = await get_mowers_of_user(user_id, db=db)
-
     jwt_token = generate_jwt_token(user_id)
 
-    rule_id = f"rule_{user_id}"
-    subject_id = f"subject_{user_id}"
-    policy_id = f"policy_{user_id}"
-    key_exprs = [f"mower/{m_id}/**" for m_id in mower_ids]
+    zenoh_client = ZenohAdminClient()
+    await zenoh_client.configure_user_app(
+        user_id=user_id,
+        jwt_token=jwt_token,
+        mower_ids=mower_ids,
+    )
 
-    zenoh_url = "http://127.0.0.1:8001"
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # 1. Update usrpwd dictionary specifically for user_id (non-destructive)
-            pwd_resp = await client.put(
-                f"{zenoh_url}/@/config/transport/auth/usrpwd/dictionary/{user_id}",
-                content=json.dumps(jwt_token),
-                headers={"Content-Type": "application/json"},
-            )
-            if pwd_resp.status_code >= 400:
-                logger.error(
-                    f"Zenoh usrpwd dictionary PUT returned HTTP {pwd_resp.status_code}"
-                )
-                raise ExternalServiceError(
-                    f"Failed to update Zenoh usrpwd: HTTP {pwd_resp.status_code}"
-                )
-
-            # 2. Add/update targeted ACL rule for user
-            rule_payload = {
-                "id": rule_id,
-                "permission": "allow",
-                "flows": ["ingress", "egress"],
-                "messages": [
-                    "put",
-                    "declare_subscriber",
-                    "query",
-                    "reply",
-                    "delete",
-                ],
-                "key_exprs": key_exprs,
-            }
-            rule_resp = await client.put(
-                f"{zenoh_url}/@/config/access_control/rules/{rule_id}",
-                json=rule_payload,
-            )
-            if rule_resp.status_code >= 400:
-                logger.error(f"Zenoh rule PUT returned HTTP {rule_resp.status_code}")
-                raise ExternalServiceError(
-                    f"Failed to update Zenoh rule: HTTP {rule_resp.status_code}"
-                )
-
-            # 3. Add/update targeted ACL subject for user
-            subject_payload = {
-                "id": subject_id,
-                "usernames": [user_id],
-            }
-            subject_resp = await client.put(
-                f"{zenoh_url}/@/config/access_control/subjects/{subject_id}",
-                json=subject_payload,
-            )
-            if subject_resp.status_code >= 400:
-                logger.error(
-                    f"Zenoh subject PUT returned HTTP {subject_resp.status_code}"
-                )
-                raise ExternalServiceError(
-                    f"Failed to update Zenoh subject: HTTP {subject_resp.status_code}"
-                )
-
-            # 4. Add/update targeted ACL policy linking user subject & rule
-            policy_payload = {
-                "id": policy_id,
-                "subjects": [subject_id],
-                "rules": [rule_id],
-            }
-            policy_resp = await client.put(
-                f"{zenoh_url}/@/config/access_control/policies/{policy_id}",
-                json=policy_payload,
-            )
-            if policy_resp.status_code >= 400:
-                logger.error(
-                    f"Zenoh policy PUT returned HTTP {policy_resp.status_code}"
-                )
-                raise ExternalServiceError(
-                    f"Failed to update Zenoh policy: HTTP {policy_resp.status_code}"
-                )
-
-        return jwt_token
-    except ExternalServiceError:
-        raise
-    except Exception as err:
-        logger.error(
-            f"Failed to generate Zenoh JWT / configure ACL for user {user_id}: {err}",
-            exc_info=True,
-        )
-        raise ExternalServiceError(
-            f"Failed to configure Zenoh ACL for user {user_id}"
-        ) from err
+    return jwt_token

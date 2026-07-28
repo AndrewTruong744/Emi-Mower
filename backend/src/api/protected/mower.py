@@ -22,7 +22,7 @@ logger = logging.getLogger("api.mower")
 router = APIRouter()
 
 
-@router.get("/data", response_model=GetMowerDataResponse)
+@router.get("/{mower_id}/data", response_model=GetMowerDataResponse)
 async def get_mower_data_endpoint(
     mower_id: str,
     id_token: dict = Depends(verify_gcp_identity),
@@ -30,10 +30,10 @@ async def get_mower_data_endpoint(
 ) -> GetMowerDataResponse:
     """
     GET route to retrieve details of a specific mower.
-    mower_id is provided via query parameter ?mower_id=...
+    mower_id is provided via URL path parameter /{mower_id}/data.
     Ensures that the authenticated user owns the mower through mower service.
     """
-    logger.info(f"GET /mower/data endpoint triggered for mower {mower_id}")
+    logger.info(f"GET /mower/{mower_id}/data endpoint triggered")
     user_id = id_token.get("uid") or id_token.get("user_id")
 
     result = await get_mower_data_service(user_id=user_id, mower_id=mower_id, db=db)
@@ -43,55 +43,57 @@ async def get_mower_data_endpoint(
     )
 
 
-@router.patch("/name", response_model=UpdateMowerNameResponse)
+@router.patch("/{mower_id}/name", response_model=UpdateMowerNameResponse)
 async def update_mower_name_endpoint(
+    mower_id: str,
     payload: UpdateMowerNameRequest,
     id_token: dict = Depends(verify_gcp_identity),
     db: AsyncSession = Depends(get_db),
 ) -> UpdateMowerNameResponse:
     """
     PATCH route to update the name/nickname of a mower.
+    mower_id is provided via URL path parameter /{mower_id}/name.
     Requires ownership verification.
     """
-    logger.info(f"PATCH /mower/name endpoint triggered for mower {payload.mower_id}")
+    logger.info(f"PATCH /mower/{mower_id}/name endpoint triggered")
     user_id = id_token.get("uid") or id_token.get("user_id")
 
     await update_mower_name_service(
         user_id=user_id,
-        mower_id=payload.mower_id,
+        mower_id=mower_id,
         new_name=payload.new_name,
         db=db,
     )
     return UpdateMowerNameResponse(
         message="Mower name updated successfully",
-        mower_id=payload.mower_id,
+        mower_id=mower_id,
         new_name=payload.new_name,
     )
 
 
-@router.patch("/ownership", response_model=UpdateMowerOwnershipResponse)
+@router.patch("/{mower_id}/ownership", response_model=UpdateMowerOwnershipResponse)
 async def update_mower_ownership_endpoint(
+    mower_id: str,
     payload: UpdateMowerOwnershipRequest,
     id_token: dict = Depends(verify_gcp_identity),
     db: AsyncSession = Depends(get_db),
 ) -> UpdateMowerOwnershipResponse:
     """
     PATCH route to update mower ownership.
-    Calls update_mower_ownership_service and returns 200, 403, or 500 status code.
+    mower_id is provided via URL path parameter /{mower_id}/ownership.
+    Calls update_mower_ownership_service.
     """
-    logger.info(
-        f"PATCH /mower/ownership endpoint triggered for mower {payload.mower_id}"
-    )
+    logger.info(f"PATCH /mower/{mower_id}/ownership endpoint triggered")
     current_owner_id = id_token.get("uid") or id_token.get("user_id")
 
     await update_mower_ownership_service(
         current_owner_id=current_owner_id,
         new_owner_id=payload.new_owner_id,
-        mower_id=payload.mower_id,
+        mower_id=mower_id,
         db=db,
     )
     return UpdateMowerOwnershipResponse(
         message="Mower ownership updated successfully",
-        mower_id=payload.mower_id,
+        mower_id=mower_id,
         new_owner_id=payload.new_owner_id,
     )

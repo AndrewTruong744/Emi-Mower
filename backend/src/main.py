@@ -12,11 +12,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.api import api_v1_router
 from src.config import (
     Base,
+    close_http_client,
     close_valkey_pool,
     engine,
     get_db,
     get_valkey,
     get_zenoh_config,
+    init_http_client,
 )
 from src.exception_handlers import register_exception_handlers
 from src.services import initialize_backend_auth
@@ -38,6 +40,10 @@ class Item(Base):
 # Lifespan manager for startup and shutdown events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Initialize shared HTTP client pool
+    logger.info("Initializing HTTP client pool...")
+    init_http_client()
+
     # Startup: Initialize Firebase Admin SDK
     initialize_backend_auth()
 
@@ -86,6 +92,10 @@ async def lifespan(app: FastAPI):
     logger.info("Closing Valkey connection pool...")
     await close_valkey_pool()
     logger.info("Valkey connection pool closed.")
+
+    logger.info("Closing HTTP client pool...")
+    await close_http_client()
+    logger.info("HTTP client pool closed.")
 
 
 app = FastAPI(
