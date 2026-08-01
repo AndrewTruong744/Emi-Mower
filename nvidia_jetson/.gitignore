@@ -9,3 +9,7 @@
 # Ignore Python compiler caches
 __pycache__/
 *.pyc
+
+.venv
+
+.key
