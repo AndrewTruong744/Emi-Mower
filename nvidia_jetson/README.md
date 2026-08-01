@@ -1,8 +1,10 @@
 ## Setup
 
+### Nvidia jetson setup
 - install NVIDIA Jetpack iso
 - use balena etcher to transfer image to usb
 
+### ros installation
 - sudo apt update && sudo apt install locales -y
 - sudo locale-gen en_US en_US.UTF-8
 - sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
@@ -14,14 +16,19 @@
 - sudo apt update && sudo apt upgrade -y
 - sudo apt install ros-jazzy-desktop ros-dev-tools python3-colcon-common-extensions -y
 
-- source /opt/ros/jazzy/setup.bash
-- cd into ros_ws
-- sudo apt install python3.12-venv
-- python3 -m venv --system-site-packages .venv
-- source .venv/bin/activate
-
+### OAKD S2 setup
+- cd ~/ros_ws
+- rosdep install --from-paths src --ignore-src -r -y
 - colcon build --symlink-install
-- rosdep update
+- source install/setup.bash
+
+## Slamtec Lidar S2
+cd ~/ros_ws
+colcon build --symlink-install
+source install/setup.bash
+cd ~/ros_ws/src/sllidar_ros2/scripts
+sudo chmod +x create_udev_rules.sh
+./create_udev_rules.sh
 
 
 ## Mower key (in mower)

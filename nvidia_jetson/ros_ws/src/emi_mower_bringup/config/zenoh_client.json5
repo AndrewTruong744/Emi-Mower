@@ -1,0 +1,30 @@
+{
+  // Set mode to "client" so it connects directly to your backend router
+  mode: "client",
+
+  // Define connection endpoints to your backend server
+  connect: {
+    endpoints: [
+      // Format: tls://<BACKEND_DOMAIN_OR_IP>:<PORT>
+      "tls://backend.yourdomain.com:7447"
+    ]
+  },
+
+  // Configure mTLS transport parameters
+  transport: {
+    link: {
+      tls: {
+        // Path to the client's own x509 certificate signed by your CA
+        // The CN in this cert MUST match your mower ID (e.g., CN=mower-01)
+        certificate: "/etc/mower/certs/mower_cert.pem",
+
+        // Path to the client's private key
+        private_key: "/etc/mower/certs/mower_key.pem",
+
+        // Path to your Root Certificate Authority (CA) cert
+        // Used to verify that the backend router's server cert is authentic
+        root_ca_certificate: "/etc/mower/certs/root_ca.pem"
+      }
+    }
+  }
+}

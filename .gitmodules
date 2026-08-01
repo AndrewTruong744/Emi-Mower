@@ -1,0 +1,6 @@
+[submodule "nvidia_jetson/ros_ws/src/sllidar_ros2"]
+	path = nvidia_jetson/ros_ws/src/sllidar_ros2
+	url = https://github.com/Slamtec/sllidar_ros2.git
+[submodule "nvidia_jetson/ros_ws/src/depthai-ros"]
+	path = nvidia_jetson/ros_ws/src/depthai-ros
+	url = https://github.com/luxonis/depthai-ros.git
