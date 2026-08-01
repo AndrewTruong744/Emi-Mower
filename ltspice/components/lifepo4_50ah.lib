@@ -1,0 +1,33 @@
+* ============================================================
+* 3.2V 50Ah LiFePO4 Battery Model (50A Continuous Output)
+* Terminals: POS NEG SOC_OUT
+* ============================================================
+.subckt LiFePO4_50Ah POS NEG SOC_OUT
+
+* --- Parameters ---
+.param CAP_AH = 50        ; Capacity in Amp-hours
+.param R_INT  = 0.0015    ; Internal DC resistance (1.5 mOhm)
+.param R_DIFF = 0.0020    ; Diffusion resistance (2.0 mOhm)
+.param C_DIFF = 5000      ; Diffusion capacitance (5000 Farads)
+
+* --- 1. State of Charge (SOC) Integrator ---
+* Capacity in Coulombs = 50Ah * 3600s = 180,000 C
+* A 180kF capacitor charged with 1A loses 1V in 180,000s (50 hours).
+* 1V at SOC_OUT = 100% SOC, 0V = 0% SOC.
+C_soc SOC_OUT 0 {CAP_AH * 3600} ic=1.0
+R_self_discharge SOC_OUT 0 10 Meg ; High resistance self-discharge
+
+* Current sensing into SOC integrator (Current leaving POS discharges C_soc)
+G_soc_discharge SOC_OUT 0 Value = { I(V_sense) / (CAP_AH * 3600) }
+V_sense POS POS_int 0V
+
+* --- 2. LiFePO4 Open Circuit Voltage (OCV) Lookup ---
+* LiFePO4 OCV curve: Extremely flat 3.3V-3.2V plateau, sharp knees at <10% and >90%
+B_ocv OCV_node NEG Value = { 2.8 + 0.5*V(SOC_OUT) + 0.15*ln(V(SOC_OUT)+0.001) - 0.15*ln(1.001-V(SOC_OUT)) }
+
+* --- 3. Internal Impedance & Transient Relaxation ---
+R_internal POS_int OCV_int {R_INT}
+R_transient OCV_int OCV_node {R_DIFF}
+C_transient OCV_int OCV_node {C_DIFF}
+
+.ends LiFePO4_50Ah
