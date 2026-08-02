@@ -1,13 +1,17 @@
 import asyncio
-import json
 import logging
 import sys
 import uuid
-from datetime import datetime, timezone
 
 from src.config.database import AsyncSessionLocal
 from src.config.valkey_client import get_valkey_client
 from src.models.mower import MowerImuModel, MowerTelemetryModel
+from src.schemas.valkey import (
+    MOWER_TELEMETRY_PATTERN,
+    MOWER_TELEMETRY_TEMP_PATTERN,
+    TelemetryRecordCache,
+    mower_telemetry_temp_key,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -35,67 +39,47 @@ async def process_key(v_client, temp_key: str) -> None:
 
     for item in items:
         try:
-            data_dict = json.loads(item)
+            record = TelemetryRecordCache.model_validate_json(item)
         except Exception as e:
-            logger.error(f"Failed to parse JSON item from list: {e}. Skipping.")
-            continue
-
-        mower_id_str = data_dict.get("mower_id")
-        if not mower_id_str:
-            logger.error("Missing mower_id in telemetry item. Skipping.")
+            logger.error(f"Failed to validate telemetry item: {e}. Skipping.")
             continue
 
         try:
-            mower_id = uuid.UUID(mower_id_str)
+            mower_id = uuid.UUID(record.mower_id)
         except ValueError as e:
-            logger.error(f"Invalid mower_uuid format '{mower_id_str}': {e}. Skipping.")
+            logger.error(
+                f"Invalid mower_uuid format '{record.mower_id}': {e}. Skipping."
+            )
             continue
-
-        # Parse timestamp (expecting ISO format)
-        timestamp_val = data_dict.get("timestamp")
-        if isinstance(timestamp_val, str):
-            try:
-                # fromisoformat handles standard UTC Z/offsets in python 3.11+
-                timestamp = datetime.fromisoformat(timestamp_val.replace("Z", "+00:00"))
-            except Exception as e:
-                logger.warning(
-                    "Failed to parse timestamp '%s': %s. Using current UTC.",
-                    timestamp_val,
-                    e,
-                )
-                timestamp = datetime.now(timezone.utc)
-        else:
-            timestamp = datetime.now(timezone.utc)
 
         telemetry_entry = MowerTelemetryModel(
             mower_id=mower_id,
-            timestamp=timestamp,
-            latitude=float(data_dict.get("latitude", 0.0)),
-            longitude=float(data_dict.get("longitude", 0.0)),
-            battery_percentage=int(data_dict.get("battery_percentage", 0)),
-            left_motor_speed=float(data_dict.get("left_motor_speed", 0.0)),
-            left_motor_direction=int(data_dict.get("left_motor_direction", 0)),
-            right_motor_speed=float(data_dict.get("right_motor_speed", 0.0)),
-            right_motor_direction=int(data_dict.get("right_motor_direction", 0)),
-            cutting_motor_speed=float(data_dict.get("cutting_motor_speed", 0.0)),
-            slippage_detected=bool(data_dict.get("slippage_detected", False)),
-            rgb_image_url=data_dict.get("rgb_image_url"),
-            lidar_image_url=data_dict.get("lidar_image_url"),
+            timestamp=record.timestamp,
+            latitude=record.latitude,
+            longitude=record.longitude,
+            battery_percentage=record.battery_percentage,
+            left_motor_speed=record.left_motor_speed,
+            left_motor_direction=record.left_motor_direction,
+            right_motor_speed=record.right_motor_speed,
+            right_motor_direction=record.right_motor_direction,
+            cutting_motor_speed=record.cutting_motor_speed,
+            slippage_detected=record.slippage_detected,
+            rgb_image_url=record.rgb_image_url,
+            lidar_image_url=record.lidar_image_url,
         )
 
         # Parse nested IMU data if exists
-        imu_dict = data_dict.get("imu_data")
-        if imu_dict and isinstance(imu_dict, dict):
+        if record.imu_data is not None:
             imu_entry = MowerImuModel(
-                accel_x=float(imu_dict.get("accel_x", 0.0)),
-                accel_y=float(imu_dict.get("accel_y", 0.0)),
-                accel_z=float(imu_dict.get("accel_z", 0.0)),
-                gyro_x=float(imu_dict.get("gyro_x", 0.0)),
-                gyro_y=float(imu_dict.get("gyro_y", 0.0)),
-                gyro_z=float(imu_dict.get("gyro_z", 0.0)),
-                mag_x=float(imu_dict.get("mag_x", 0.0)),
-                mag_y=float(imu_dict.get("mag_y", 0.0)),
-                mag_z=float(imu_dict.get("mag_z", 0.0)),
+                accel_x=record.imu_data.accel_x,
+                accel_y=record.imu_data.accel_y,
+                accel_z=record.imu_data.accel_z,
+                gyro_x=record.imu_data.gyro_x,
+                gyro_y=record.imu_data.gyro_y,
+                gyro_z=record.imu_data.gyro_z,
+                mag_x=record.imu_data.mag_x,
+                mag_y=record.imu_data.mag_y,
+                mag_z=record.imu_data.mag_z,
             )
             telemetry_entry.imu_data = imu_entry
 
@@ -137,14 +121,14 @@ async def run_sync_cycle() -> None:
     v_client = get_valkey_client()
     try:
         # 1. First, check for and process any leftover temp keys (from crashed run)
-        temp_keys = await v_client.keys("mower:*:telemetry:data:temp")
+        temp_keys = await v_client.keys(MOWER_TELEMETRY_TEMP_PATTERN)
         if temp_keys:
             logger.info(f"Found {len(temp_keys)} leftover temp keys to process.")
             for temp_key in temp_keys:
                 await process_key(v_client, temp_key)
 
         # 2. Scan for active telemetry lists
-        active_keys = await v_client.keys("mower:*:telemetry:data")
+        active_keys = await v_client.keys(MOWER_TELEMETRY_PATTERN)
         if not active_keys:
             logger.info("No new telemetry data found in Valkey.")
             return
@@ -153,7 +137,8 @@ async def run_sync_cycle() -> None:
 
         # 3. Rename active keys to temp keys and process them
         for key in active_keys:
-            temp_key = f"{key}:temp"
+            mower_id = key.split(":", 2)[1]
+            temp_key = mower_telemetry_temp_key(mower_id)
             try:
                 # Rename is atomic
                 await v_client.rename(key, temp_key)

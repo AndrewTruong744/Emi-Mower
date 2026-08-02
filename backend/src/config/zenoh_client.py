@@ -1,5 +1,8 @@
+"""Client for dynamically managing Zenoh credentials and ACLs."""
+
 import json
 import logging
+
 import httpx
 
 from src.config.http_client import get_http_client
@@ -9,7 +12,7 @@ logger = logging.getLogger("config.zenoh_client")
 
 
 class ZenohAdminClient:
-    """Client for managing Zenoh router configuration and ACLs via Zenoh REST API."""
+    """Manage Zenoh ACLs and credentials through the admin REST API."""
 
     def __init__(
         self,
@@ -26,100 +29,101 @@ class ZenohAdminClient:
         return get_http_client()
 
     async def _put(self, path: str, payload: dict | str) -> None:
-        client = self.client
-        url = f"{self.base_url}{path}"
         try:
             if isinstance(payload, str):
-                resp = await client.put(
-                    url,
+                response = await self.client.put(
+                    f"{self.base_url}{path}",
                     content=payload,
                     headers={"Content-Type": "application/json"},
                 )
             else:
-                resp = await client.put(url, json=payload)
-
-            if resp.status_code >= 400:
-                logger.error(
-                    f"Zenoh REST PUT {path} failed with HTTP {resp.status_code}: {resp.text}"
+                response = await self.client.put(
+                    f"{self.base_url}{path}", json=payload
                 )
-                raise ExternalServiceError(
-                    f"Zenoh API error (HTTP {resp.status_code})"
-                )
-        except ExternalServiceError:
-            raise
+            response.raise_for_status()
+        except httpx.HTTPStatusError as err:
+            logger.error("Zenoh REST PUT %s failed: %s", path, err.response.text)
+            raise ExternalServiceError(
+                f"Zenoh API error (HTTP {err.response.status_code})"
+            ) from err
         except httpx.HTTPError as err:
-            logger.error(
-                f"Network error connecting to Zenoh REST API at {path}: {err}"
-            )
+            logger.error("Zenoh REST request failed for %s: %s", path, err)
+            raise ExternalServiceError(
+                "Failed to communicate with Zenoh router"
+            ) from err
+
+    async def _delete(self, path: str) -> None:
+        try:
+            response = await self.client.delete(f"{self.base_url}{path}")
+            if response.status_code not in (200, 204, 404):
+                response.raise_for_status()
+        except httpx.HTTPError as err:
+            logger.error("Zenoh REST DELETE %s failed: %s", path, err)
             raise ExternalServiceError(
                 "Failed to communicate with Zenoh router"
             ) from err
 
     async def _apply_acl_triad(
         self,
+        *,
         subject_username: str,
         rule_id: str,
         subject_id: str,
         policy_id: str,
         key_exprs: list[str],
     ) -> None:
-        """Helper to create or update the rule -> subject -> policy triad in Zenoh."""
-        # 1. Update Rule
-        rule_payload = {
-            "id": rule_id,
-            "permission": "allow",
-            "flows": ["ingress", "egress"],
-            "messages": [
-                "put",
-                "declare_subscriber",
-                "query",
-                "reply",
-                "delete",
-            ],
-            "key_exprs": key_exprs,
-        }
         await self._put(
-            f"/@/config/access_control/rules/{rule_id}", rule_payload
+            f"/@/config/access_control/rules/{rule_id}",
+            {
+                "id": rule_id,
+                "permission": "allow",
+                "flows": ["ingress", "egress"],
+                "messages": [
+                    "put",
+                    "declare_subscriber",
+                    "query",
+                    "reply",
+                    "delete",
+                ],
+                "key_exprs": key_exprs,
+            },
         )
-
-        # 2. Update Subject
-        subject_payload = {"id": subject_id, "usernames": [subject_username]}
         await self._put(
             f"/@/config/access_control/subjects/{subject_id}",
-            subject_payload,
+            {"id": subject_id, "usernames": [subject_username]},
         )
-
-        # 3. Update Policy
-        policy_payload = {
-            "id": policy_id,
-            "subjects": [subject_id],
-            "rules": [rule_id],
-        }
         await self._put(
-            f"/@/config/access_control/policies/{policy_id}", policy_payload
+            f"/@/config/access_control/policies/{policy_id}",
+            {
+                "id": policy_id,
+                "subjects": [subject_id],
+                "rules": [rule_id],
+            },
         )
 
-    # ==========================================
-    # 1. USER APP CONFIGURATION
-    # ==========================================
     async def configure_user_app(
-        self, user_id: str, jwt_token: str, mower_ids: list[str]
+        self,
+        user_id: str,
+        mower_ids: list[str],
+        password: str | None = None,
     ) -> None:
-        """Sets credentials and ACL permissions for a human user app across all their mowers."""
-        # Update Password Dictionary
-        await self._put(
-            f"/@/config/transport/auth/usrpwd/dictionary/{user_id}",
-            json.dumps(jwt_token),
-        )
+        """Configure a user's ACL and optionally provision its password.
 
-        # Key expressions for user app (access to all owned mowers)
+        ``password`` is intentionally optional so ACL bootstrap never creates
+        preset user credentials. Runtime login supplies the five-minute JWT as
+        the Zenoh password.
+        """
+        if password is not None:
+            await self._put(
+                f"/@/config/transport/auth/usrpwd/dictionary/{user_id}",
+                json.dumps(password),
+            )
+
         key_exprs = (
-            [f"mower/{m_id}/**" for m_id in mower_ids]
+            [f"mower/{mower_id}/**" for mower_id in mower_ids]
             if mower_ids
             else [f"unassigned/{user_id}/deny"]
         )
-
-        # Apply Rule/Subject/Policy
         await self._apply_acl_triad(
             subject_username=user_id,
             rule_id=f"rule_{user_id}",
@@ -128,27 +132,18 @@ class ZenohAdminClient:
             key_exprs=key_exprs,
         )
 
-    # ==========================================
-    # 2. MOWER DEVICE CONFIGURATION
-    # ==========================================
-    async def configure_mower_device(
-        self, mower_id: str, device_token: str
-    ) -> None:
-        """Sets credentials and ACL permissions for a mower edge device to access only its own key space."""
-        # Update Password Dictionary for Mower
-        await self._put(
-            f"/@/config/transport/auth/usrpwd/dictionary/{mower_id}",
-            json.dumps(device_token),
-        )
-
-        # Key expressions for mower (isolated exclusively to mower/{mower_id}/**)
-        key_exprs = [f"mower/{mower_id}/**"]
-
-        # Apply Rule/Subject/Policy
+    async def configure_mower_device(self, mower_id: str) -> None:
+        """Configure a mower ACL without creating a preset credential."""
         await self._apply_acl_triad(
             subject_username=mower_id,
             rule_id=f"rule_mower_{mower_id}",
             subject_id=f"subject_mower_{mower_id}",
             policy_id=f"policy_mower_{mower_id}",
-            key_exprs=key_exprs,
+            key_exprs=[f"mower/{mower_id}/**"],
+        )
+
+    async def delete_user_password(self, user_id: str) -> None:
+        """Remove one dynamically provisioned user credential."""
+        await self._delete(
+            f"/@/config/transport/auth/usrpwd/dictionary/{user_id}"
         )

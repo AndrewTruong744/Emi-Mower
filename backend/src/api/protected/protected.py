@@ -1,11 +1,9 @@
 from fastapi import APIRouter
 
-from src.api.protected.mower import router as mower_router
-from src.api.protected.user import router as user_router
-from src.api.protected.yard import router as yard_router
-
 router = APIRouter()
 
-router.include_router(user_router, prefix="/user", tags=["user"])
-router.include_router(mower_router, prefix="/mower", tags=["mower"])
-router.include_router(yard_router, prefix="/yard", tags=["yard"])
+
+@router.get("")
+async def protected_status() -> dict[str, str]:
+    """Authenticated status endpoint preserving the protected API namespace."""
+    return {"status": "protected"}

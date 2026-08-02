@@ -11,6 +11,7 @@
 - sudo apt install -y postgresql-18 postgresql-contrib-18
 - sudo -u postgres psql
 - CREATE DATABASE "EmiMower";
+- CREATE DATABASE "EmiMower-test";
 - ALTER USER postgres WITH PASSWORD 'password';
 
 ## valkey
@@ -41,7 +42,7 @@
   -out server.crt -days 365 -sha256 \
   -extfile server.cnf -extensions req_ext
 
-## Server key (zenoh_internal and zenoh_external)
+## Server key (zenoh_app and zenoh_mtls)
 
 - make sure to edit IP.3 to point to your development ipv4 addr (ip a)
 - openssl genrsa -out router.key 2048
@@ -65,6 +66,20 @@
 - Certificate Authority keys
 - GCP serviceAccount.json
 
+## Docker / Docker Compose
+- sudo apt update
+- sudo apt install -y ca-certificates curl gnupg
+- sudo install -m 0755 -d /etc/apt/keyrings
+- curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+- sudo chmod a+r /etc/apt/keyrings/docker.gpg
+- echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+- sudo apt update
+- sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+- sudo usermod -aG docker $USER
+
 # To Run
 
 - uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
@@ -77,6 +92,7 @@
 # Postgres
 
 - sudo -u postgres psql -d EmiMower (access)
+- psql -U postgres -h 127.0.0.1 -d EmiMower (access)
 
 # Valkey
 
@@ -85,6 +101,11 @@
 
 # Zenoh
 - zenohd --config zenoh-router.json5 (in backend/)
+
+# Generated Zenoh types
+
+- npm install --global @asyncapi/cli
+- ./scripts/generate_types.sh (run from backend/)
 
 # Linting
 

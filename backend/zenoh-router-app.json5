@@ -1,0 +1,86 @@
+{
+  "mode": "router",
+
+  "listen": {
+    "endpoints": [
+      "wss/0.0.0.0:7447" // Public endpoint for mobile / client apps
+    ]
+  },
+
+  // Establishes persistent router-to-router link to Router A
+  "connect": {
+    "endpoints": [
+      "tls/127.0.0.1:7448"
+    ]
+  },
+
+  "transport": {
+    "auth": {
+      "usrpwd": {
+        "dictionary_file": "zenoh-router-users.txt"
+      }
+    },
+    "link": {
+      "tls": {
+        "root_ca_certificate": "certs/ca/ca.crt",
+        // Client certs used by Router B to authenticate to Router A on port 7448
+        "connect_certificate": "certs/zenoh_app/router.crt",
+        "connect_private_key": "certs/zenoh_app/router.key",
+        
+        "listen_certificate": "certs/zenoh_app/router.crt",
+        "listen_private_key": "certs/zenoh_app/router.key",
+        "enable_mtls": true
+      }
+    },
+    // Credentials are added dynamically through the admin REST API.
+  },
+
+  // 1. Enable Write Access to Admin Space
+  adminspace: {
+    permissions: {
+      read: true,
+      write: true  // Required to accept runtime PUTs to @/config/...
+    }
+  },
+
+  "plugins": {
+    "rest": {
+      "http_port": "127.0.0.1:8001"
+    },
+    security: {
+      acl: {
+        enabled: true  // Tells zenohd to enforce the dynamic rules you push
+      }
+    }
+  },
+
+  "access_control": {
+    "enabled": true,
+    "default_permission": "deny", // Only explicitly listed application keys are reachable
+
+    "rules": [
+      {
+        "id": "user_login_query",
+        "permission": "allow",
+        "flows": ["ingress", "egress"],
+        "messages": ["query", "reply"],
+        "key_exprs": ["user/login"]
+      },
+    ],
+
+    "subjects": [
+      {
+        "id": "guest_login_user",
+        "usernames": ["user_login_query"]
+      }
+    ],
+
+    "policies": [
+      {
+        "id": "guest_login_policy",
+        "subjects": ["guest_login_user"],
+        "rules": ["user_login_query"]
+      }
+    ]
+  }
+}

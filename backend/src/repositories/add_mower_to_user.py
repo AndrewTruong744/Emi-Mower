@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import MowerNotFoundError, RepositoryError
 from src.models.mower import MowerModel
+from src.schemas.valkey import mower_data_key, mower_owner_key, user_mowers_key
 
 logger = logging.getLogger("repositories.add_mower_to_user")
 
@@ -62,16 +63,16 @@ async def add_mower_to_user(
             pipeline = v_client.pipeline()
 
             # Evict individual mower info
-            pipeline.delete(f"mower:{m_uuid}:owner")
-            pipeline.delete(f"mower:{m_uuid}:data")
+            pipeline.delete(mower_owner_key(str(m_uuid)))
+            pipeline.delete(mower_data_key(str(m_uuid)))
 
             # Evict mowers list cache for new owner
             if user_id:
-                pipeline.delete(f"user:{user_id}:mowers")
+                pipeline.delete(user_mowers_key(user_id))
 
             # Evict mowers list cache for old owner
             if old_owner_id and old_owner_id != user_id:
-                pipeline.delete(f"user:{old_owner_id}:mowers")
+                pipeline.delete(user_mowers_key(old_owner_id))
 
             await pipeline.execute()
             logger.info(f"Evicted Valkey cache keys for mower {m_uuid}")

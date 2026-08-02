@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError, UserNotFoundError
 from src.models.user import UserModel
+from src.schemas.valkey import user_data_key
 
 logger = logging.getLogger("repositories.update_user_name")
 
@@ -36,7 +37,7 @@ async def update_user_name(user_id: str, new_user_name: str, db: AsyncSession) -
     # Invalidate Valkey cache for this user
     try:
         async with get_valkey_client() as v_client:
-            cache_key = f"user:{user_id}:data"
+            cache_key = user_data_key(user_id)
             await v_client.delete(cache_key)
             logger.info(f"Invalidated Valkey cache key '{cache_key}'")
     except Exception as valkey_err:

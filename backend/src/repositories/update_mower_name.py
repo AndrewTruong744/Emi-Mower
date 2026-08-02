@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import MowerNotFoundError, RepositoryError
 from src.models.mower import MowerModel
+from src.schemas.valkey import mower_data_key
 
 logger = logging.getLogger("repositories.update_mower_name")
 
@@ -49,7 +50,7 @@ async def update_mower_name(
     # 2. Invalidate Valkey cache for this mower
     try:
         async with get_valkey_client() as v_client:
-            cache_key = f"mower:{m_uuid}:data"
+            cache_key = mower_data_key(str(m_uuid))
             await v_client.delete(cache_key)
             logger.info(f"Invalidated Valkey cache key '{cache_key}'")
     except Exception as valkey_err:

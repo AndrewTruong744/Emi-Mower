@@ -2,7 +2,6 @@
 May need to replace with check_mower_ownership instead
 """
 
-import json
 import logging
 import uuid
 
@@ -12,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError
 from src.models.mower import MowerModel
+from src.schemas.valkey import (
+    VALKEY_CACHE_TTL_SECONDS,
+    UserMowersCache,
+    user_mowers_key,
+)
 
 logger = logging.getLogger("repositories.verify_ownership")
 
@@ -26,7 +30,7 @@ async def verify_ownership(
     Raises RepositoryError on DB error.
     """
     mower_uuid_str = str(mower_uuid).strip().lower()
-    valkey_key = f"user:{user_id}:mowers"
+    valkey_key = user_mowers_key(user_id)
 
     try:
         # 1. Check Valkey cache
@@ -34,7 +38,7 @@ async def verify_ownership(
             cached_data = await v_client.get(valkey_key)
             if cached_data is not None:
                 try:
-                    mower_list = json.loads(cached_data)
+                    mower_list = UserMowersCache.model_validate_json(cached_data).root
                     if isinstance(mower_list, list):
                         logger.info(f"Cache hit for key {valkey_key}")
                         normalized_list = [str(m).strip().lower() for m in mower_list]
@@ -57,7 +61,11 @@ async def verify_ownership(
         # Populate Valkey cache (with 1 hour TTL)
         try:
             async with get_valkey_client() as v_client:
-                await v_client.setex(valkey_key, 3600, json.dumps(mower_strings))
+                await v_client.setex(
+                    valkey_key,
+                    VALKEY_CACHE_TTL_SECONDS,
+                    UserMowersCache(mower_strings).model_dump_json(),
+                )
                 logger.info(f"Populated Valkey cache for key {valkey_key}")
         except Exception as cache_err:
             logger.error(f"Failed to populate Valkey cache: {cache_err}")

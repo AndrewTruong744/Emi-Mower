@@ -1,0 +1,143 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    network_mode: host
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    network_mode: host
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  zenoh-mtls:
+    image: eclipse/zenoh:1.9.0
+    command: ["zenohd", "-c", "/workspace/zenoh-router-mtls.json5"]
+    network_mode: host
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+
+  zenoh-app:
+    image: eclipse/zenoh:1.9.0
+    command: ["zenohd", "-c", "/workspace/zenoh-router-app.json5"]
+    network_mode: host
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    depends_on:
+      - zenoh-mtls
+
+  backend:
+    image: python:3.12-slim
+    working_dir: /workspace
+    network_mode: host
+    volumes:
+      - ./:/workspace
+      - uv-cache:/root/.cache/uv
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      VALKEY_HOST: 127.0.0.1
+      VALKEY_PORT: ${VALKEY_PORT:-6379}
+      ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
+      ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
+    command:
+      - sh
+      - -c
+      - >-
+        pip install --disable-pip-version-check uv >/dev/null &&
+        uv sync --frozen &&
+        uv run alembic upgrade head &&
+        uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      zenoh-mtls:
+        condition: service_started
+      zenoh-app:
+        condition: service_started
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/public/readiness', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  add-all-acls:
+    image: python:3.12-slim
+    working_dir: /workspace
+    network_mode: host
+    volumes:
+      - ./:/workspace
+      - uv-cache:/root/.cache/uv
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      VALKEY_HOST: 127.0.0.1
+      VALKEY_PORT: ${VALKEY_PORT:-6379}
+      ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
+      ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
+    command:
+      - sh
+      - -c
+      - >-
+        pip install --disable-pip-version-check uv >/dev/null &&
+        uv sync --frozen &&
+        uv run python -m src.scripts.add_all_acls
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  remove-usrpwds:
+    image: python:3.12-slim
+    working_dir: /workspace
+    network_mode: host
+    volumes:
+      - ./:/workspace
+      - uv-cache:/root/.cache/uv
+    environment:
+      VALKEY_HOST: 127.0.0.1
+      VALKEY_PORT: ${VALKEY_PORT:-6379}
+      ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
+    command:
+      - sh
+      - -c
+      - >-
+        pip install --disable-pip-version-check uv >/dev/null &&
+        uv sync --frozen &&
+        uv run python -m src.scripts.remove_usrpwds_from_zenoh
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  valkey-data:
+  uv-cache:

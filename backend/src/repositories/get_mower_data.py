@@ -1,4 +1,3 @@
-import json
 import logging
 
 from sqlalchemy import select
@@ -7,104 +6,124 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError
 from src.models.mower import MowerModel
+from src.schemas.valkey import (
+    VALKEY_CACHE_TTL_SECONDS,
+    MowerDataCache,
+    MowerStatusCache,
+    UserMowersCache,
+    mower_data_key,
+    mower_status_key,
+    user_mowers_key,
+)
 
 logger = logging.getLogger("repositories.get_mower_data")
 
 
+def _status_value(status: str | None) -> str:
+    if status is None:
+        return "offline"
+    return (
+        "online"
+        if MowerStatusCache.model_validate(status).root == "online"
+        else "offline"
+    )
+
+
 async def get_mower_data(user_id: str, db: AsyncSession) -> list[dict]:
-    """
-    Retrieves all mower data owned by a user using a cache-aside pattern.
-    Raises RepositoryError on database failure.
-    """
-    valkey_user_mowers_key = f"user:{user_id}:mowers"
+    """Retrieve all mower data owned by a user using the Valkey schema."""
+    user_mowers_cache_key = user_mowers_key(user_id)
 
     try:
         async with get_valkey_client() as v_client:
-            cached_mower_ids = await v_client.get(valkey_user_mowers_key)
+            cached_mower_ids = await v_client.get(user_mowers_cache_key)
             if cached_mower_ids is not None:
-                mower_ids = json.loads(cached_mower_ids)
+                mower_ids = UserMowersCache.model_validate_json(cached_mower_ids).root
                 pipeline = v_client.pipeline()
-                for m_id in mower_ids:
-                    pipeline.get(f"mower:{m_id}:data")
-                    pipeline.get(f"mower:{m_id}:status")
+                for mower_id in mower_ids:
+                    pipeline.get(mower_data_key(mower_id))
+                    pipeline.get(mower_status_key(mower_id))
 
                 pipeline_results = await pipeline.execute()
-
-                all_cached = True
                 mowers_list = []
-                for i in range(len(mower_ids)):
-                    mower_data_str = pipeline_results[i * 2]
-                    status_str = pipeline_results[i * 2 + 1]
-                    if mower_data_str is None:
-                        all_cached = False
+                for index, mower_id in enumerate(mower_ids):
+                    mower_data_value = pipeline_results[index * 2]
+                    status_value = pipeline_results[index * 2 + 1]
+                    if mower_data_value is None:
                         break
-
-                    m_data = json.loads(mower_data_str)
-                    m_data["status"] = "online" if status_str == "online" else "offline"
-                    mowers_list.append(m_data)
-
-                if all_cached:
-                    logger.info(f"Valkey cache hit for all mowers of user {user_id}")
+                    mower_data = MowerDataCache.model_validate_json(mower_data_value)
+                    mower_dict = mower_data.model_dump(mode="json")
+                    mower_dict["status"] = _status_value(status_value)
+                    mowers_list.append(mower_dict)
+                else:
+                    logger.info("Valkey cache hit for all mowers of user %s", user_id)
                     pipeline = v_client.pipeline()
-                    pipeline.expire(valkey_user_mowers_key, 86400)
-                    for m_id in mower_ids:
-                        pipeline.expire(f"mower:{m_id}:data", 86400)
+                    pipeline.expire(user_mowers_cache_key, VALKEY_CACHE_TTL_SECONDS)
+                    for mower_id in mower_ids:
+                        pipeline.expire(
+                            mower_data_key(mower_id), VALKEY_CACHE_TTL_SECONDS
+                        )
                     await pipeline.execute()
                     return mowers_list
-    except Exception as e:
-        logger.error(f"Valkey error during mower data lookup: {e}")
+    except Exception as err:
+        logger.error("Valkey error during mower data lookup: %s", err)
 
-    # Cache miss: query Postgres
-    logger.info(f"Valkey cache miss for mowers of user {user_id}. Querying Postgres...")
+    logger.info("Valkey cache miss for mowers of user %s", user_id)
     try:
-        stmt = select(MowerModel).where(MowerModel.owner_id == user_id)
-        result = await db.execute(stmt)
+        result = await db.execute(
+            select(MowerModel).where(MowerModel.owner_id == user_id)
+        )
         mowers = result.scalars().all()
-
-        mowers_list = []
-        mower_ids = []
-        for m in mowers:
-            m_id_str = str(m.id)
-            mower_ids.append(m_id_str)
-            mowers_list.append(
-                {
-                    "id": m_id_str,
-                    "serial_number": m.serial_number,
-                    "nickname": m.nickname,
-                    "owner_id": m.owner_id,
-                }
+        mower_ids = [str(mower.id) for mower in mowers]
+        mower_cache_values = [
+            MowerDataCache(
+                id=str(mower.id),
+                serial_number=mower.serial_number,
+                nickname=mower.nickname,
+                owner_id=mower.owner_id,
             )
+            for mower in mowers
+        ]
     except Exception as db_err:
         logger.error(
-            f"Postgres query failed for mowers of user {user_id}: {db_err}",
+            "Postgres query failed for mowers of user %s: %s",
+            user_id,
+            db_err,
             exc_info=True,
         )
         raise RepositoryError(
             f"Failed to query mower data for user '{user_id}'"
         ) from db_err
 
-    # Save to Valkey
     try:
         async with get_valkey_client() as v_client:
-            await v_client.setex(valkey_user_mowers_key, 86400, json.dumps(mower_ids))
-
+            await v_client.setex(
+                user_mowers_cache_key,
+                VALKEY_CACHE_TTL_SECONDS,
+                UserMowersCache(mower_ids).model_dump_json(),
+            )
             pipeline = v_client.pipeline()
-            for m_data in mowers_list:
-                m_id = m_data["id"]
-                pipeline.setex(f"mower:{m_id}:data", 86400, json.dumps(m_data))
-                pipeline.get(f"mower:{m_id}:status")
+            for mower_data in mower_cache_values:
+                pipeline.setex(
+                    mower_data_key(mower_data.id),
+                    VALKEY_CACHE_TTL_SECONDS,
+                    mower_data.model_dump_json(),
+                )
+                pipeline.get(mower_status_key(mower_data.id))
 
             status_results = await pipeline.execute()
-
-            for idx, m_data in enumerate(mowers_list):
-                status_val = status_results[idx * 2 + 1]
-                m_data["status"] = "online" if status_val == "online" else "offline"
-
-            logger.info(f"Cached mowers data in Valkey for user {user_id}")
+            mowers_list = []
+            for index, mower_data in enumerate(mower_cache_values):
+                mower_dict = mower_data.model_dump(mode="json")
+                mower_dict["status"] = _status_value(status_results[index * 2 + 1])
+                mowers_list.append(mower_dict)
+            logger.info("Cached mowers data for user %s", user_id)
+            return mowers_list
     except Exception as valkey_err:
-        logger.error(f"Failed to cache mowers data in Valkey: {valkey_err}")
-        for m_data in mowers_list:
-            if "status" not in m_data:
-                m_data["status"] = "offline"
-
-    return mowers_list
+        logger.error("Failed to cache mowers data in Valkey: %s", valkey_err)
+        return [
+            {
+                **mower_data.model_dump(mode="json"),
+                "status": "offline",
+            }
+            for mower_data in mower_cache_values
+        ]

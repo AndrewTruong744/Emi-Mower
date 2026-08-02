@@ -1,4 +1,3 @@
-import json
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError
 from src.models.user import UserModel
+from src.schemas.valkey import VALKEY_CACHE_TTL_SECONDS, UserDataCache, user_data_key
 
 logger = logging.getLogger("repositories.create_user")
 
@@ -40,8 +40,13 @@ async def create_user(user_id: str, email: str, name: str, db: AsyncSession) -> 
     # Save to Valkey with 24-hour expiration
     try:
         async with get_valkey_client() as v_client:
-            valkey_key = f"user:{user_id}:data"
-            await v_client.setex(valkey_key, 86400, json.dumps(user_data))
+            cache_value = UserDataCache.model_validate(user_data)
+            valkey_key = user_data_key(user_id)
+            await v_client.setex(
+                valkey_key,
+                VALKEY_CACHE_TTL_SECONDS,
+                cache_value.model_dump_json(),
+            )
             logger.info(f"Cached user data in Valkey under key '{valkey_key}'")
     except Exception as valkey_err:
         logger.error(f"Failed to cache user data in Valkey: {valkey_err}")

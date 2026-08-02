@@ -1,4 +1,3 @@
-import json
 import logging
 
 from sqlalchemy import select
@@ -7,6 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError
 from src.models.mower import MowerModel
+from src.schemas.valkey import (
+    VALKEY_CACHE_TTL_SECONDS,
+    UserMowersCache,
+    user_mowers_key,
+)
 
 logger = logging.getLogger("repositories.get_mowers_of_user")
 
@@ -17,15 +21,17 @@ async def get_mowers_of_user(user_id: str, db: AsyncSession) -> list[str]:
     Key: user:{user_id}:mowers
     Returns a list of mower IDs or raises RepositoryError.
     """
-    valkey_user_mowers_key = f"user:{user_id}:mowers"
+    valkey_user_mowers_key = user_mowers_key(user_id)
 
     try:
         async with get_valkey_client() as v_client:
             cached_mower_ids = await v_client.get(valkey_user_mowers_key)
             if cached_mower_ids is not None:
-                mower_ids = json.loads(cached_mower_ids)
+                mower_ids = UserMowersCache.model_validate_json(cached_mower_ids).root
                 logger.info(f"Valkey cache hit for mowers of user {user_id}")
-                await v_client.expire(valkey_user_mowers_key, 86400)
+                await v_client.expire(
+                    valkey_user_mowers_key, VALKEY_CACHE_TTL_SECONDS
+                )
                 return mower_ids
     except Exception as valkey_err:
         logger.error(
@@ -51,7 +57,11 @@ async def get_mowers_of_user(user_id: str, db: AsyncSession) -> list[str]:
     # Save to Valkey cache
     try:
         async with get_valkey_client() as v_client:
-            await v_client.setex(valkey_user_mowers_key, 86400, json.dumps(mower_ids))
+            await v_client.setex(
+                valkey_user_mowers_key,
+                VALKEY_CACHE_TTL_SECONDS,
+                UserMowersCache(mower_ids).model_dump_json(),
+            )
             logger.info(f"Cached mowers list in Valkey for user {user_id}")
     except Exception as valkey_err:
         logger.error(f"Failed to cache mowers list in Valkey: {valkey_err}")

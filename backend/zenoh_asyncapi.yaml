@@ -1,0 +1,82 @@
+asyncapi: 3.0.0
+info:
+  title: Emi Mower Zenoh API
+  version: 1.0.0
+  description: >-
+    The user/login exchange accepts a Firebase ID token and returns an
+    application JWT signed with JWT_SECRET.
+servers:
+  public:
+    host: localhost:7447
+    protocol: wss
+    description: Public Zenoh router endpoint
+channels:
+  userLogin:
+    address: user/login
+    messages:
+      userLoginRequest: {$ref: '#/components/messages/UserLoginRequest'}
+      userLoginResponse: {$ref: '#/components/messages/UserLoginResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+operations:
+  userLogin:
+    action: receive
+    channel: {$ref: '#/channels/userLogin'}
+    summary: Exchange a Firebase ID token for an Emi Mower JWT
+    messages:
+      - {$ref: '#/channels/userLogin/messages/userLoginRequest'}
+    reply:
+      channel: {$ref: '#/channels/userLogin'}
+      messages:
+        - {$ref: '#/channels/userLogin/messages/userLoginResponse'}
+        - {$ref: '#/channels/userLogin/messages/problemDetails'}
+components:
+  messages:
+    UserLoginRequest:
+      name: UserLoginRequest
+      payload: {$ref: '#/components/schemas/UserLoginRequest'}
+    UserLoginResponse:
+      name: UserLoginResponse
+      payload: {$ref: '#/components/schemas/UserLoginResponse'}
+    ProblemDetails:
+      name: ProblemDetails
+      payload: {$ref: '#/components/schemas/ProblemDetails'}
+  schemas:
+    UserLoginRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token.
+    UserLoginResponse:
+      type: object
+      required: [user_id, token, expires_in, user_data]
+      properties:
+        user_id: {type: string}
+        token:
+          type: string
+          description: Application JWT signed with JWT_SECRET.
+        expires_in: {type: integer, example: 300}
+        user_data:
+          $ref: '#/components/schemas/UserData'
+    UserData:
+      type: object
+      required: [id, email, name]
+      additionalProperties: true
+      properties:
+        id: {type: string}
+        email: {type: string}
+        name: {type: string}
+        created_at: {type: string, format: date-time, nullable: true}
+    ProblemDetails:
+      type: object
+      required: [type, title, status, detail, instance, code, timestamp]
+      additionalProperties: true
+      properties:
+        type: {type: string, format: uri}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        instance: {type: string}
+        code: {type: string}
+        timestamp: {type: string, format: date-time}

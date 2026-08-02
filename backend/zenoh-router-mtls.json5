@@ -11,16 +11,29 @@
     "link": {
       "tls": {
         "root_ca_certificate": "certs/ca/ca.crt",
-        "listen_certificate": "certs/zenoh_internal/router.crt",
-        "listen_private_key": "certs/zenoh_internal/router.key",
+        "listen_certificate": "certs/zenoh_mtls/router.crt",
+        "listen_private_key": "certs/zenoh_mtls/router.key",
         "enable_mtls": true // Forces client X.509 cert validation
       }
+    }
+  },
+
+  // 1. Enable Write Access to Admin Space
+  adminspace: {
+    permissions: {
+      read: true,
+      write: true  // Required to accept runtime PUTs to @/config/...
     }
   },
 
   "plugins": {
     "rest": {
       "http_port": "127.0.0.1:8002"
+    },
+    security: {
+      acl: {
+        enabled: true  // Tells zenohd to enforce the dynamic rules you push
+      }
     }
   },
 
@@ -45,7 +58,7 @@
       },
       {
         "id": "router_b_peer",
-        "cert_common_names": ["Emi Mower Zenoh External"] // Cert used by Router B to link
+        "cert_common_names": ["Emi Mower Zenoh App"] // Cert used by Router B to link
       }
     ],
 

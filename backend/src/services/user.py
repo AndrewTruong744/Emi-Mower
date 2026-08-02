@@ -1,15 +1,14 @@
-import json
 import logging
 import random
 import string
+import time
 
-import httpx
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import ZenohAdminClient
+from src.config.valkey_client import get_valkey_client
 from src.exceptions import (
-    ExternalServiceError,
     ForbiddenError,
     ValidationError,
 )
@@ -20,8 +19,11 @@ from src.repositories import (
     update_user_email,
     update_user_name,
 )
+from src.schemas.valkey import ZENOH_TOKEN_EXPIRY_KEY
 from src.services.auth import verify_gcp_identity
 from src.services.temp_jwt import generate_jwt_token
+
+ZENOH_JWT_TTL_SECONDS = 5 * 60
 
 logger = logging.getLogger("services.user")
 
@@ -112,7 +114,9 @@ async def update_user_name_service(
     )
 
     if not new_user_name or not new_user_name.isalnum():
-        logger.warning(f"User name update rejected: '{new_user_name}' is not alphanumeric.")
+        logger.warning(
+            f"User name update rejected: '{new_user_name}' is not alphanumeric."
+        )
         raise ValidationError(f"User name '{new_user_name}' is not alphanumeric")
 
     await update_user_name(user_id, new_user_name, db=db)
@@ -120,19 +124,23 @@ async def update_user_name_service(
 
 async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
     """
-    Generates a JWT token for the user and configures Zenoh router ACLs via ZenohAdminClient.
-    Returns the JWT token string or raises ExternalServiceError / RepositoryError.
+    Generates a JWT token for the user.
+    Returns the JWT token string or raises TokenGenerationError.
     """
     logger.info(f"get_zenoh_jwt_service called for user: {user_id}")
 
     mower_ids = await get_mowers_of_user(user_id, db=db)
-    jwt_token = generate_jwt_token(user_id)
-
-    zenoh_client = ZenohAdminClient()
-    await zenoh_client.configure_user_app(
+    jwt_value = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
+    await ZenohAdminClient().configure_user_app(
         user_id=user_id,
-        jwt_token=jwt_token,
         mower_ids=mower_ids,
+        password=jwt_value,
     )
-
-    return jwt_token
+    async with get_valkey_client() as v_client:
+        await v_client.hset(
+            ZENOH_TOKEN_EXPIRY_KEY,
+            mapping={
+                user_id: str(int(time.time()) + ZENOH_JWT_TTL_SECONDS),
+            },
+        )
+    return jwt_value
