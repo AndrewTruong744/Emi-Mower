@@ -1,0 +1,16 @@
+{
+  mode: "router",
+  listen: { endpoints: ["tls/0.0.0.0:7448"] },
+  transport: {
+    link: {
+      tls: {
+        root_ca_certificate: "certs/ca/ca.crt",
+        listen_certificate: "certs/zenoh_mtls/router.crt",
+        listen_private_key: "certs/zenoh_mtls/router.key",
+        enable_mtls: true
+      }
+    }
+  },
+  adminspace: { permissions: { read: true, write: true } },
+  plugins: { rest: { http_port: "0.0.0.0:8002" } }
+}

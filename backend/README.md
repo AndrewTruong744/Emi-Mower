@@ -112,3 +112,21 @@
 - To check: uv run ruff check .
 - To lint: uv run ruff check . --fix
 - To format: uv run ruff format .
+
+## Tests
+
+Run the fast, Docker-free service and Zenoh unit tests:
+
+```bash
+uv run pytest -m 'not repository and not api and not zenoh_integration'
+```
+
+Run the complete suite, including disposable Postgres/Valkey Testcontainers
+for cache-aside repository tests and the separate Compose API/Zenoh stack:
+
+```bash
+uv run pytest --run-integration
+```
+
+`docker-compose.test.yml` uses a distinct project, bridge network, and no
+database or cache volumes. It never uses the local development Compose data.

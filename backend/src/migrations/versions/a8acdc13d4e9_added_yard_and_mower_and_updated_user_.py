@@ -26,7 +26,8 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("serial_number", sa.String(length=100), nullable=False),
         sa.Column("nickname", sa.String(length=100), nullable=False),
-        sa.Column("owner_id", sa.String(length=128), nullable=False),
+        sa.Column("owner_id", sa.String(length=128), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -57,7 +58,7 @@ def upgrade() -> None:
         op.f("ix_mower_telemetry_mower_id"),
         "mower_telemetry",
         ["mower_id"],
-        unique=False,
+        unique=True,
     )
     op.create_index(
         op.f("ix_mower_telemetry_slippage_detected"),

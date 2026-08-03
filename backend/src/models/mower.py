@@ -84,6 +84,9 @@ class MowerTelemetryModel(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    mower: Mapped["MowerModel"] = relationship(
+        "MowerModel", back_populates="telemetry_records"
+    )
 
 
 class MowerImuModel(Base):

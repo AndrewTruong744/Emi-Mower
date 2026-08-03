@@ -5,8 +5,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.valkey_client import get_valkey_client
-from src.exceptions import MowerNotFoundError, RepositoryError
+from src.exceptions import MowerNotFoundError, RepositoryError, UserNotFoundError
 from src.models.mower import MowerModel
+from src.models.user import UserModel
 from src.schemas.valkey import mower_data_key, mower_owner_key, user_mowers_key
 
 logger = logging.getLogger("repositories.add_mower_to_user")
@@ -19,7 +20,8 @@ async def add_mower_to_user(
     Updates the owner of a mower in PostgreSQL using provided AsyncSession.
     Also invalidates the cached mower owner key, mower details, and the
     mower list for both the new owner and the old owner (if changed).
-    Raises MowerNotFoundError if mower does not exist, or RepositoryError on DB error.
+    Raises MowerNotFoundError if mower does not exist, UserNotFoundError if a
+    requested owner does not exist, or RepositoryError on DB error.
     """
     logger.info(f"Adding mower {mower_id} to user: {user_id}")
     try:
@@ -40,13 +42,21 @@ async def add_mower_to_user(
             raise MowerNotFoundError(f"No mower found with ID {mower_id}")
         old_owner_id = row[0]
 
+        if user_id is not None:
+            user_result = await db.execute(
+                select(UserModel.id).where(UserModel.id == user_id)
+            )
+            if user_result.scalar_one_or_none() is None:
+                logger.warning(f"No user found with ID {user_id}")
+                raise UserNotFoundError(f"No user found with ID {user_id}")
+
         # 2. Update the owner_id
         stmt_update = (
             update(MowerModel).where(MowerModel.id == m_uuid).values(owner_id=user_id)
         )
         await db.execute(stmt_update)
         await db.commit()
-    except MowerNotFoundError:
+    except (MowerNotFoundError, UserNotFoundError):
         raise
     except Exception as db_err:
         logger.error(

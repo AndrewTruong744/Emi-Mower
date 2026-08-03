@@ -25,7 +25,9 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.19",
+    "testcontainers[postgres,redis]>=4.15.0",
 ]
 
 [tool.ruff]
@@ -43,3 +45,25 @@ fixable = ["ALL"]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = ["--cov=src", "--cov-report=term-missing", "--cov-fail-under=80"]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "repository: direct Postgres and Valkey cache-aside integration test",
+    "api: full Docker Compose API integration test",
+    "zenoh_integration: integration test against the Zenoh router services",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = ["src/scripts/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

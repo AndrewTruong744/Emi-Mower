@@ -79,7 +79,7 @@ def _exception_problem(error: Exception, instance: str) -> ProblemDetails:
             instance=instance,
         )
 
-    if isinstance(error, PydanticValidationError):
+    if isinstance(error, (PydanticValidationError, ValueError)):
         return _problem_detail(
             status=400,
             title="Invalid request",

@@ -1,0 +1,87 @@
+name: emi-mower-test
+
+# Disposable integration-test stack.  It deliberately has no volumes and uses
+# bridge networking, so it cannot share or erase a developer's local data.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: emi_mower_test
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d emi_mower_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  zenoh-mtls:
+    image: eclipse/zenoh:1.9.0
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    command: ["-c", "/workspace/zenoh-router-mtls.test.json5"]
+    ports:
+      - "18002:8002"
+
+  zenoh-app:
+    image: eclipse/zenoh:1.9.0
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    command: ["-c", "/workspace/zenoh-router-app.test.json5"]
+    depends_on:
+      - zenoh-mtls
+    ports:
+      - "18001:8001"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: emi_mower_test
+      VALKEY_HOST: valkey
+      VALKEY_PORT: "6379"
+      ZENOH_APP_REST_URL: http://zenoh-app:8001
+      ZENOH_MTLS_REST_URL: http://zenoh-mtls:8002
+      JWT_SECRET: integration-test-secret
+      FIREBASE_DISABLED: "true"
+    command:
+      - sh
+      - -c
+      - >-
+        uv run alembic upgrade head &&
+        uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      zenoh-mtls:
+        condition: service_started
+      zenoh-app:
+        condition: service_started
+    ports:
+      - "18000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/public/readiness', timeout=3)"]
+      interval: 3s
+      timeout: 4s
+      retries: 30

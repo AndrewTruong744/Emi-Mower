@@ -5,6 +5,11 @@ from firebase_admin import credentials
 
 
 def initialize_backend_auth():
+    # The public API and repository layers can run without Firebase.  This is
+    # intentionally opt-in so production still fails fast on bad credentials.
+    if os.getenv("FIREBASE_DISABLED", "").lower() == "true":
+        return None
+
     try:
         # If already initialized, fetch the existing default application instance
         return firebase_admin.get_app()
