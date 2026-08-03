@@ -7,18 +7,17 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
-import jwt
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
 import zenoh
 from src.config.database import AsyncSessionLocal
-from src.config.settings import settings
-from src.exceptions import AuthenticationError, BaseAppException
+from src.exceptions import BaseAppException
 from src.zenoh.generated import ProblemDetails
 
 logger = logging.getLogger("zenoh.query_handler")
 QueryFunction = Callable[[Any, Any], Awaitable[Any]]
+MessageFunction = Callable[[Any, Any], Awaitable[None]]
 
 
 def _payload_bytes(payload: Any) -> bytes:
@@ -99,22 +98,6 @@ def _exception_problem(error: Exception, instance: str) -> ProblemDetails:
     )
 
 
-def validate_application_jwt(payload: dict[str, Any]) -> dict[str, Any]:
-    """Validate the JWT returned by ``user/login`` in an application request."""
-    value = payload.get("jwt") or payload.get("authorization")
-    if isinstance(value, str) and value.lower().startswith("bearer "):
-        value = value[7:].strip()
-    if not isinstance(value, str) or not value:
-        raise AuthenticationError("A Zenoh application JWT is required")
-    try:
-        claims = jwt.decode(value, settings.JWT_SECRET, algorithms=["HS256"])
-    except jwt.PyJWTError as err:
-        raise AuthenticationError("Invalid, expired, or tampered Zenoh JWT") from err
-    if not claims.get("sub"):
-        raise AuthenticationError("Zenoh JWT does not contain a subject")
-    return claims
-
-
 class ZenohQueryHandler:
     """Bridge Zenoh's synchronous callback thread to the backend event loop."""
 
@@ -129,11 +112,10 @@ class ZenohQueryHandler:
         handler: QueryFunction,
         *,
         request_model: type[BaseModel] | None = None,
-        requires_jwt: bool = True,
     ) -> Any:
         def on_query(query: zenoh.Query) -> None:
             future = asyncio.run_coroutine_threadsafe(
-                self._process(query, handler, request_model, requires_jwt), self.loop
+                self._process(query, handler, request_model), self.loop
             )
             try:
                 future.result(timeout=30)
@@ -149,7 +131,6 @@ class ZenohQueryHandler:
         query: zenoh.Query,
         handler: QueryFunction,
         request_model: type[BaseModel] | None,
-        requires_jwt: bool,
     ) -> None:
         instance = str(query.key_expr)
         try:
@@ -157,8 +138,6 @@ class ZenohQueryHandler:
             request = json.loads(raw.decode("utf-8")) if raw else {}
             if not isinstance(request, dict):
                 raise ValueError("Query payload must be a JSON object")
-            if requires_jwt:
-                request["_claims"] = validate_application_jwt(request)
             if request_model is not None:
                 request = request_model.model_validate(request)
 
@@ -177,3 +156,67 @@ class ZenohQueryHandler:
         for queryable in self.queryables:
             queryable.undeclare()
         self.queryables.clear()
+
+
+class ZenohMessageHandler:
+    """Bridge Zenoh subscriber callbacks to the backend event loop.
+
+    Messages use Zenoh's one-way pub/sub pattern: processing failures are
+    logged locally because there is no query reply channel for the sender.
+    """
+
+    def __init__(self, session: zenoh.Session, loop: asyncio.AbstractEventLoop):
+        self.session = session
+        self.loop = loop
+        self.subscribers: list[Any] = []
+
+    def declare(
+        self,
+        key_expr: str,
+        handler: MessageFunction,
+        *,
+        message_model: type[BaseModel] | None = None,
+    ) -> Any:
+        def on_message(sample: zenoh.Sample) -> None:
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self._process(sample, handler, message_model), self.loop
+                )
+            except Exception:
+                logger.exception("Failed to schedule Zenoh message for %s", key_expr)
+                return
+            future.add_done_callback(
+                lambda completed: self._log_failure(completed, key_expr)
+            )
+
+        subscriber = self.session.declare_subscriber(key_expr, on_message)
+        self.subscribers.append(subscriber)
+        return subscriber
+
+    @staticmethod
+    def _log_failure(future: Any, key_expr: str) -> None:
+        try:
+            future.result()
+        except Exception:
+            logger.exception("Zenoh message failed for %s", key_expr)
+
+    async def _process(
+        self,
+        sample: zenoh.Sample,
+        handler: MessageFunction,
+        message_model: type[BaseModel] | None,
+    ) -> None:
+        raw = _payload_bytes(sample.payload)
+        message = json.loads(raw.decode("utf-8")) if raw else {}
+        if not isinstance(message, dict):
+            raise ValueError("Message payload must be a JSON object")
+        if message_model is not None:
+            message = message_model.model_validate(message)
+
+        async with AsyncSessionLocal() as db:
+            await handler(message, db)
+
+    def close(self) -> None:
+        for subscriber in self.subscribers:
+            subscriber.undeclare()
+        self.subscribers.clear()

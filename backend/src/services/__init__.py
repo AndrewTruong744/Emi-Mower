@@ -12,6 +12,7 @@ from src.services.user import (
     get_zenoh_jwt_service,
     update_user_email_service,
     update_user_name_service,
+    user_login_service,
 )
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "create_user_service",
     "get_user_data_service",
     "get_zenoh_jwt_service",
+    "user_login_service",
     "update_user_email_service",
     "update_user_name_service",
 ]

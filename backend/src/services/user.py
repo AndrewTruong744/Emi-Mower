@@ -7,21 +7,23 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import ZenohAdminClient
-from src.config.valkey_client import get_valkey_client
 from src.exceptions import (
+    AuthenticationError,
     ForbiddenError,
+    UserNotFoundError,
     ValidationError,
 )
 from src.repositories import (
     create_user,
     get_mowers_of_user,
     get_user_data,
+    record_zenoh_credential_expiry,
     update_user_email,
     update_user_name,
 )
-from src.schemas.valkey import ZENOH_TOKEN_EXPIRY_KEY
 from src.services.auth import verify_gcp_identity
 from src.services.temp_jwt import generate_jwt_token
+from src.zenoh.generated import UserData, UserLoginRequest, UserLoginResponse
 
 ZENOH_JWT_TTL_SECONDS = 5 * 60
 
@@ -55,6 +57,45 @@ async def create_user_service(id_token: dict, db: AsyncSession) -> dict:
         logger.info(f"Name missing in id_token; generated random name: {name}")
 
     return await create_user(user_id=user_id, email=email, name=name, db=db)
+
+
+async def user_login_service(
+    payload: UserLoginRequest, db: AsyncSession
+) -> UserLoginResponse:
+    """Process a generated Zenoh login request and return its wire response."""
+    firebase_token = payload.id_token
+    if not firebase_token:
+        raise ValidationError("The login payload must contain a non-empty id_token")
+
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer", credentials=firebase_token
+    )
+    decoded_identity = await verify_gcp_identity(credentials)
+    user_id = decoded_identity.get("uid") or decoded_identity.get("user_id")
+    if not user_id:
+        raise AuthenticationError("Authenticated identity does not contain a user id")
+
+    try:
+        user_data = await get_user_data(user_id, db=db)
+    except UserNotFoundError:
+        user_data = await create_user_service(decoded_identity, db=db)
+
+    mower_ids = await get_mowers_of_user(user_id, db=db)
+    token = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
+    await ZenohAdminClient().configure_user_app(
+        user_id=user_id,
+        mower_ids=mower_ids,
+        password=token,
+    )
+
+    expires_at = int(time.time()) + ZENOH_JWT_TTL_SECONDS
+    await record_zenoh_credential_expiry(user_id, expires_at)
+    return UserLoginResponse(
+        user_id=user_id,
+        token=token,
+        expires_in=ZENOH_JWT_TTL_SECONDS,
+        user_data=UserData.model_validate(user_data),
+    )
 
 
 async def get_user_data_service(user_id: str, db: AsyncSession) -> dict:
@@ -136,11 +177,6 @@ async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
         mower_ids=mower_ids,
         password=jwt_value,
     )
-    async with get_valkey_client() as v_client:
-        await v_client.hset(
-            ZENOH_TOKEN_EXPIRY_KEY,
-            mapping={
-                user_id: str(int(time.time()) + ZENOH_JWT_TTL_SECONDS),
-            },
-        )
+    expires_at = int(time.time()) + ZENOH_JWT_TTL_SECONDS
+    await record_zenoh_credential_expiry(user_id, expires_at)
     return jwt_value

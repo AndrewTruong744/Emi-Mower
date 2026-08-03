@@ -35,6 +35,22 @@ class Settings:
         password_part = f":{self.VALKEY_PASSWORD}@" if self.VALKEY_PASSWORD else ""
         return f"redis://{password_part}{self.VALKEY_HOST}:{self.VALKEY_PORT}/{self.VALKEY_DB}"
 
+    # Zenoh configuration
+    ZENOH_APP_REST_URL: str = os.getenv(
+        "ZENOH_APP_REST_URL", "http://127.0.0.1:8001"
+    )
+    ZENOH_MTLS_REST_URL: str = os.getenv(
+        "ZENOH_MTLS_REST_URL", "http://127.0.0.1:8002"
+    )
+    ZENOH_CA_CERT: str = os.getenv("ZENOH_CA_CERT", "certs/ca/ca.crt")
+    ZENOH_FASTAPI_CERT: str = os.getenv(
+        "ZENOH_FASTAPI_CERT", "certs/fastapi/server.crt"
+    )
+    ZENOH_FASTAPI_KEY: str = os.getenv(
+        "ZENOH_FASTAPI_KEY", "certs/fastapi/server.key"
+    )
+
+    # Cloudflare configuration
     CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "your_account_id")
     CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")

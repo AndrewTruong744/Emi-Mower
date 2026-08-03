@@ -16,9 +16,8 @@ from src.config import (
 )
 from src.exception_handlers import register_exception_handlers
 from src.services import initialize_backend_auth
-from src.zenoh.generated import UserLoginRequest
-from src.zenoh.user_login import LOGIN_KEY_EXPR, user_login
-from src.zenoh.zenoh_query_handler import ZenohQueryHandler
+from src.zenoh import ZenohMessageHandler, ZenohQueryHandler
+from src.zenoh.register_handlers import register_handlers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,12 +63,10 @@ async def lifespan(app: FastAPI):
         app.state.zenoh_query_handler = ZenohQueryHandler(
             app.state.zenoh_session, asyncio.get_running_loop()
         )
-        app.state.zenoh_query_handler.declare(
-            LOGIN_KEY_EXPR,
-            user_login,
-            request_model=UserLoginRequest,
-            requires_jwt=False,
+        app.state.zenoh_message_handler = ZenohMessageHandler(
+            app.state.zenoh_session, asyncio.get_running_loop()
         )
+        register_handlers(app.state.zenoh_query_handler)
         logger.info("Zenoh session started successfully.")
     except Exception as e:
         logger.error(f"Zenoh failed to connect on server startup: {e}")
@@ -81,6 +78,8 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "zenoh_session") and app.state.zenoh_session is not None:
         if hasattr(app.state, "zenoh_query_handler"):
             app.state.zenoh_query_handler.close()
+        if hasattr(app.state, "zenoh_message_handler"):
+            app.state.zenoh_message_handler.close()
         logger.info("Closing Zenoh session...")
         try:
             app.state.zenoh_session.close()

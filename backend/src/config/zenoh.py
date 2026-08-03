@@ -5,7 +5,6 @@ Zenoh Configuration module for mTLS connections.
 from pathlib import Path
 
 import zenoh
-
 from src.config.settings import settings
 
 
