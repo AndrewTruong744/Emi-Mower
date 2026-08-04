@@ -54,3 +54,13 @@ async def test_update_mower_ownership_requires_actual_owner_match(monkeypatch):
         "owner-1", "owner-2", "mower-1", object()
     )
     add.assert_awaited_once()
+
+
+async def test_update_mower_ownership_assigns_unowned_mower(monkeypatch):
+    add = AsyncMock()
+    monkeypatch.setattr(mower, "add_mower_to_user", add)
+    monkeypatch.setattr(mower, "check_mower_ownership", AsyncMock(return_value=None))
+
+    await mower.update_mower_ownership_service(None, "new-owner", "mower-1", object())
+
+    add.assert_awaited_once()

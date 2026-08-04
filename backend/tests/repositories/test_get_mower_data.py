@@ -52,3 +52,15 @@ async def test_get_mower_data_uses_complete_cache_hit(db_session, cache, seed_us
     await cache.set(mower_status_key(mower_id), "online")
 
     assert (await get_mower_data("user-1", db_session))[0]["nickname"] == "CachedMower"
+
+
+async def test_get_mower_data_falls_back_when_a_cached_mower_entry_is_missing(
+    db_session, cache, seed_mower, seed_user
+):
+    await seed_user()
+    mower = await seed_mower(nickname="DatabaseMower")
+    await cache.set(user_mowers_key("user-1"), f'["{mower.id}"]')
+
+    result = await get_mower_data("user-1", db_session)
+
+    assert result[0]["nickname"] == "DatabaseMower"

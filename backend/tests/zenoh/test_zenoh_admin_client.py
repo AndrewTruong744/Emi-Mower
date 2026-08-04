@@ -29,3 +29,37 @@ async def test_zenoh_admin_client_maps_http_failure_to_domain_error():
         zenoh = ZenohAdminClient("http://app", http_client=client)
         with pytest.raises(ExternalServiceError):
             await zenoh.delete_user_password("user-1")
+
+
+async def test_configure_user_app_without_mowers_uses_unassigned_deny_key():
+    requests = []
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        zenoh = ZenohAdminClient("http://app", http_client=client)
+        await zenoh.configure_user_app("user-1", [])
+
+    assert len(requests) == 3
+    assert b"unassigned/user-1/deny" in requests[0].content
+
+
+async def test_delete_user_password_accepts_not_found():
+    async def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        zenoh = ZenohAdminClient("http://app", http_client=client)
+        await zenoh.delete_user_password("user-1")
+
+
+async def test_configure_user_app_maps_transport_error_to_domain_error():
+    async def reject(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(reject)) as client:
+        zenoh = ZenohAdminClient("http://app", http_client=client)
+        with pytest.raises(ExternalServiceError):
+            await zenoh.configure_mower_device("mower-1")

@@ -25,3 +25,7 @@ async def test_get_mowers_of_user_returns_cache_hit(db_session, cache, seed_user
     )
 
     assert await get_mowers_of_user("user-1", db_session) == ["cached-mower"]
+
+
+async def test_get_mowers_of_user_returns_empty_list_for_unknown_user(db_session):
+    assert await get_mowers_of_user("missing-user", db_session) == []

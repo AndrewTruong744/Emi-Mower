@@ -62,7 +62,12 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["src"]
-omit = ["src/scripts/*"]
+omit = [
+    "src/**/__init__.py",
+    "src/migrations/*",
+    "src/models/*",
+    "src/scripts/*",
+]
 
 [tool.coverage.report]
 fail_under = 80

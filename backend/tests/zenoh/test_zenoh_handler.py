@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from src.exceptions import OwnershipError
 from src.zenoh.generated import UserLoginRequest
 from src.zenoh.zenoh_handler import (
@@ -69,6 +71,45 @@ async def test_query_handler_returns_problem_details_for_invalid_payload(monkeyp
 
     assert query.replies == []
     assert b'"status":400' in query.errors[0]
+
+
+async def test_query_handler_rejects_non_object_json_payload(monkeypatch):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    query = FakeQuery(b'["not", "an", "object"]')
+    handler = ZenohQueryHandler(Mock(), Mock())
+
+    await handler._process(query, AsyncMock(), UserLoginRequest)
+
+    assert b'"status":400' in query.errors[0]
+
+
+async def test_message_handler_rejects_non_object_payload(monkeypatch):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    handler = ZenohMessageHandler(Mock(), Mock())
+
+    with pytest.raises(ValueError):
+        await handler._process(
+            FakeSample(b'["not", "an", "object"]'), AsyncMock(), UserLoginRequest
+        )
+
+
+def test_handlers_close_undeclares_registered_handles():
+    queryable = Mock()
+    subscriber = Mock()
+    query_handler = ZenohQueryHandler(Mock(), Mock())
+    message_handler = ZenohMessageHandler(Mock(), Mock())
+    query_handler.queryables.append(queryable)
+    message_handler.subscribers.append(subscriber)
+
+    query_handler.close()
+    message_handler.close()
+
+    queryable.undeclare.assert_called_once()
+    subscriber.undeclare.assert_called_once()
 
 
 async def test_message_handler_validates_and_delegates(monkeypatch):

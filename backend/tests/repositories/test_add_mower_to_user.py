@@ -69,3 +69,16 @@ async def test_add_mower_to_user_rejects_nonexistent_mower(db_session, seed_user
         await add_mower_to_user(
             "user-1", "00000000-0000-0000-0000-000000000001", db_session
         )
+
+
+async def test_add_mower_to_user_can_unassign_a_mower(
+    db_session, cache, seed_mower, seed_user
+):
+    await seed_user()
+    mower = await seed_mower(owner_id="user-1")
+    await cache.set(user_mowers_key("user-1"), "stale")
+
+    await add_mower_to_user(None, str(mower.id), db_session)
+
+    assert (await db_session.execute(select(MowerModel.owner_id))).scalar_one() is None
+    assert await cache.get(user_mowers_key("user-1")) is None
