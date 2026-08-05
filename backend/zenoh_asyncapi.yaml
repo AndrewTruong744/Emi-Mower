@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: >-
     The user/login exchange accepts a Firebase ID token and returns an
-    application JWT signed with JWT_SECRET.
+    application JWT signed with JWT_SECRET. LiveKit query paths issue
+    room-scoped tokens for either an app consumer or a mower publisher.
 servers:
   public:
     host: localhost:7447
@@ -16,6 +17,26 @@ channels:
     messages:
       userLoginRequest: {$ref: '#/components/messages/UserLoginRequest'}
       userLoginResponse: {$ref: '#/components/messages/UserLoginResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  livekitConsume:
+    address: mower/{mower_id}/livekit/consume
+    parameters:
+      mower_id:
+        description: Mower room to consume.
+        schema: {type: string}
+    messages:
+      livekitConsumeRequest: {$ref: '#/components/messages/LiveKitConsumeRequest'}
+      livekitTokenResponse: {$ref: '#/components/messages/LiveKitTokenResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  livekitUpload:
+    address: mower/{mower_id}/livekit/upload
+    parameters:
+      mower_id:
+        description: Mower room to publish.
+        schema: {type: string}
+    messages:
+      livekitUploadRequest: {$ref: '#/components/messages/LiveKitUploadRequest'}
+      livekitTokenResponse: {$ref: '#/components/messages/LiveKitTokenResponse'}
       problemDetails: {$ref: '#/components/messages/ProblemDetails'}
 operations:
   userLogin:
@@ -29,6 +50,28 @@ operations:
       messages:
         - {$ref: '#/channels/userLogin/messages/userLoginResponse'}
         - {$ref: '#/channels/userLogin/messages/problemDetails'}
+  livekitConsume:
+    action: receive
+    channel: {$ref: '#/channels/livekitConsume'}
+    summary: Issue an app-user token for consuming a mower's LiveKit room
+    messages:
+      - {$ref: '#/channels/livekitConsume/messages/livekitConsumeRequest'}
+    reply:
+      channel: {$ref: '#/channels/livekitConsume'}
+      messages:
+        - {$ref: '#/channels/livekitConsume/messages/livekitTokenResponse'}
+        - {$ref: '#/channels/livekitConsume/messages/problemDetails'}
+  livekitUpload:
+    action: receive
+    channel: {$ref: '#/channels/livekitUpload'}
+    summary: Issue a mower token for uploading to its LiveKit room
+    messages:
+      - {$ref: '#/channels/livekitUpload/messages/livekitUploadRequest'}
+    reply:
+      channel: {$ref: '#/channels/livekitUpload'}
+      messages:
+        - {$ref: '#/channels/livekitUpload/messages/livekitTokenResponse'}
+        - {$ref: '#/channels/livekitUpload/messages/problemDetails'}
 components:
   messages:
     UserLoginRequest:
@@ -40,6 +83,15 @@ components:
     ProblemDetails:
       name: ProblemDetails
       payload: {$ref: '#/components/schemas/ProblemDetails'}
+    LiveKitConsumeRequest:
+      name: LiveKitConsumeRequest
+      payload: {$ref: '#/components/schemas/LiveKitConsumeRequest'}
+    LiveKitUploadRequest:
+      name: LiveKitUploadRequest
+      payload: {$ref: '#/components/schemas/LiveKitUploadRequest'}
+    LiveKitTokenResponse:
+      name: LiveKitTokenResponse
+      payload: {$ref: '#/components/schemas/LiveKitTokenResponse'}
   schemas:
     UserLoginRequest:
       type: object
@@ -68,6 +120,26 @@ components:
         email: {type: string}
         name: {type: string}
         created_at: {type: string, format: date-time, nullable: true}
+    LiveKitConsumeRequest:
+      type: object
+      additionalProperties: false
+      description: Empty request; mower_id is taken from the Zenoh channel path.
+    LiveKitUploadRequest:
+      type: object
+      additionalProperties: false
+      description: Empty request; mower_id is taken from the Zenoh channel path.
+    LiveKitTokenResponse:
+      type: object
+      required: [token, url, expires_in]
+      properties:
+        token:
+          type: string
+          description: Signed LiveKit room access token.
+        url:
+          type: string
+          format: uri
+          description: LiveKit WebSocket endpoint used to connect.
+        expires_in: {type: integer, example: 3600}
     ProblemDetails:
       type: object
       required: [type, title, status, detail, instance, code, timestamp]

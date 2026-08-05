@@ -60,6 +60,22 @@ async def test_query_handler_validates_request_and_replies_json(monkeypatch):
     assert query.errors == []
 
 
+async def test_query_handler_can_pass_concrete_query_key_to_listener(monkeypatch):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    callback = AsyncMock(return_value={"ok": True})
+    query = FakeQuery(b"{}")
+    query.key_expr = "mower/mower-1/livekit/consume"
+    handler = ZenohQueryHandler(Mock(), Mock())
+
+    await handler._process(query, callback, None, include_query_key=True)
+
+    callback.assert_awaited_once()
+    assert callback.await_args.args[0] == {}
+    assert callback.await_args.args[2] == query.key_expr
+
+
 async def test_query_handler_returns_problem_details_for_invalid_payload(monkeypatch):
     import src.zenoh.zenoh_handler as handlers
 

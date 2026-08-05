@@ -87,6 +87,32 @@ services:
       retries: 12
       start_period: 20s
 
+  upload-telemetry:
+    image: python:3.12-slim
+    working_dir: /workspace
+    network_mode: host
+    volumes:
+      - ./:/workspace
+      - uv-cache:/root/.cache/uv
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      VALKEY_HOST: 127.0.0.1
+      VALKEY_PORT: ${VALKEY_PORT:-6379}
+    command:
+      - sh
+      - -c
+      - >-
+        pip install --disable-pip-version-check uv >/dev/null &&
+        uv sync --frozen &&
+        uv run python -m src.scripts.upload_telemetry_data
+    depends_on:
+      backend:
+        condition: service_healthy
+
   add-all-acls:
     image: python:3.12-slim
     working_dir: /workspace

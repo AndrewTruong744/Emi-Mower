@@ -55,6 +55,11 @@ class Settings:
     CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")
 
+    # LiveKit configuration
+    LIVEKIT_URL: str = os.getenv("LIVEKIT_URL", "")
+    LIVEKIT_API_KEY: str = os.getenv("LIVEKIT_API_KEY", "")
+    LIVEKIT_API_SECRET: str = os.getenv("LIVEKIT_API_SECRET", "")
+
     @property
     def CF_API_URL(self) -> str:
         return os.getenv(

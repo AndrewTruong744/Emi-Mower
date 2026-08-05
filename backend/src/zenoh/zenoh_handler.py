@@ -17,6 +17,7 @@ from src.zenoh.generated import ProblemDetails
 
 logger = logging.getLogger("zenoh.query_handler")
 QueryFunction = Callable[[Any, Any], Awaitable[Any]]
+KeyedQueryFunction = Callable[[Any, Any, str], Awaitable[Any]]
 MessageFunction = Callable[[Any, Any], Awaitable[None]]
 
 
@@ -109,13 +110,15 @@ class ZenohQueryHandler:
     def declare(
         self,
         key_expr: str,
-        handler: QueryFunction,
+        handler: QueryFunction | KeyedQueryFunction,
         *,
         request_model: type[BaseModel] | None = None,
+        include_query_key: bool = False,
     ) -> Any:
         def on_query(query: zenoh.Query) -> None:
             future = asyncio.run_coroutine_threadsafe(
-                self._process(query, handler, request_model), self.loop
+                self._process(query, handler, request_model, include_query_key),
+                self.loop,
             )
             try:
                 future.result(timeout=30)
@@ -129,8 +132,9 @@ class ZenohQueryHandler:
     async def _process(
         self,
         query: zenoh.Query,
-        handler: QueryFunction,
+        handler: QueryFunction | KeyedQueryFunction,
         request_model: type[BaseModel] | None,
+        include_query_key: bool = False,
     ) -> None:
         instance = str(query.key_expr)
         try:
@@ -142,7 +146,10 @@ class ZenohQueryHandler:
                 request = request_model.model_validate(request)
 
             async with AsyncSessionLocal() as db:
-                response = await handler(request, db)
+                if include_query_key:
+                    response = await handler(request, db, instance)  # type: ignore[call-arg]
+                else:
+                    response = await handler(request, db)  # type: ignore[call-arg]
             if isinstance(response, BaseModel):
                 response_payload = response.model_dump_json()
             else:

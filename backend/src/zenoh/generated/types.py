@@ -33,6 +33,22 @@ class UserLoginResponse(BaseModel):
     user_data: UserData
 
 
+class LiveKitConsumeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class LiveKitUploadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class LiveKitTokenResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str
+    url: str
+    expires_in: int
+
+
 class ProblemDetails(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -45,4 +61,12 @@ class ProblemDetails(BaseModel):
     timestamp: datetime
 
 
-WireMessage = UserLoginRequest | UserLoginResponse | ProblemDetails | dict[str, Any]
+WireMessage = (
+    UserLoginRequest
+    | UserLoginResponse
+    | LiveKitConsumeRequest
+    | LiveKitUploadRequest
+    | LiveKitTokenResponse
+    | ProblemDetails
+    | dict[str, Any]
+)
