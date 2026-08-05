@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 from pydantic import ValidationError as PydanticValidationError
 
 import zenoh
@@ -215,7 +215,10 @@ class ZenohMessageHandler:
     ) -> None:
         raw = _payload_bytes(sample.payload)
         message = json.loads(raw.decode("utf-8")) if raw else {}
-        if not isinstance(message, dict):
+        accepts_root_model = message_model is not None and issubclass(
+            message_model, RootModel
+        )
+        if not isinstance(message, dict) and not accepts_root_model:
             raise ValueError("Message payload must be a JSON object")
         if message_model is not None:
             message = message_model.model_validate(message)

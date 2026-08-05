@@ -1,11 +1,11 @@
 import asyncio
 import logging
 import sys
-import uuid
+import time
 
 from src.config.database import AsyncSessionLocal
 from src.config.valkey_client import get_valkey_client
-from src.models.mower import MowerImuModel, MowerTelemetryModel
+from src.repositories.telemetry import push_cached_telemetry_to_db
 from src.schemas.valkey import (
     MOWER_TELEMETRY_PATTERN,
     MOWER_TELEMETRY_TEMP_PATTERN,
@@ -44,61 +44,22 @@ async def process_key(v_client, temp_key: str) -> None:
             logger.error(f"Failed to validate telemetry item: {e}. Skipping.")
             continue
 
-        try:
-            mower_id = uuid.UUID(record.mower_id)
-        except ValueError as e:
-            logger.error(
-                f"Invalid mower_uuid format '{record.mower_id}': {e}. Skipping."
-            )
-            continue
-
-        telemetry_entry = MowerTelemetryModel(
-            mower_id=mower_id,
-            timestamp=record.timestamp,
-            latitude=record.latitude,
-            longitude=record.longitude,
-            battery_percentage=record.battery_percentage,
-            left_motor_speed=record.left_motor_speed,
-            left_motor_direction=record.left_motor_direction,
-            right_motor_speed=record.right_motor_speed,
-            right_motor_direction=record.right_motor_direction,
-            cutting_motor_speed=record.cutting_motor_speed,
-            slippage_detected=record.slippage_detected,
-            rgb_image_url=record.rgb_image_url,
-            lidar_image_url=record.lidar_image_url,
-        )
-
-        # Parse nested IMU data if exists
-        if record.imu_data is not None:
-            imu_entry = MowerImuModel(
-                accel_x=record.imu_data.accel_x,
-                accel_y=record.imu_data.accel_y,
-                accel_z=record.imu_data.accel_z,
-                gyro_x=record.imu_data.gyro_x,
-                gyro_y=record.imu_data.gyro_y,
-                gyro_z=record.imu_data.gyro_z,
-                mag_x=record.imu_data.mag_x,
-                mag_y=record.imu_data.mag_y,
-                mag_z=record.imu_data.mag_z,
-            )
-            telemetry_entry.imu_data = imu_entry
-
-        telemetry_records.append(telemetry_entry)
+        telemetry_records.append(record)
 
     if not telemetry_records:
         # No valid records to save, just delete the temp key
         await v_client.delete(temp_key)
         return
 
-    # Save all telemetry records in a database transaction
+    # Save all telemetry records through the repository.
     try:
         async with AsyncSessionLocal() as session:
-            async with session.begin():
-                session.add_all(telemetry_records)
-            await session.commit()
+            inserted_count = await push_cached_telemetry_to_db(
+                telemetry_records, session
+            )
         logger.info(
             "Successfully saved %d telemetry records to Postgres.",
-            len(telemetry_records),
+            inserted_count,
         )
 
         # Clean up Valkey after successful Postgres transaction

@@ -50,7 +50,7 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
         connection.run_sync.assert_awaited_once()
         valkey.ping.assert_awaited_once()
         valkey.close.assert_awaited_once()
-        main.register_handlers.assert_called_once_with(query_handler)
+        main.register_handlers.assert_called_once_with(query_handler, message_handler)
 
     query_handler.close.assert_called_once()
     message_handler.close.assert_called_once()

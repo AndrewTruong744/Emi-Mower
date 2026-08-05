@@ -9,13 +9,22 @@ from src.exceptions import (
 )
 from src.repositories import (
     add_mower_to_user,
+    add_telemetry_to_cache,
     check_mower_ownership,
     get_mower_data,
     update_mower_name,
     verify_ownership,
 )
+from src.schemas.valkey import TelemetryRecordCache
 
 logger = logging.getLogger("services.mower_service")
+
+
+async def add_telemetry_data_service(
+    telemetry_data: list[TelemetryRecordCache],
+) -> None:
+    """Buffer mower telemetry in Valkey for asynchronous database upload."""
+    await add_telemetry_to_cache(telemetry_data)
 
 
 async def get_mower_data_service(user_id: str, mower_id: str, db: AsyncSession) -> dict:

@@ -7,6 +7,7 @@ from src.services.livekit import (
     livekit_upload_service,
 )
 from src.services.mower import (
+    add_telemetry_data_service,
     get_mower_data_service,
     update_mower_name_service,
     update_mower_ownership_service,
@@ -32,6 +33,7 @@ __all__ = [
     "get_mower_data_service",
     "update_mower_name_service",
     "update_mower_ownership_service",
+    "add_telemetry_data_service",
     "create_user_service",
     "get_user_data_service",
     "get_zenoh_jwt_service",

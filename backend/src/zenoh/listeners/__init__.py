@@ -5,6 +5,10 @@ from src.zenoh.listeners.livekit_consume import (
     livekit_consume,
 )
 from src.zenoh.listeners.livekit_upload import LIVEKIT_UPLOAD_KEY_EXPR, livekit_upload
+from src.zenoh.listeners.mower_telemetry import (
+    MOWER_TELEMETRY_KEY_EXPR,
+    mower_telemetry,
+)
 from src.zenoh.listeners.user_login import LOGIN_KEY_EXPR, user_login
 
 __all__ = [
@@ -14,4 +18,6 @@ __all__ = [
     "livekit_consume",
     "LIVEKIT_UPLOAD_KEY_EXPR",
     "livekit_upload",
+    "MOWER_TELEMETRY_KEY_EXPR",
+    "mower_telemetry",
 ]

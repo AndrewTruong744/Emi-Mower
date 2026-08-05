@@ -19,6 +19,11 @@ def telemetry_json(mower_id: str) -> str:
     ).model_dump_json()
 
 
+@asynccontextmanager
+async def session_context(session):
+    yield session
+
+
 @pytest.mark.asyncio
 async def test_process_key_deletes_empty_temp_list():
     client = Mock()
@@ -35,9 +40,14 @@ async def test_process_key_skips_invalid_records_and_cleans_key(monkeypatch):
     client = Mock()
     client.lrange = AsyncMock(return_value=["not-json", telemetry_json("not-a-uuid")])
     client.delete = AsyncMock()
+    session = Mock()
+    push = AsyncMock(return_value=0)
+    monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: session_context(session))
+    monkeypatch.setattr(worker, "push_cached_telemetry_to_db", push)
 
     await worker.process_key(client, "mower:one:telemetry:data:temp")
 
+    push.assert_awaited_once()
     client.delete.assert_awaited_once_with("mower:one:telemetry:data:temp")
 
 
@@ -66,27 +76,35 @@ async def test_process_key_persists_valid_record_with_nested_imu(monkeypatch):
     client.lrange = AsyncMock(return_value=[record.model_dump_json()])
     client.delete = AsyncMock()
     session = Mock()
-    session.begin = Mock(
-        return_value=asynccontextmanager(lambda: _empty_async_generator())()
-    )
-    session.add_all = Mock()
-    session.commit = AsyncMock()
-
-    @asynccontextmanager
-    async def fake_session():
-        yield session
-
-    monkeypatch.setattr(worker, "AsyncSessionLocal", fake_session)
+    push = AsyncMock(return_value=1)
+    monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: session_context(session))
+    monkeypatch.setattr(worker, "push_cached_telemetry_to_db", push)
 
     await worker.process_key(client, "mower:one:telemetry:data:temp")
 
-    session.add_all.assert_called_once()
-    session.commit.assert_awaited_once()
+    push.assert_awaited_once()
+    persisted_records = push.await_args.args[0]
+    assert len(persisted_records) == 1
+    assert persisted_records[0].imu_data is not None
     client.delete.assert_awaited_once_with("mower:one:telemetry:data:temp")
 
 
-async def _empty_async_generator():
-    yield
+@pytest.mark.asyncio
+async def test_process_key_keeps_temp_key_when_repository_fails(monkeypatch):
+    client = Mock()
+    client.lrange = AsyncMock(return_value=[telemetry_json(str(uuid4()))])
+    client.delete = AsyncMock()
+    session = Mock()
+    monkeypatch.setattr(worker, "AsyncSessionLocal", lambda: session_context(session))
+    monkeypatch.setattr(
+        worker,
+        "push_cached_telemetry_to_db",
+        AsyncMock(side_effect=RuntimeError("database unavailable")),
+    )
+
+    await worker.process_key(client, "mower:one:telemetry:data:temp")
+
+    client.delete.assert_not_awaited()
 
 
 @pytest.mark.asyncio

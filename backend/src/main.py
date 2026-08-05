@@ -66,7 +66,9 @@ async def lifespan(app: FastAPI):
         app.state.zenoh_message_handler = ZenohMessageHandler(
             app.state.zenoh_session, asyncio.get_running_loop()
         )
-        register_handlers(app.state.zenoh_query_handler)
+        register_handlers(
+            app.state.zenoh_query_handler, app.state.zenoh_message_handler
+        )
         logger.info("Zenoh session started successfully.")
     except Exception as e:
         logger.error(f"Zenoh failed to connect on server startup: {e}")

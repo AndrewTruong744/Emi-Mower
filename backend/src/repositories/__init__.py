@@ -6,6 +6,10 @@ from src.repositories.get_all_mowers_and_users import get_all_mowers_and_users
 from src.repositories.get_mower_data import get_mower_data
 from src.repositories.get_mowers_of_user import get_mowers_of_user
 from src.repositories.get_user_data import get_user_data
+from src.repositories.telemetry import (
+    add_telemetry_to_cache,
+    push_cached_telemetry_to_db,
+)
 from src.repositories.update_mower_name import update_mower_name
 from src.repositories.update_user_email import update_user_email
 from src.repositories.update_user_name import update_user_name
@@ -32,4 +36,6 @@ __all__ = [
     "get_expired_zenoh_credential_user_ids",
     "record_zenoh_credential_expiry",
     "remove_zenoh_credential_expiry",
+    "add_telemetry_to_cache",
+    "push_cached_telemetry_to_db",
 ]
