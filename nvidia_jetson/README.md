@@ -36,4 +36,8 @@ sudo chmod +x create_udev_rules.sh
 
 ## To run
 - source /opt/ros/jazzy/setup.bash
-- ros2 run nvidia_jetson_package launch_all_nodes.py
+- ros2 launch emi_mower_bringup launch_all_nodes.py mower_id:=mower-01
+
+The launch file starts the OAK-D S2 RGB stream on `/oak/rgb/image_raw`, the
+RPLIDAR S2, and the LiveKit upload node. Pass a different `mower_id` for each
+mower so the node requests its token on `mower/{mower_id}/livekit/upload`.
