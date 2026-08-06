@@ -4,8 +4,10 @@ info:
   version: 1.0.0
   description: >-
     The user/login exchange accepts a Firebase ID token and returns an
-    application JWT signed with JWT_SECRET. LiveKit query paths issue
-    room-scoped tokens for either an app consumer or a mower publisher.
+    application JWT signed with JWT_SECRET. Authenticated user and mower
+    operations accept a Firebase ID token and return a typed reply. LiveKit
+    query paths issue room-scoped tokens for either an app consumer or a mower
+    publisher.
 servers:
   public:
     host: localhost:7447
@@ -17,6 +19,34 @@ channels:
     messages:
       userLoginRequest: {$ref: '#/components/messages/UserLoginRequest'}
       userLoginResponse: {$ref: '#/components/messages/UserLoginResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  addMowerToUser:
+    address: user/add_mower
+    messages:
+      addMowerToUserRequest: {$ref: '#/components/messages/AddMowerToUserRequest'}
+      addMowerToUserResponse: {$ref: '#/components/messages/AddMowerToUserResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  updateUserName:
+    address: user/update_name
+    messages:
+      updateUserNameRequest: {$ref: '#/components/messages/UpdateUserNameRequest'}
+      updateUserNameResponse: {$ref: '#/components/messages/UpdateUserNameResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  updateMowerName:
+    address: mower/{mower_id}/update_name
+    parameters:
+      mower_id:
+        description: Mower whose name is being updated.
+        schema: {type: string}
+    messages:
+      updateMowerNameRequest: {$ref: '#/components/messages/UpdateMowerNameRequest'}
+      updateMowerNameResponse: {$ref: '#/components/messages/UpdateMowerNameResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  updateUserEmail:
+    address: user/update_email
+    messages:
+      updateUserEmailRequest: {$ref: '#/components/messages/UpdateUserEmailRequest'}
+      updateUserEmailResponse: {$ref: '#/components/messages/UpdateUserEmailResponse'}
       problemDetails: {$ref: '#/components/messages/ProblemDetails'}
   livekitConsume:
     address: mower/{mower_id}/livekit/consume
@@ -50,6 +80,50 @@ operations:
       messages:
         - {$ref: '#/channels/userLogin/messages/userLoginResponse'}
         - {$ref: '#/channels/userLogin/messages/problemDetails'}
+  addMowerToUser:
+    action: receive
+    channel: {$ref: '#/channels/addMowerToUser'}
+    summary: Assign an unowned mower to the authenticated user
+    messages:
+      - {$ref: '#/channels/addMowerToUser/messages/addMowerToUserRequest'}
+    reply:
+      channel: {$ref: '#/channels/addMowerToUser'}
+      messages:
+        - {$ref: '#/channels/addMowerToUser/messages/addMowerToUserResponse'}
+        - {$ref: '#/channels/addMowerToUser/messages/problemDetails'}
+  updateUserName:
+    action: receive
+    channel: {$ref: '#/channels/updateUserName'}
+    summary: Update the authenticated user's name
+    messages:
+      - {$ref: '#/channels/updateUserName/messages/updateUserNameRequest'}
+    reply:
+      channel: {$ref: '#/channels/updateUserName'}
+      messages:
+        - {$ref: '#/channels/updateUserName/messages/updateUserNameResponse'}
+        - {$ref: '#/channels/updateUserName/messages/problemDetails'}
+  updateMowerName:
+    action: receive
+    channel: {$ref: '#/channels/updateMowerName'}
+    summary: Update the name of a mower owned by the authenticated user
+    messages:
+      - {$ref: '#/channels/updateMowerName/messages/updateMowerNameRequest'}
+    reply:
+      channel: {$ref: '#/channels/updateMowerName'}
+      messages:
+        - {$ref: '#/channels/updateMowerName/messages/updateMowerNameResponse'}
+        - {$ref: '#/channels/updateMowerName/messages/problemDetails'}
+  updateUserEmail:
+    action: receive
+    channel: {$ref: '#/channels/updateUserEmail'}
+    summary: Update the authenticated user's email from a verified ID token
+    messages:
+      - {$ref: '#/channels/updateUserEmail/messages/updateUserEmailRequest'}
+    reply:
+      channel: {$ref: '#/channels/updateUserEmail'}
+      messages:
+        - {$ref: '#/channels/updateUserEmail/messages/updateUserEmailResponse'}
+        - {$ref: '#/channels/updateUserEmail/messages/problemDetails'}
   livekitConsume:
     action: receive
     channel: {$ref: '#/channels/livekitConsume'}
@@ -80,6 +154,30 @@ components:
     UserLoginResponse:
       name: UserLoginResponse
       payload: {$ref: '#/components/schemas/UserLoginResponse'}
+    AddMowerToUserRequest:
+      name: AddMowerToUserRequest
+      payload: {$ref: '#/components/schemas/AddMowerToUserRequest'}
+    AddMowerToUserResponse:
+      name: AddMowerToUserResponse
+      payload: {$ref: '#/components/schemas/AddMowerToUserResponse'}
+    UpdateUserNameRequest:
+      name: UpdateUserNameRequest
+      payload: {$ref: '#/components/schemas/UpdateUserNameRequest'}
+    UpdateUserNameResponse:
+      name: UpdateUserNameResponse
+      payload: {$ref: '#/components/schemas/UpdateUserNameResponse'}
+    UpdateMowerNameRequest:
+      name: UpdateMowerNameRequest
+      payload: {$ref: '#/components/schemas/UpdateMowerNameRequest'}
+    UpdateMowerNameResponse:
+      name: UpdateMowerNameResponse
+      payload: {$ref: '#/components/schemas/UpdateMowerNameResponse'}
+    UpdateUserEmailRequest:
+      name: UpdateUserEmailRequest
+      payload: {$ref: '#/components/schemas/UpdateUserEmailRequest'}
+    UpdateUserEmailResponse:
+      name: UpdateUserEmailResponse
+      payload: {$ref: '#/components/schemas/UpdateUserEmailResponse'}
     ProblemDetails:
       name: ProblemDetails
       payload: {$ref: '#/components/schemas/ProblemDetails'}
@@ -100,6 +198,76 @@ components:
         id_token:
           type: string
           description: Firebase Identity Platform ID token.
+    AddMowerToUserRequest:
+      type: object
+      required: [id_token, mower_id]
+      additionalProperties: false
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token.
+        mower_id: {type: string}
+    AddMowerToUserResponse:
+      type: object
+      required: [message, user_id, mower_id]
+      additionalProperties: false
+      properties:
+        message: {type: string}
+        user_id: {type: string}
+        mower_id: {type: string}
+    UpdateUserNameRequest:
+      type: object
+      required: [id_token, new_user_name]
+      additionalProperties: false
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token.
+        new_user_name: {type: string}
+    UpdateUserNameResponse:
+      type: object
+      required: [message, user_id, new_user_name]
+      additionalProperties: false
+      properties:
+        message: {type: string}
+        user_id: {type: string}
+        new_user_name: {type: string}
+    UpdateMowerNameRequest:
+      type: object
+      required: [id_token, new_name]
+      additionalProperties: false
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token.
+        new_name: {type: string}
+    UpdateMowerNameResponse:
+      type: object
+      required: [message, mower_id, new_name]
+      additionalProperties: false
+      properties:
+        message: {type: string}
+        mower_id: {type: string}
+        new_name: {type: string}
+    UpdateUserEmailRequest:
+      type: object
+      required: [id_token, new_id_token]
+      additionalProperties: false
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token for the current account email.
+        new_id_token:
+          type: string
+          description: Firebase Identity Platform ID token containing the new email.
+    UpdateUserEmailResponse:
+      type: object
+      required: [message, user_id, new_email]
+      additionalProperties: false
+      properties:
+        message: {type: string}
+        user_id: {type: string}
+        new_email: {type: string}
     UserLoginResponse:
       type: object
       required: [user_id, token, expires_in, user_data]

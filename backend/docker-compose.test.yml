@@ -45,6 +45,7 @@ services:
     depends_on:
       - zenoh-mtls
     ports:
+      - "17447:7447"
       - "18001:8001"
 
   backend:

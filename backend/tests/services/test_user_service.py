@@ -4,7 +4,6 @@ import pytest
 
 from src.exceptions import (
     AuthenticationError,
-    ForbiddenError,
     UserNotFoundError,
     ValidationError,
 )
@@ -44,7 +43,9 @@ async def test_user_login_service_rejects_empty_token():
 
 
 async def test_user_login_service_rejects_identity_without_user_id(monkeypatch):
-    monkeypatch.setattr(user, "verify_gcp_identity", AsyncMock(return_value={}))
+    monkeypatch.setattr(
+        user, "verify_zenoh_google_id_token", AsyncMock(return_value={})
+    )
 
     with pytest.raises(AuthenticationError):
         await user.user_login_service(UserLoginRequest(id_token="token"), object())
@@ -53,7 +54,7 @@ async def test_user_login_service_rejects_identity_without_user_id(monkeypatch):
 async def test_user_login_service_creates_missing_user(monkeypatch):
     monkeypatch.setattr(
         user,
-        "verify_gcp_identity",
+        "verify_zenoh_google_id_token",
         AsyncMock(
             return_value={
                 "uid": "user-1",
@@ -91,7 +92,9 @@ async def test_user_login_service_creates_missing_user(monkeypatch):
 
 async def test_update_user_email_service_rejects_missing_email_claim(monkeypatch):
     monkeypatch.setattr(
-        user, "verify_gcp_identity", AsyncMock(return_value={"uid": "user-1"})
+        user,
+        "verify_zenoh_google_id_token",
+        AsyncMock(return_value={"uid": "user-1"}),
     )
 
     with pytest.raises(ValidationError):
@@ -102,14 +105,34 @@ async def test_update_user_email_service_delegates_verified_email(monkeypatch):
     update = AsyncMock()
     monkeypatch.setattr(
         user,
-        "verify_gcp_identity",
+        "verify_zenoh_google_id_token",
         AsyncMock(return_value={"uid": "user-1", "email": "new@example.test"}),
     )
+    monkeypatch.setattr(user, "find_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(user, "update_user_email", update)
 
-    await user.update_user_email_service("user-1", "token", object())
+    result = await user.update_user_email_service("user-1", "token", object())
 
     update.assert_awaited_once()
+    assert result == "new@example.test"
+
+
+async def test_update_user_email_service_rejects_email_owned_by_another_user(
+    monkeypatch,
+):
+    update = AsyncMock()
+    monkeypatch.setattr(
+        user,
+        "verify_zenoh_google_id_token",
+        AsyncMock(return_value={"uid": "user-1", "email": "taken@example.test"}),
+    )
+    monkeypatch.setattr(user, "find_user_by_email", AsyncMock(return_value="user-2"))
+    monkeypatch.setattr(user, "update_user_email", update)
+
+    with pytest.raises(ValidationError, match="already in use"):
+        await user.update_user_email_service("user-1", "token", object())
+
+    update.assert_not_awaited()
 
 
 async def test_get_user_data_service_delegates(monkeypatch):
@@ -132,17 +155,28 @@ async def test_get_zenoh_jwt_service_configures_acl_and_records_expiry(monkeypat
     admin.configure_user_app.assert_awaited_once()
 
 
-async def test_update_user_email_service_requires_matching_verified_identity(
+async def test_update_user_email_service_allows_new_token_for_different_firebase_user(
     monkeypatch,
 ):
+    update = AsyncMock()
     monkeypatch.setattr(
         user,
-        "verify_gcp_identity",
-        AsyncMock(return_value={"uid": "other", "email": "other@example.test"}),
+        "verify_zenoh_google_id_token",
+        AsyncMock(
+            return_value={
+                "uid": "new-firebase-user",
+                "email": "other@example.test",
+            }
+        ),
     )
+    monkeypatch.setattr(user, "find_user_by_email", AsyncMock(return_value=None))
+    monkeypatch.setattr(user, "update_user_email", update)
 
-    with pytest.raises(ForbiddenError):
-        await user.update_user_email_service("user-1", "token", object())
+    db = object()
+    result = await user.update_user_email_service("user-1", "token", db)
+
+    assert result == "other@example.test"
+    update.assert_awaited_once_with("user-1", "other@example.test", db=db)
 
 
 async def test_update_user_name_service_validates_then_delegates(monkeypatch):
@@ -158,7 +192,7 @@ async def test_update_user_name_service_validates_then_delegates(monkeypatch):
 async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatch):
     monkeypatch.setattr(
         user,
-        "verify_gcp_identity",
+        "verify_zenoh_google_id_token",
         AsyncMock(
             return_value={"uid": "user-1", "email": "one@example.test", "name": "One"}
         ),

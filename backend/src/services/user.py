@@ -3,7 +3,6 @@ import random
 import string
 import time
 
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import ZenohAdminClient
@@ -15,13 +14,14 @@ from src.exceptions import (
 )
 from src.repositories import (
     create_user,
+    find_user_by_email,
     get_mowers_of_user,
     get_user_data,
     record_zenoh_credential_expiry,
     update_user_email,
     update_user_name,
 )
-from src.services.auth import verify_gcp_identity
+from src.services.auth import verify_zenoh_google_id_token
 from src.services.temp_jwt import generate_jwt_token
 from src.zenoh.generated import UserData, UserLoginRequest, UserLoginResponse
 
@@ -67,10 +67,7 @@ async def user_login_service(
     if not firebase_token:
         raise ValidationError("The login payload must contain a non-empty id_token")
 
-    credentials = HTTPAuthorizationCredentials(
-        scheme="Bearer", credentials=firebase_token
-    )
-    decoded_identity = await verify_gcp_identity(credentials)
+    decoded_identity = await verify_zenoh_google_id_token(firebase_token)
     user_id = decoded_identity.get("uid") or decoded_identity.get("user_id")
     if not user_id:
         raise AuthenticationError("Authenticated identity does not contain a user id")
@@ -109,37 +106,38 @@ async def get_user_data_service(user_id: str, db: AsyncSession) -> dict:
 
 async def update_user_email_service(
     user_id: str, new_id_token: str, db: AsyncSession
-) -> None:
+) -> str:
     """
     Service to update the email of a user.
-    Verifies the new_id_token using verify_gcp_identity,
-    ensures it matches the requested user_id, and updates PostgreSQL.
+    Verifies the new_id_token using verify_zenoh_google_id_token,
+    then updates the current user's email. The new token may have a different
+    Firebase UID; its email must not already belong to a database user.
     Raises ForbiddenError, ValidationError, UserNotFoundError, or RepositoryError.
     """
     logger.info(f"update_user_email_service called for user: {user_id}")
 
     try:
-        cred = HTTPAuthorizationCredentials(scheme="Bearer", credentials=new_id_token)
-        decoded_token = await verify_gcp_identity(cred)
+        decoded_token = await verify_zenoh_google_id_token(new_id_token)
     except Exception as verify_err:
         logger.warning(f"Failed to verify ID token for user email update: {verify_err}")
         raise ForbiddenError(
             "Not allowed: ID token verification failed"
         ) from verify_err
 
-    token_uid = decoded_token.get("uid") or decoded_token.get("user_id")
-    if not token_uid or token_uid != user_id:
-        logger.warning(
-            f"Token UID '{token_uid}' does not match target user_id '{user_id}'"
-        )
-        raise ForbiddenError("Not allowed: Token UID does not match target user ID")
-
     new_email = decoded_token.get("email")
     if not new_email:
         logger.error("Verified ID token lacks 'email' claim")
         raise ValidationError("Verified ID token lacks 'email' claim")
 
+    existing_user_id = await find_user_by_email(new_email, db=db)
+    if existing_user_id is not None:
+        logger.warning(
+            "Email %s is already registered to user %s", new_email, existing_user_id
+        )
+        raise ValidationError("The email address is already in use")
+
     await update_user_email(user_id, new_email, db=db)
+    return new_email
 
 
 async def update_user_name_service(

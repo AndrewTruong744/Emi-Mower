@@ -1,4 +1,7 @@
-from src.services.auth import verify_gcp_identity
+from src.services.auth import (
+    verify_http_google_id_token,
+    verify_zenoh_google_id_token,
+)
 from src.services.firebase_init import initialize_backend_auth
 from src.services.livekit import (
     get_livekit_consume_token_service,
@@ -23,7 +26,8 @@ from src.services.user import (
 )
 
 __all__ = [
-    "verify_gcp_identity",
+    "verify_http_google_id_token",
+    "verify_zenoh_google_id_token",
     "initialize_backend_auth",
     "livekit_consume_service",
     "livekit_upload_service",

@@ -1,6 +1,7 @@
 from src.repositories.add_mower_to_user import add_mower_to_user
 from src.repositories.check_mower_ownership import check_mower_ownership
 from src.repositories.create_user import create_user
+from src.repositories.find_user_by_email import find_user_by_email
 from src.repositories.find_user_by_mower import find_user_by_mower
 from src.repositories.get_all_mowers_and_users import get_all_mowers_and_users
 from src.repositories.get_mower_data import get_mower_data
@@ -25,6 +26,7 @@ __all__ = [
     "check_mower_ownership",
     "create_user",
     "find_user_by_mower",
+    "find_user_by_email",
     "get_mower_data",
     "get_all_mowers_and_users",
     "get_mowers_of_user",

@@ -15,6 +15,66 @@ class UserLoginRequest(BaseModel):
     id_token: str
 
 
+class AddMowerToUserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    mower_id: str
+
+
+class AddMowerToUserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    user_id: str
+    mower_id: str
+
+
+class UpdateUserNameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    new_user_name: str
+
+
+class UpdateUserNameResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    user_id: str
+    new_user_name: str
+
+
+class UpdateMowerNameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    new_name: str
+
+
+class UpdateMowerNameResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    mower_id: str
+    new_name: str
+
+
+class UpdateUserEmailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    new_id_token: str
+
+
+class UpdateUserEmailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    user_id: str
+    new_email: str
+
+
 class UserData(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -64,6 +124,14 @@ class ProblemDetails(BaseModel):
 WireMessage = (
     UserLoginRequest
     | UserLoginResponse
+    | AddMowerToUserRequest
+    | AddMowerToUserResponse
+    | UpdateUserNameRequest
+    | UpdateUserNameResponse
+    | UpdateMowerNameRequest
+    | UpdateMowerNameResponse
+    | UpdateUserEmailRequest
+    | UpdateUserEmailResponse
     | LiveKitConsumeRequest
     | LiveKitUploadRequest
     | LiveKitTokenResponse

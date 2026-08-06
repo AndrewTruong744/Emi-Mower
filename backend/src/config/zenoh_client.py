@@ -129,11 +129,11 @@ class ZenohAdminClient:
                 json.dumps(password),
             )
 
-        key_exprs = (
-            [f"mower/{mower_id}/**" for mower_id in mower_ids]
-            if mower_ids
-            else [f"unassigned/{user_id}/deny"]
-        )
+        key_exprs = ["user/**"]
+        if mower_ids:
+            key_exprs.extend(f"mower/{mower_id}/**" for mower_id in mower_ids)
+        else:
+            key_exprs.append(f"unassigned/{user_id}/deny")
         await self._apply_acl_triad(
             subject_username=user_id,
             rule_id=f"rule_{user_id}",

@@ -18,6 +18,7 @@ async def test_configure_user_app_writes_password_and_acl_triad():
 
     assert len(requests) == 4
     assert requests[0].url.path.endswith("/dictionary/user-1")
+    assert b"user/**" in requests[1].content
     assert b"mower/mower-1/**" in requests[1].content
 
 
