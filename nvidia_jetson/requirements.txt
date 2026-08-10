@@ -1,5 +1,5 @@
 rasyncio
 aiomqtt
 numpy
-eclipse-zenoh>=1.9.0
+eclipse-zenoh==1.9.0
 livekit>=1.0.0

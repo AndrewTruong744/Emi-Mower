@@ -1,14 +1,18 @@
 {
   mode: "router",
   listen: { endpoints: ["tcp/0.0.0.0:7447"] },
-  connect: { endpoints: ["tls/zenoh-mtls:7448"] },
+  connect: {
+    endpoints: ["tls/zenoh-mtls:7448"],
+    exit_on_failure: true,
+    timeout_ms: 10000
+  },
   transport: {
-    auth: { usrpwd: { dictionary_file: "zenoh-router-users.txt" } },
     link: {
       tls: {
         root_ca_certificate: "certs/ca/ca.crt",
         connect_certificate: "certs/zenoh_app/router.crt",
         connect_private_key: "certs/zenoh_app/router.key",
+        verify_name_on_connect: false,
         listen_certificate: "certs/zenoh_app/router.crt",
         listen_private_key: "certs/zenoh_app/router.key",
         enable_mtls: true
@@ -16,5 +20,8 @@
     }
   },
   adminspace: { permissions: { read: true, write: true } },
-  plugins: { rest: { http_port: "0.0.0.0:8001" } }
+  plugins: {
+    remote_api: { websocket_port: "10000" },
+    rest: { http_port: "0.0.0.0:8001" }
+  }
 }

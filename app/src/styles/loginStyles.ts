@@ -78,4 +78,18 @@ export const loginStyles = StyleSheet.create({
   snackbar: {
     backgroundColor: '#D32F2F',
   },
+  errorModal: {
+    backgroundColor: '#1E1E1E',
+    margin: 24,
+    borderRadius: 16,
+    padding: 24,
+  },
+  errorModalTitle: {
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  errorModalMessage: {
+    color: '#FFFFFF',
+    marginBottom: 24,
+  },
 });

@@ -1,0 +1,37 @@
+module.exports = {
+  preset: 'jest-expo',
+  testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  moduleNameMapper: {
+    '^@/config/firebase$': '<rootDir>/tests/mocks/firebase.ts',
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@eclipse-zenoh/zenoh-ts$': '<rootDir>/tests/mocks/zenoh.ts',
+    '^@react-native-firebase/app$': '<rootDir>/tests/mocks/firebase-app.js',
+    '^@react-native-firebase/auth$': '<rootDir>/tests/mocks/firebase-auth.ts',
+    '^@react-native-google-signin/google-signin$': '<rootDir>/tests/mocks/google-signin.ts',
+    '^react-native-reanimated$': '<rootDir>/tests/mocks/reanimated.js',
+    '^react-native-worklets$': '<rootDir>/tests/mocks/worklets.js',
+    '^react-native-gesture-handler$': '<rootDir>/tests/mocks/gesture-handler.js',
+  },
+  testMatch: ['<rootDir>/tests/**/*.test.[jt]s?(x)'],
+  collectCoverageFrom: [
+    'src/hooks/**/*.{ts,tsx}',
+    'src/store/**/*.{ts,tsx}',
+    'src/zenoh/**/*.{ts,tsx}',
+    'src/components/**/*.{ts,tsx}',
+    '!src/generated/**',
+    '!src/components/ui/icon-symbol.ios.tsx',
+    '!src/components/ui/icon-symbol.tsx',
+    '!src/components/controller/Livestream.tsx',
+    '!src/store/types.ts',
+    '!src/store/slices/mowerSlice.ts',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+};

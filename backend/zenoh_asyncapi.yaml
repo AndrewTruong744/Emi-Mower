@@ -11,7 +11,7 @@ info:
 servers:
   public:
     host: localhost:7447
-    protocol: wss
+    protocol: ws
     description: Public Zenoh router endpoint
 channels:
   userLogin:
@@ -281,13 +281,17 @@ components:
           $ref: '#/components/schemas/UserData'
     UserData:
       type: object
-      required: [id, email, name]
+      required: [id, email, name, mowers]
       additionalProperties: true
       properties:
         id: {type: string}
         email: {type: string}
         name: {type: string}
         created_at: {type: string, format: date-time, nullable: true}
+        mowers:
+          type: array
+          items: {type: string}
+          description: IDs of the mowers owned by this user.
     LiveKitConsumeRequest:
       type: object
       additionalProperties: false

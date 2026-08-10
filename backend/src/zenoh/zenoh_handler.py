@@ -19,6 +19,7 @@ logger = logging.getLogger("zenoh.query_handler")
 QueryFunction = Callable[[Any, Any], Awaitable[Any]]
 KeyedQueryFunction = Callable[[Any, Any, str], Awaitable[Any]]
 MessageFunction = Callable[[Any, Any], Awaitable[None]]
+QUERY_HANDLER_TIMEOUT_SECONDS = 5
 
 
 def _payload_bytes(payload: Any) -> bytes:
@@ -121,7 +122,7 @@ class ZenohQueryHandler:
                 self.loop,
             )
             try:
-                future.result(timeout=30)
+                future.result(timeout=QUERY_HANDLER_TIMEOUT_SECONDS)
             except Exception:
                 logger.exception("Zenoh query failed for %s", key_expr)
 

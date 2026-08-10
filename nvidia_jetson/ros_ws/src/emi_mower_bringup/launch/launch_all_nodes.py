@@ -78,6 +78,12 @@ def generate_launch_description():
             name="ZENOH_SESSION_CONFIG_URI",
             value=zenoh_config_path,
         ),
+        # Zenoh-Python uses ZENOH_CONFIG while rmw_zenoh_cpp uses
+        # ZENOH_SESSION_CONFIG_URI.  Both must load the same mTLS session.
+        SetEnvironmentVariable(
+            name="ZENOH_CONFIG",
+            value=zenoh_config_path,
+        ),
         oakd_node,
         sllidar_node,
         livekit_node,

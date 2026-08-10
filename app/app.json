@@ -35,10 +35,6 @@
         "android.permission.BLUETOOTH"
       ]
     },
-    "web": {
-      "output": "static",
-      "favicon": "./src/assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
       [

@@ -46,6 +46,7 @@ services:
       - zenoh-mtls
     ports:
       - "17447:7447"
+      - "10000:10000"
       - "18001:8001"
 
   backend:
@@ -60,6 +61,8 @@ services:
       POSTGRES_DB: emi_mower_test
       VALKEY_HOST: valkey
       VALKEY_PORT: "6379"
+      ZENOH_MTLS_ENDPOINT: tls/zenoh-mtls:7448
+      ZENOH_MTLS_VERIFY_NAME: "false"
       ZENOH_APP_REST_URL: http://zenoh-app:8001
       ZENOH_MTLS_REST_URL: http://zenoh-mtls:8002
       JWT_SECRET: integration-test-secret

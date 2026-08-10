@@ -26,6 +26,27 @@ async def test_remove_expired_usrpwds_deletes_password_and_expiry(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_remove_expired_usrpwds_is_noop_when_no_credentials_are_expired(
+    monkeypatch,
+):
+    client = Mock()
+    client.delete_user_password = AsyncMock()
+    monkeypatch.setattr(checker, "ZenohAdminClient", Mock(return_value=client))
+    monkeypatch.setattr(
+        checker,
+        "get_expired_zenoh_credential_user_ids",
+        AsyncMock(return_value=[]),
+    )
+    remove = AsyncMock()
+    monkeypatch.setattr(checker, "remove_zenoh_credential_expiry", remove)
+
+    await checker.remove_expired_usrpwds()
+
+    client.delete_user_password.assert_not_awaited()
+    remove.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_remove_expired_usrpwds_continues_after_one_user_fails(monkeypatch):
     client = Mock()
     client.delete_user_password = AsyncMock(

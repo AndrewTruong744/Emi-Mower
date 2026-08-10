@@ -1,5 +1,6 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { auth } from '@/config/firebase';
+import nativeAuth, { getIdToken, signInWithCredential } from '@react-native-firebase/auth';
+import { firebaseAuth } from '@/config/firebase';
 import { useState } from 'react';
 
 export const useChangeEmail = () => {
@@ -16,21 +17,20 @@ export const useChangeEmail = () => {
         throw new Error('Google Sign-In was cancelled or failed.');
       }
 
-      const { serverAuthCode } = signInResult.data;
       const { idToken, accessToken } = await GoogleSignin.getTokens();
 
       if (!idToken || !accessToken) {
         throw new Error('Could not retrieve tokens from Google.');
       }
 
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
-      const firebaseIdToken = await userCredential.user.getIdToken();
-      const refreshToken = serverAuthCode || 'firebase-handled';
-
+      const googleCredential = nativeAuth.GoogleAuthProvider.credential(
+        idToken,
+        accessToken
+      ) as unknown as Parameters<typeof signInWithCredential>[1];
+      const userCredential = await signInWithCredential(firebaseAuth, googleCredential);
+      const firebaseIdToken = await getIdToken(userCredential.user);
       return {
         idToken: firebaseIdToken,
-        refreshToken,
         email: userCredential.user.email,
       };
     } catch (err: any) {

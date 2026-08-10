@@ -14,7 +14,7 @@
 - sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
 - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 - sudo apt update && sudo apt upgrade -y
-- sudo apt install ros-jazzy-desktop ros-dev-tools python3-colcon-common-extensions -y
+- sudo apt install ros-jazzy-desktop ros-jazzy-rmw-zenoh-cpp ros-dev-tools python3-colcon-common-extensions -y
 
 ### OAKD S2 setup
 - cd ~/ros_ws
@@ -41,3 +41,11 @@ sudo chmod +x create_udev_rules.sh
 The launch file starts the OAK-D S2 RGB stream on `/oak/rgb/image_raw`, the
 RPLIDAR S2, and the LiveKit upload node. Pass a different `mower_id` for each
 mower so the node requests its token on `mower/{mower_id}/livekit/upload`.
+
+The ROS graph and the Python LiveKit node use the same Zenoh 1.9 session
+configuration. `rmw_zenoh_cpp` reads `ZENOH_SESSION_CONFIG_URI`; Zenoh-Python
+reads `ZENOH_CONFIG`. The bringup launch file sets both to
+`config/zenoh_client.json5`, which connects to the backend
+`zenoh-router-mtls` listener on TLS port 7448. Install the mower certificate,
+private key, and backend CA at the paths in that file before running the
+launch. The Rust package pins its Zenoh crate to the same 1.9.0 baseline.

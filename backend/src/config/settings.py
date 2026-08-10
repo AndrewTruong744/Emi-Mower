@@ -39,6 +39,12 @@ class Settings:
     ZENOH_APP_REST_URL: str = os.getenv(
         "ZENOH_APP_REST_URL", "http://127.0.0.1:8001"
     )
+    ZENOH_MTLS_ENDPOINT: str = os.getenv(
+        "ZENOH_MTLS_ENDPOINT", "tls/127.0.0.1:7448"
+    )
+    ZENOH_MTLS_VERIFY_NAME: bool = os.getenv(
+        "ZENOH_MTLS_VERIFY_NAME", "true"
+    ).lower() in {"1", "true", "yes", "on"}
     ZENOH_MTLS_REST_URL: str = os.getenv(
         "ZENOH_MTLS_REST_URL", "http://127.0.0.1:8002"
     )

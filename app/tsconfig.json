@@ -1,13 +1,11 @@
 {
   "compilerOptions": {
     "strict": true,
-    // Change this to ignore deprecations warnings for TypeScript 6.0
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "extends": "expo/tsconfig.base",
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

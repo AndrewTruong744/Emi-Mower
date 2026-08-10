@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import threading
 from dataclasses import dataclass
 
@@ -12,6 +13,23 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 
 import zenoh
+
+
+def _zenoh_config() -> zenoh.Config:
+    """Load the same session config used by ``rmw_zenoh_cpp``.
+
+    Zenoh-Python 1.9 requires a Config argument to ``open``.  The ROS
+    middleware receives its config through ``ZENOH_SESSION_CONFIG_URI``;
+    accepting that variable here keeps the Python session on the same router,
+    TLS, and discovery settings as the ROS graph.  ``ZENOH_CONFIG`` is the
+    native Zenoh-Python name and takes precedence when supplied explicitly.
+    """
+    config_path = os.environ.get("ZENOH_CONFIG") or os.environ.get(
+        "ZENOH_SESSION_CONFIG_URI"
+    )
+    if config_path:
+        return zenoh.Config.from_file(config_path)
+    return zenoh.Config()
 
 
 @dataclass(frozen=True)
@@ -41,7 +59,7 @@ class LiveKitNode(Node):
         self.video_bitrate = int(self.get_parameter("video_bitrate").value)
 
         self.upload_key = f"mower/{self.mower_id}/livekit/upload"
-        self.zenoh_session = zenoh.open()
+        self.zenoh_session = zenoh.open(_zenoh_config())
 
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._frame_queue: asyncio.Queue[CameraFrame] | None = None
@@ -159,7 +177,7 @@ class LiveKitNode(Node):
         replies = self.zenoh_session.get(
             self.upload_key,
             payload=b"{}",
-            target=zenoh.QueryTarget.BEST_MATCHING(),
+            target=zenoh.QueryTarget.BEST_MATCHING,
         )
 
         for reply in replies:

@@ -5,15 +5,16 @@ import { usePatchUsername } from './api/user/usePatchUsername';
 import { usePatchUserEmail } from './api/user/usePatchUserEmail';
 import { useChangeEmail } from './useChangeEmail';
 import { useLogout } from './useLogout';
+import { firebaseAuth } from '@/config/firebase';
 
 export const useSettings = () => {
-  const { user_id, email, displayName, setUser, setAuthTokens } = useBoundStore(
+  const { user_id, email, displayName, setUser, setAuthToken } = useBoundStore(
     useShallow((state) => ({
       user_id: state.user_id,
       email: state.email,
       displayName: state.displayName,
       setUser: state.setUser,
-      setAuthTokens: state.setAuthTokens,
+      setAuthToken: state.setAuthToken,
     }))
   );
 
@@ -57,13 +58,14 @@ export const useSettings = () => {
 
       // Patch user email passing the new ID token
       const response = await patchUserEmailMutation.mutateAsync({
-        userId: user_id,
         newIdToken: tempTokens.idToken,
+        newEmail: tempTokens.email || '',
       });
 
       if (response.new_email) {
         // Update Zustand store on success
-        setAuthTokens(tempTokens.idToken, tempTokens.refreshToken);
+        const refreshedIdToken = await firebaseAuth.currentUser?.getIdToken(true);
+        setAuthToken(refreshedIdToken || tempTokens.idToken);
         setUser({
           user_id,
           email: response.new_email,

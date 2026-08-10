@@ -1,37 +1,35 @@
-import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useGoogleAuth } from './useGoogleAuth';
+import { loginUserAndStore } from '@/zenoh/UserLogin';
+import { useBoundStore } from '@/store/useBoundStore';
+import { isAuthOperationCancelled } from '@/auth/session';
+import { isZenohOperationCancelled } from '@/zenoh/client';
 
 export const useLogin = () => {
   const router = useRouter();
   const { signInWithGoogle, isLoading } = useGoogleAuth();
-
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const setUser = useBoundStore((state) => state.setUser);
+  const setMowers = useBoundStore((state) => state.setMowers);
+  const clearError = useBoundStore((state) => state.clearError);
+  const reportError = useBoundStore((state) => state.reportError);
 
   const handleGoogleLogin = async () => {
     try {
-      setErrorVisible(false);
-      setErrorMessage(null);
-      await signInWithGoogle();
+      clearError();
+      const firebaseUser = await signInWithGoogle();
+      const idToken = await firebaseUser.getIdToken(true);
+      await loginUserAndStore(idToken, setUser, setMowers);
       // On success, navigate to the tabs layout (specifically the default index screen)
       router.replace('/(tabs)');
     } catch (err: any) {
+      if (isAuthOperationCancelled(err) || isZenohOperationCancelled(err)) return;
       console.error('Login screen sign-in failure:', err);
-      setErrorMessage(err?.message || 'Failed to sign in with Google. Please try again.');
-      setErrorVisible(true);
+      reportError(err, { source: 'auth', title: 'Sign-in failed' });
     }
-  };
-
-  const dismissError = () => {
-    setErrorVisible(false);
   };
 
   return {
     handleGoogleLogin,
     isLoading,
-    errorVisible,
-    errorMessage,
-    dismissError,
   };
 };

@@ -1,5 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Controls from '@/components/controller/Controls';
+import { controllerStyles as styles } from '@/styles/controllerStyles';
 
 export default function Controller() {
   return (
@@ -11,21 +12,3 @@ export default function Controller() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  main: {
-    display: 'flex',
-    flex: 1,
-  },
-  video: {
-    backgroundColor: 'red',
-    flex: 1,
-  },
-  controller: {
-    backgroundColor: 'rgb(100,100,100)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-});

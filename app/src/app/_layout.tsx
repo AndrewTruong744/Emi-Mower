@@ -3,19 +3,23 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import { StyleSheet, View, Alert } from 'react-native';
+import { StyleSheet, View, useColorScheme as useNativeColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator } from 'react-native-paper';
-import '../../global.css';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useBoundStore } from '@/store/useBoundStore';
-import { auth } from '@/config/firebase';
-import { useGetUserData } from '@/hooks/api/user/useGetUserData';
-import { usePostUserData } from '@/hooks/api/user/usePostUserData';
+import { firebaseAuth } from '@/config/firebase';
+import { onAuthStateChanged } from '@react-native-firebase/auth';
+import { loginUserAndStore } from '@/zenoh/UserLogin';
+import {
+  getAuthSessionVersion,
+  invalidateAuthSession,
+  isAuthOperationCancelled,
+  isAuthSessionCurrent,
+} from '@/auth/session';
+import { cancelZenohOperations, closeZenoh, isZenohOperationCancelled } from '@/zenoh/client';
 
 // Create a single client instance outside the component scope to keep it stable
 const queryClient = new QueryClient({
@@ -37,102 +41,62 @@ export const unstable_settings = {
 };
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const systemColorScheme = useNativeColorScheme();
+  const themePreference = useBoundStore((state) => state.themePreference);
+  const colorScheme =
+    themePreference === 'system' ? (systemColorScheme ?? 'light') : themePreference;
   const segments = useSegments();
   const router = useRouter();
   const idToken = useBoundStore((state) => state.idToken);
-  const setAuthTokens = useBoundStore((state) => state.setAuthTokens);
+  const setAuthToken = useBoundStore((state) => state.setAuthToken);
   const setUser = useBoundStore((state) => state.setUser);
+  const setMowers = useBoundStore((state) => state.setMowers);
   const clearAuth = useBoundStore((state) => state.clearAuth);
   const clearUser = useBoundStore((state) => state.clearUser);
+  const clearMowers = useBoundStore((state) => state.clearMowers);
+  const resetStore = useBoundStore((state) => state.resetStore);
+  const reportError = useBoundStore((state) => state.reportError);
 
   const [isInitializing, setIsInitializing] = useState(true);
-  const user_id = useBoundStore((state) => state.user_id);
-  const [hasTriedPost, setHasTriedPost] = useState(false);
-
-  const { data: userData, isError: isGetError, isSuccess: isGetSuccess } = useGetUserData(user_id);
-  const {
-    mutate: postUser,
-    isError: isPostError,
-    isSuccess: isPostSuccess,
-    data: postData,
-  } = usePostUserData();
-
-  // Reset fallback state on logout
-  useEffect(() => {
-    if (!idToken) {
-      setHasTriedPost(false);
-    }
-  }, [idToken]);
-
-  // Handle get user data success
-  useEffect(() => {
-    if (isGetSuccess && userData?.user_data) {
-      setUser({
-        user_id: userData.user_data.id,
-        email: userData.user_data.email,
-        displayName: userData.user_data.name,
-      });
-    }
-  }, [isGetSuccess, userData, setUser]);
-
-  // Fallback to post user data if get fails
-  useEffect(() => {
-    if (isGetError && user_id && !hasTriedPost) {
-      setHasTriedPost(true);
-      postUser(user_id);
-    }
-  }, [isGetError, user_id, hasTriedPost, postUser]);
-
-  // Handle post user data success
-  useEffect(() => {
-    if (isPostSuccess && postData?.user_data) {
-      setUser({
-        user_id: postData.user_data.id,
-        email: postData.user_data.email,
-        displayName: postData.user_data.name,
-      });
-    }
-  }, [isPostSuccess, postData, setUser]);
-
-  console.log('RootLayoutNav Render:');
-  console.log('  user_id:', user_id);
-  console.log('  isGetSuccess:', isGetSuccess, 'isGetError:', isGetError);
-  console.log('  isPostSuccess:', isPostSuccess, 'isPostError:', isPostError);
-  console.log('  hasTriedPost:', hasTriedPost);
-
-  // Handle both get and post failure
-  useEffect(() => {
-    if (isPostError) {
-      console.log('RootLayoutNav: isPostError is true, alerting Backend Down!');
-      Alert.alert('Backend Down', 'The backend might be down. Please try again later.');
-    }
-  }, [isPostError]);
 
   // Sync Firebase auth state with Zustand store
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     try {
-      unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
-        if (firebaseUser) {
-          try {
-            const token = await firebaseUser.getIdToken();
-            setAuthTokens(token, 'firebase-handled');
-            setUser({
-              user_id: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-            });
-          } catch (error) {
-            console.error('Error fetching Firebase ID token:', error);
-            clearAuth();
-            clearUser();
+      unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+        if (!firebaseUser) {
+          // Firebase can emit the sign-out event independently of the logout
+          // button. Invalidate any login callback that is still in flight.
+          invalidateAuthSession();
+          cancelZenohOperations();
+          await closeZenoh();
+          resetStore();
+          setIsInitializing(false);
+          return;
+        }
+
+        const authSessionVersion = getAuthSessionVersion();
+        try {
+          const token = await firebaseUser.getIdToken();
+          if (!isAuthSessionCurrent(authSessionVersion)) return;
+          setAuthToken(token);
+          await loginUserAndStore(token, setUser, setMowers);
+          if (!isAuthSessionCurrent(authSessionVersion)) return;
+        } catch (error) {
+          if (
+            !isAuthSessionCurrent(authSessionVersion) ||
+            isAuthOperationCancelled(error) ||
+            isZenohOperationCancelled(error)
+          ) {
+            return;
           }
-        } else {
+          console.error('Error fetching Firebase ID token:', error);
+          reportError(error, { source: 'auth', title: 'Authentication failed' });
           clearAuth();
           clearUser();
+          clearMowers();
         }
-        setIsInitializing(false);
+        if (isAuthSessionCurrent(authSessionVersion)) setIsInitializing(false);
       });
     } catch (error) {
       console.error('Firebase Auth is not initialized or failed to start:', error);
@@ -144,7 +108,16 @@ function RootLayoutNav() {
         unsubscribe();
       }
     };
-  }, [setAuthTokens, setUser, clearAuth, clearUser]);
+  }, [
+    setAuthToken,
+    setUser,
+    setMowers,
+    clearAuth,
+    clearUser,
+    clearMowers,
+    resetStore,
+    reportError,
+  ]);
 
   // Protected routes handler
   useEffect(() => {
@@ -179,7 +152,6 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
     </ThemeProvider>
   );

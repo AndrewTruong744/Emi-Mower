@@ -82,6 +82,7 @@ class UserData(BaseModel):
     email: str
     name: str
     created_at: datetime | None = None
+    mowers: list[str] = []
 
 
 class UserLoginResponse(BaseModel):

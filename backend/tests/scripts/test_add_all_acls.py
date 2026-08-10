@@ -42,6 +42,32 @@ async def test_add_all_acls_configures_every_user_and_mower(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_add_all_acls_is_noop_when_database_has_no_users_or_mowers(monkeypatch):
+    @asynccontextmanager
+    async def fake_session():
+        yield object()
+
+    client = Mock()
+    client.configure_user_app = AsyncMock()
+    client.configure_mower_device = AsyncMock()
+    monkeypatch.setattr(add_all_acls, "AsyncSessionLocal", fake_session)
+    monkeypatch.setattr(
+        add_all_acls,
+        "get_all_mowers_and_users",
+        AsyncMock(return_value={"users": [], "mowers": []}),
+    )
+    monkeypatch.setattr(add_all_acls, "ZenohAdminClient", Mock(return_value=client))
+    close = AsyncMock()
+    monkeypatch.setattr(add_all_acls, "close_http_client", close)
+
+    await add_all_acls.add_all_acls()
+
+    client.configure_user_app.assert_not_awaited()
+    client.configure_mower_device.assert_not_awaited()
+    close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_add_all_acls_closes_http_client_when_database_loading_fails(monkeypatch):
     @asynccontextmanager
     async def fake_session():

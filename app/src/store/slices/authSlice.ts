@@ -3,7 +3,6 @@ import { AuthSlice, BoundStoreState } from '../types';
 
 export const createAuthSlice: StateCreator<BoundStoreState, [], [], AuthSlice> = (set) => ({
   idToken: null,
-  refreshToken: null,
-  setAuthTokens: (idToken, refreshToken) => set({ idToken, refreshToken }),
-  clearAuth: () => set({ idToken: null, refreshToken: null }),
+  setAuthToken: (idToken) => set({ idToken }),
+  clearAuth: () => set({ idToken: null }),
 });

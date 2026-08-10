@@ -1,12 +1,13 @@
 {
-  // Set mode to "client" so it connects directly to your backend router
+  // Set mode to "client" so it connects directly to the backend
+  // zenoh-router-mtls instance.  Change the address for another deployment;
+  // 192.168.1.73 is the backend host used by the current mower/app setup.
   mode: "client",
 
   // Define connection endpoints to your backend server
   connect: {
     endpoints: [
-      // Format: tls://<BACKEND_DOMAIN_OR_IP>:<PORT>
-      "tls://backend.yourdomain.com:7447"
+      "tls/192.168.1.73:7448"
     ]
   },
 
@@ -15,15 +16,19 @@
     link: {
       tls: {
         // Path to the client's own x509 certificate signed by your CA
-        // The CN in this cert MUST match your mower ID (e.g., CN=mower-01)
-        certificate: "/etc/mower/certs/mower_cert.pem",
+        // The certificate must be signed by the backend CA.
+        connect_certificate: "/etc/mower/certs/mower.crt",
 
         // Path to the client's private key
-        private_key: "/etc/mower/certs/mower_key.pem",
+        connect_private_key: "/etc/mower/certs/mower.key",
 
         // Path to your Root Certificate Authority (CA) cert
         // Used to verify that the backend router's server cert is authentic
-        root_ca_certificate: "/etc/mower/certs/root_ca.pem"
+        root_ca_certificate: "/etc/mower/certs/root_ca.pem",
+
+        // Require a client certificate when the router has mTLS enabled.
+        enable_mtls: true,
+        verify_name_on_connect: true
       }
     }
   }

@@ -1,0 +1,19 @@
+FROM eclipse/zenoh:1.9.0
+
+ARG TARGETARCH
+
+# The official Zenoh image does not ship the remote-api plugin. Install the
+# matching official musl build so zenoh-ts can connect over WebSocket.
+RUN apk add --no-cache curl unzip \
+    && case "${TARGETARCH}" in \
+         amd64) ZENOH_ARCH="x86_64"; ZENOH_SHA256="c97c703ffeaa0dcc1692d10dcc91f57e276ec6ee593d56fc5b79135fd8553a67" ;; \
+         arm64) ZENOH_ARCH="aarch64"; ZENOH_SHA256="87861d616043ccd6c6ac0d28a647b98a410e745b3866e77e32ce7805b9e1a744" ;; \
+         *) echo "Unsupported Docker architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+       esac \
+    && curl --fail --silent --show-error --location \
+         "https://download.eclipse.org/zenoh/zenoh-plugin-remote-api/1.9.0/zenoh-ts-1.9.0-${ZENOH_ARCH}-unknown-linux-musl-standalone.zip" \
+         --output /tmp/zenoh-ts.zip \
+    && echo "${ZENOH_SHA256}  /tmp/zenoh-ts.zip" | sha256sum -c - \
+    && unzip -j /tmp/zenoh-ts.zip libzenoh_plugin_remote_api.so -d /usr/lib \
+    && rm /tmp/zenoh-ts.zip \
+    && apk del curl unzip

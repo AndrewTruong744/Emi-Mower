@@ -1,9 +1,16 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { auth } from '@/config/firebase';
+import nativeAuth, {
+  getIdToken,
+  signInWithCredential,
+  signOut as signOutFromFirebase,
+} from '@react-native-firebase/auth';
+import { firebaseAuth } from '@/config/firebase';
 import { useBoundStore } from '@/store/useBoundStore';
+import { invalidateAuthSession } from '@/auth/session';
+import { cancelZenohOperations, closeZenoh } from '@/zenoh/client';
 import { useState } from 'react';
 
-// Configure Google Sign-In using the web client ID from the environment
+// Configure Google Sign-In using the OAuth client ID from the environment.
 const webClientId = process.env.EXPO_PUBLIC_WEB_CLIENT_ID;
 if (webClientId) {
   GoogleSignin.configure({
@@ -69,10 +76,10 @@ export const useGoogleAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const setAuthTokens = useBoundStore((state) => state.setAuthTokens);
+  const setAuthToken = useBoundStore((state) => state.setAuthToken);
   const setUser = useBoundStore((state) => state.setUser);
-  const clearAuth = useBoundStore((state) => state.clearAuth);
-  const clearUser = useBoundStore((state) => state.clearUser);
+  const resetStore = useBoundStore((state) => state.resetStore);
+  const reportError = useBoundStore((state) => state.reportError);
 
   const signInWithGoogle = async () => {
     setIsLoading(true);
@@ -87,8 +94,6 @@ export const useGoogleAuth = () => {
         throw new Error('Google Sign-In was cancelled or failed.');
       }
 
-      const { serverAuthCode } = signInResult.data;
-
       // Get the tokens containing both idToken and accessToken from Google Sign-In
       const { idToken, accessToken } = await GoogleSignin.getTokens();
       if (!idToken) {
@@ -99,14 +104,14 @@ export const useGoogleAuth = () => {
       }
 
       // Authenticate with Firebase using both Google ID and Access tokens
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
+      const googleCredential = nativeAuth.GoogleAuthProvider.credential(
+        idToken,
+        accessToken
+      ) as unknown as Parameters<typeof signInWithCredential>[1];
+      const userCredential = await signInWithCredential(firebaseAuth, googleCredential);
 
       // Get the ID token from Firebase
-      const firebaseIdToken = await userCredential.user.getIdToken();
-
-      // Use serverAuthCode from Google as the refresh token (or fallback)
-      const refreshToken = serverAuthCode || 'firebase-handled';
+      const firebaseIdToken = await getIdToken(userCredential.user);
 
       // Decode the Firebase ID Token to get user information
       const decodedClaims = decodeJwt(firebaseIdToken);
@@ -115,7 +120,7 @@ export const useGoogleAuth = () => {
       const displayName = decodedClaims?.name || userCredential.user.displayName;
 
       // Update the Zustand store
-      setAuthTokens(firebaseIdToken, refreshToken);
+      setAuthToken(firebaseIdToken);
       setUser({
         user_id,
         email,
@@ -136,17 +141,38 @@ export const useGoogleAuth = () => {
   const signOut = async () => {
     setIsLoading(true);
     setError(null);
+    invalidateAuthSession();
+    cancelZenohOperations();
+
+    let signOutError: unknown = null;
     try {
       await GoogleSignin.signOut();
-      await auth().signOut();
-      clearAuth();
-      clearUser();
     } catch (err: any) {
       console.error('Sign Out Error:', err);
-      setError(err.message || 'An error occurred during sign out');
-    } finally {
-      setIsLoading(false);
+      signOutError = err;
     }
+
+    try {
+      await signOutFromFirebase(firebaseAuth);
+    } catch (err: any) {
+      console.error('Sign Out Error:', err);
+      signOutError ??= err;
+    }
+
+    try {
+      await closeZenoh();
+    } catch (err: any) {
+      console.error('Zenoh close error:', err);
+      signOutError ??= err;
+    }
+
+    resetStore();
+    if (signOutError) {
+      const message = signOutError instanceof Error ? signOutError.message : 'An error occurred during sign out';
+      setError(message);
+      reportError(signOutError, { source: 'auth', title: 'Sign-out failed' });
+    }
+    setIsLoading(false);
   };
 
   return {

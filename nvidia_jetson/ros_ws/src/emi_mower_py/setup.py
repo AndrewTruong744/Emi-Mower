@@ -14,9 +14,10 @@ setup(
     install_requires=[
         "setuptools",
         "numpy",
-        "eclipse-zenoh>=1.9.0",
+        "eclipse-zenoh==1.9.0",
         "livekit>=1.0.0",
     ],
+    tests_require=["pytest"],
     zip_safe=True,
     entry_points={
         "console_scripts": [

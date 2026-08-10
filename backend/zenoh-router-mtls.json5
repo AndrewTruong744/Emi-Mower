@@ -29,11 +29,6 @@
   "plugins": {
     "rest": {
       "http_port": "127.0.0.1:8002"
-    },
-    security: {
-      acl: {
-        enabled: true  // Tells zenohd to enforce the dynamic rules you push
-      }
     }
   },
 
@@ -46,7 +41,14 @@
         "id": "full_access",
         "permission": "allow",
         "flows": ["ingress", "egress"],
-        "messages": ["put", "declare_subscriber", "query", "reply", "delete"],
+        "messages": [
+          "put",
+          "declare_subscriber",
+          "declare_queryable",
+          "query",
+          "reply",
+          "delete"
+        ],
         "key_exprs": ["**"]
       }
     ],

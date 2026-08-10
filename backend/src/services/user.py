@@ -78,6 +78,7 @@ async def user_login_service(
         user_data = await create_user_service(decoded_identity, db=db)
 
     mower_ids = await get_mowers_of_user(user_id, db=db)
+    user_data = {**user_data, "mowers": mower_ids}
     token = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
     await ZenohAdminClient().configure_user_app(
         user_id=user_id,

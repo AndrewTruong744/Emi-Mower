@@ -5,12 +5,16 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      # Keep the container off the common host PostgreSQL port by default.
+      POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
     network_mode: host
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # PostgreSQL 18 stores data in a versioned subdirectory under this mount.
+      - postgres-data:/var/lib/postgresql
+    command: ["postgres", "-p", "${LOCAL_POSTGRES_PORT:-15432}"]
     healthcheck:
       test:
-        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p $${POSTGRES_PORT} -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -28,15 +32,17 @@ services:
 
   zenoh-mtls:
     image: eclipse/zenoh:1.9.0
-    command: ["zenohd", "-c", "/workspace/zenoh-router-mtls.json5"]
+    command: ["-c", "/workspace/zenoh-router-mtls.json5"]
     network_mode: host
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
 
   zenoh-app:
-    image: eclipse/zenoh:1.9.0
-    command: ["zenohd", "-c", "/workspace/zenoh-router-app.json5"]
+    build:
+      context: .
+      dockerfile: Dockerfile.zenoh-app
+    command: ["-c", "/workspace/zenoh-router-app.json5"]
     network_mode: host
     working_dir: /workspace
     volumes:
@@ -53,7 +59,7 @@ services:
       - uv-cache:/root/.cache/uv
     environment:
       POSTGRES_HOST: 127.0.0.1
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
@@ -96,7 +102,7 @@ services:
       - uv-cache:/root/.cache/uv
     environment:
       POSTGRES_HOST: 127.0.0.1
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
@@ -122,7 +128,7 @@ services:
       - uv-cache:/root/.cache/uv
     environment:
       POSTGRES_HOST: 127.0.0.1
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}

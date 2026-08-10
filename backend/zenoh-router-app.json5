@@ -3,7 +3,7 @@
 
   "listen": {
     "endpoints": [
-      "wss/0.0.0.0:7447" // Public endpoint for mobile / client apps
+      "ws/0.0.0.0:7447" // Local, non-TLS Zenoh endpoint for client apps
     ]
   },
 
@@ -44,13 +44,12 @@
   },
 
   "plugins": {
+    // WebSocket endpoint used by @eclipse-zenoh/zenoh-ts.
+    "remote_api": {
+      "websocket_port": "10000"
+    },
     "rest": {
       "http_port": "127.0.0.1:8001"
-    },
-    security: {
-      acl: {
-        enabled: true  // Tells zenohd to enforce the dynamic rules you push
-      }
     }
   },
 
@@ -66,12 +65,24 @@
         "messages": ["query", "reply"],
         "key_exprs": ["user/login"]
       },
+      {
+        "id": "internal_queryable_declaration",
+        "permission": "allow",
+        "flows": ["ingress", "egress"],
+        "messages": ["declare_queryable"],
+        "key_exprs": ["user/login"]
+      },
     ],
 
     "subjects": [
+      // An empty subject matches clients without Zenoh credentials. The
+      // Firebase ID token is authenticated by the user/login handler.
       {
-        "id": "guest_login_user",
-        "usernames": ["user_login_query"]
+        "id": "guest_login_user"
+      },
+      {
+        "id": "mtls_router_peer",
+        "cert_common_names": ["Emi Mower Zenoh mTLS"]
       }
     ],
 
@@ -80,6 +91,11 @@
         "id": "guest_login_policy",
         "subjects": ["guest_login_user"],
         "rules": ["user_login_query"]
+      },
+      {
+        "id": "internal_queryable_policy",
+        "subjects": ["mtls_router_peer"],
+        "rules": ["internal_queryable_declaration"]
       }
     ]
   }

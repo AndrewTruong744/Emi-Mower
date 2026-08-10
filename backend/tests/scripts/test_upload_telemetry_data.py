@@ -122,3 +122,20 @@ async def test_run_sync_cycle_renames_active_keys_before_processing(monkeypatch)
         "mower:mower-1:telemetry:data", "mower:mower-1:telemetry:data:temp"
     )
     process.assert_awaited_once_with(client, "mower:mower-1:telemetry:data:temp")
+
+
+@pytest.mark.asyncio
+async def test_run_sync_cycle_is_noop_when_valkey_has_no_telemetry_keys(monkeypatch):
+    client = Mock()
+    client.keys = AsyncMock(side_effect=[[], []])
+    client.rename = AsyncMock()
+    process = AsyncMock()
+    monkeypatch.setattr(worker, "get_valkey_client", Mock(return_value=client))
+    monkeypatch.setattr(worker, "process_key", process)
+
+    await worker.run_sync_cycle()
+
+    client.keys.assert_any_await(worker.MOWER_TELEMETRY_TEMP_PATTERN)
+    client.keys.assert_any_await(worker.MOWER_TELEMETRY_PATTERN)
+    client.rename.assert_not_awaited()
+    process.assert_not_awaited()

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from src.config import database, http_client, valkey_client
 from src.config import __all__ as config_exports
+from src.config import database, http_client, valkey_client
 from src.config.settings import Settings
 from src.config.zenoh import get_zenoh_config
 
@@ -121,7 +121,12 @@ def test_get_zenoh_config_requires_all_certificates(monkeypatch, tmp_path):
     result = get_zenoh_config()
 
     assert result is config
-    assert config.insert_json5.call_count == 3
+    assert config.insert_json5.call_count == 6
+    config.insert_json5.assert_any_call("mode", '"client"')
+    config.insert_json5.assert_any_call(
+        "connect/endpoints", "['tls/127.0.0.1:7448']"
+    )
+    config.insert_json5.assert_any_call("transport/link/tls/enable_mtls", "true")
 
 
 def test_get_zenoh_config_raises_when_certificate_is_missing(monkeypatch, tmp_path):
