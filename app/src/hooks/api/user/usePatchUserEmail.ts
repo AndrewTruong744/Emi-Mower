@@ -3,7 +3,7 @@ import { updateEmail } from '@react-native-firebase/auth';
 import { firebaseAuth } from '@/config/firebase';
 import { UpdateUserEmailResponse } from '@/generated/zenoh';
 import { getFirebaseIdToken, UPDATE_USER_EMAIL_KEY } from '@/zenoh/UserLogin';
-import { zenohQuery } from '@/zenoh/client';
+import { zenohQuery } from '@/config/zenohClient';
 
 interface PatchUserEmailParams {
   newIdToken: string;

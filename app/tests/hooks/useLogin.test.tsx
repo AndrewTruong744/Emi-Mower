@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { useBoundStore } from '@/store/useBoundStore';
 import { useLogin } from '@/hooks/useLogin';
 import { mockedZenohQuery, resetHookState } from './testUtils';
 
 const mockLoginReplace = jest.fn();
-jest.mock('@/zenoh/client', () => ({
+jest.mock('@/config/zenohClient', () => ({
   zenohQuery: jest.fn(),
   connectZenoh: jest.fn<(...args: any[]) => any>().mockResolvedValue({}),
   isZenohOperationCancelled: jest.fn(() => false),

@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput, Button, Avatar, HelperText, ActivityIndicator } from 'react-native-paper';
 import { Formik } from 'formik';
 import { useSettings } from '@/hooks/useSettings';
-import { settingsStyles } from '@/styles/settingsStyles';
 
 interface FormValues {
   displayName: string;
@@ -180,3 +179,96 @@ export default function SettingsScreen() {
     </View>
   );
 }
+
+const settingsStyles = StyleSheet.create({
+  container: {
+    backgroundColor: '#121212',
+    flex: 1,
+    padding: 20,
+  },
+  scrollContainer: {
+    paddingBottom: 40,
+  },
+  headerCard: {
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    elevation: 8,
+    marginBottom: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  avatar: {
+    backgroundColor: '#4CAF50',
+    marginBottom: 16,
+  },
+  userNameTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  userEmailSubtitle: {
+    color: '#B0B0B0',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  formCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    elevation: 8,
+    marginBottom: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  cardTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: '#2C2C2C',
+    marginBottom: 4,
+  },
+  inputDisabled: {
+    backgroundColor: '#202020',
+    marginBottom: 16,
+  },
+  helperText: {
+    marginBottom: 12,
+  },
+  button: {
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  updateButton: {
+    backgroundColor: '#4CAF50',
+  },
+  emailButton: {
+    borderColor: '#4CAF50',
+  },
+  logoutButton: {
+    backgroundColor: '#D32F2F',
+    marginTop: 10,
+  },
+  buttonLabel: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(18, 18, 18, 0.7)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+});

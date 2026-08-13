@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { UpdateUserNameResponse } from '@/generated/zenoh';
 import { getFirebaseIdToken, UPDATE_USER_NAME_KEY } from '@/zenoh/UserLogin';
-import { zenohQuery } from '@/zenoh/client';
+import { zenohQuery } from '@/config/zenohClient';
 
 interface PatchUsernameParams {
   userId?: string;

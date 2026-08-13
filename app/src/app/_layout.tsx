@@ -6,6 +6,7 @@ import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet, View, useColorScheme as useNativeColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider, ActivityIndicator } from 'react-native-paper';
+import { APP_SAFE_AREA_EDGES } from '@/constants/layout';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -19,7 +20,7 @@ import {
   isAuthOperationCancelled,
   isAuthSessionCurrent,
 } from '@/auth/session';
-import { cancelZenohOperations, closeZenoh, isZenohOperationCancelled } from '@/zenoh/client';
+import { cancelZenohOperations, closeZenoh, isZenohOperationCancelled } from '@/config/zenohClient';
 
 // Create a single client instance outside the component scope to keep it stable
 const queryClient = new QueryClient({
@@ -161,7 +162,7 @@ export default function RootLayout() {
   return (
     <PaperProvider>
       <SafeAreaProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeAreaView style={styles.container} edges={APP_SAFE_AREA_EDGES}>
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView>
               <RootLayoutNav />
@@ -177,7 +178,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black', // The color that will fill the status bar area
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,

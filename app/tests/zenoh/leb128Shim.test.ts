@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   decodeSLEB128,
   decodeULEB128,
@@ -5,7 +6,7 @@ import {
   encodeSLEB128Into,
   encodeULEB128,
   encodeULEB128Into,
-} from '@/zenoh/leb128Shim';
+} from '@/config/leb128Shim';
 
 describe('native Zenoh LEB128 shim', () => {
   it('encodes and decodes unsigned values', () => {

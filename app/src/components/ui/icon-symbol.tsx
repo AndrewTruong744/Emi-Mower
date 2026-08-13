@@ -19,6 +19,8 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'gamecontroller.fill': 'videogame-asset',
+  'chart.bar.fill': 'insert-chart',
+  'map.fill': 'map',
   'gearshape.fill': 'settings',
 } as IconMapping;
 

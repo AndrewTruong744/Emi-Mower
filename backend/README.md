@@ -140,6 +140,22 @@ uv run alembic revision --autogenerate -m "message"
 uv run alembic upgrade head
 ```
 
+## Development data scripts
+
+After the development user has signed in once, seed three fake mowers and
+telemetry samples for `andrewtruong40024@gmail.com`:
+
+```bash
+uv run python -m src.scripts.seed_fake_mowers
+```
+
+Clear all public PostgreSQL application tables and the configured Valkey
+database while preserving `alembic_version`:
+
+```bash
+uv run python -m src.scripts.clear_all_data
+```
+
 ## Generated Zenoh types
 
 ```bash

@@ -3,6 +3,7 @@ import { BoundStoreState } from './types';
 import { createAuthSlice } from './slices/authSlice';
 import { createUserSlice } from './slices/userSlice';
 import { createMowerSlice } from './slices/mowerSlice';
+import { createMapSlice } from './slices/mapSlice';
 import { createThemeSlice } from './slices/themeSlice';
 import { createErrorSlice } from './slices/errorSlice';
 
@@ -10,6 +11,7 @@ export const useBoundStore = create<BoundStoreState>()((...a) => ({
   ...createAuthSlice(...a),
   ...createUserSlice(...a),
   ...createMowerSlice(...a),
+  ...createMapSlice(...a),
   ...createThemeSlice(...a),
   ...createErrorSlice(...a),
   resetStore: () =>
@@ -19,6 +21,13 @@ export const useBoundStore = create<BoundStoreState>()((...a) => ({
       email: null,
       displayName: null,
       mowers: [],
+      mowerDetails: {},
+      mowerPositions: {},
+      selectedMowerUuid: null,
+      isSessionActive: false,
+      isSessionPaused: false,
+      cuttingBoundary: [],
+      areaImageUri: null,
       themePreference: 'system',
       error: null,
     }),

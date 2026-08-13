@@ -1,7 +1,7 @@
 import { firebaseAuth } from '@/config/firebase';
 import type { UserLoginResponse } from '@/generated/zenoh';
 import { assertAuthSessionCurrent, getAuthSessionVersion } from '@/auth/session';
-import { connectZenoh, zenohQuery } from './client';
+import { connectZenoh, zenohQuery } from '@/config/zenohClient';
 
 export const USER_LOGIN_KEY = 'user/login';
 export const UPDATE_USER_EMAIL_KEY = 'user/update_email';

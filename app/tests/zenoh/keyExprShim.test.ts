@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   autocanonize,
   concat,
@@ -5,7 +6,7 @@ import {
   intersects,
   join,
   new_key_expr,
-} from '@/zenoh/keyExprShim';
+} from '@/config/keyExprShim';
 
 describe('native Zenoh key-expression shim', () => {
   it('validates and combines key expressions', () => {

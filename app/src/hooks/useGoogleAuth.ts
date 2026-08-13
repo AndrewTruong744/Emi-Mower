@@ -7,7 +7,7 @@ import nativeAuth, {
 import { firebaseAuth } from '@/config/firebase';
 import { useBoundStore } from '@/store/useBoundStore';
 import { invalidateAuthSession } from '@/auth/session';
-import { cancelZenohOperations, closeZenoh } from '@/zenoh/client';
+import { cancelZenohOperations, closeZenoh } from '@/config/zenohClient';
 import { useState } from 'react';
 
 // Configure Google Sign-In using the OAuth client ID from the environment.
@@ -119,7 +119,6 @@ export const useGoogleAuth = () => {
       const email = decodedClaims?.email || userCredential.user.email;
       const displayName = decodedClaims?.name || userCredential.user.displayName;
 
-      // Update the Zustand store
       setAuthToken(firebaseIdToken);
       setUser({
         user_id,

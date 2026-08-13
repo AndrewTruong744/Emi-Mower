@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { useBoundStore } from '@/store/useBoundStore';
-import { zenohQuery } from '@/zenoh/client';
+import { zenohQuery } from '@/config/zenohClient';
 
 export const mockReplace = jest.fn();
 
-jest.mock('@/zenoh/client', () => ({
+jest.mock('@/config/zenohClient', () => ({
   zenohQuery: jest.fn(),
   closeZenoh: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
   cancelZenohOperations: jest.fn(),

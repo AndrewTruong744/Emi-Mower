@@ -3,7 +3,7 @@
     "name": "Emi Mower",
     "slug": "emi-mower",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./src/assets/images/icon.png",
     "scheme": "emi-mower",
     "userInterfaceStyle": "automatic",

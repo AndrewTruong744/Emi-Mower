@@ -3,7 +3,7 @@ import { useGoogleAuth } from './useGoogleAuth';
 import { loginUserAndStore } from '@/zenoh/UserLogin';
 import { useBoundStore } from '@/store/useBoundStore';
 import { isAuthOperationCancelled } from '@/auth/session';
-import { isZenohOperationCancelled } from '@/zenoh/client';
+import { isZenohOperationCancelled } from '@/config/zenohClient';
 
 export const useLogin = () => {
   const router = useRouter();

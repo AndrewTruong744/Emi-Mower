@@ -1,7 +1,7 @@
-import { jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { getFirebaseIdToken, loginUserAndStore, userLogin } from '@/zenoh/UserLogin';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
-import { closeZenoh } from '@/zenoh/client';
+import { closeZenoh } from '@/config/zenohClient';
 import { open } from '@eclipse-zenoh/zenoh-ts';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;

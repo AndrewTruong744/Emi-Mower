@@ -6,8 +6,8 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-const keyExprShim = path.resolve(__dirname, 'src/zenoh/keyExprShim.ts');
-const leb128Shim = path.resolve(__dirname, 'src/zenoh/leb128Shim.ts');
+const keyExprShim = path.resolve(__dirname, 'src/config/keyExprShim.ts');
+const leb128Shim = path.resolve(__dirname, 'src/config/leb128Shim.ts');
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (

@@ -1,7 +1,12 @@
 import { jest, describe, expect, it, beforeEach } from '@jest/globals';
 import { Config, Encoding, ReplyError, open } from '@eclipse-zenoh/zenoh-ts';
 import { useBoundStore } from '@/store/useBoundStore';
-import { closeZenoh, connectZenoh, getZenohLocator, zenohQuery } from '@/zenoh/client';
+import {
+  closeZenoh,
+  connectZenoh,
+  getZenohLocator,
+  zenohQuery,
+} from '@/config/zenohClient';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;
 
