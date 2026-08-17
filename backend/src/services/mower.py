@@ -12,19 +12,52 @@ from src.repositories import (
     add_telemetry_to_cache,
     check_mower_ownership,
     get_mower_data,
+    get_telemetry_history,
     update_mower_name,
     verify_ownership,
 )
-from src.schemas.valkey import TelemetryRecordCache
+from src.zenoh.generated import (
+    TelemetryHistoryPoint,
+    TelemetryHistoryResponse,
+    TelemetryRecord,
+)
 
 logger = logging.getLogger("services.mower_service")
 
 
 async def add_telemetry_data_service(
-    telemetry_data: list[TelemetryRecordCache],
+    telemetry_data: list[TelemetryRecord],
 ) -> None:
     """Buffer mower telemetry in Valkey for asynchronous database upload."""
     await add_telemetry_to_cache(telemetry_data)
+
+
+async def get_telemetry_history_service(
+    user_id: str,
+    mower_id: str,
+    telemetry_type: str,
+    cursor: str | None,
+    db: AsyncSession,
+) -> TelemetryHistoryResponse:
+    """Read one authorized, cursor-paged newest-first 60-point graph page."""
+    if not await verify_ownership(user_id, mower_id, db):
+        raise OwnershipError(f"User {user_id} does not own mower {mower_id}")
+
+    total, points, next_cursor = await get_telemetry_history(
+        mower_id, telemetry_type, cursor, db
+    )
+    return TelemetryHistoryResponse(
+        telemetry_type=telemetry_type,
+        limit=60,
+        total=total,
+        has_more=next_cursor is not None,
+        next_cursor=next_cursor,
+        points=[
+            TelemetryHistoryPoint(timestamp=timestamp, value=float(value))
+            for timestamp, value, _ in points
+            if value is not None
+        ],
+    )
 
 
 async def get_mower_data_service(user_id: str, mower_id: str, db: AsyncSession) -> dict:

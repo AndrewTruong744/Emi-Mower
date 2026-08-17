@@ -9,9 +9,9 @@ from src.repositories.telemetry import push_cached_telemetry_to_db
 from src.schemas.valkey import (
     MOWER_TELEMETRY_PATTERN,
     MOWER_TELEMETRY_TEMP_PATTERN,
-    TelemetryRecordCache,
     mower_telemetry_temp_key,
 )
+from src.zenoh.generated import TelemetryRecord
 
 # Setup logging
 logging.basicConfig(
@@ -39,7 +39,7 @@ async def process_key(v_client, temp_key: str) -> None:
 
     for item in items:
         try:
-            record = TelemetryRecordCache.model_validate_json(item)
+            record = TelemetryRecord.model_validate_json(item)
         except Exception as e:
             logger.error(f"Failed to validate telemetry item: {e}. Skipping.")
             continue

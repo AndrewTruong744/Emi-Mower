@@ -19,8 +19,8 @@ export const useLogin = () => {
       const firebaseUser = await signInWithGoogle();
       const idToken = await firebaseUser.getIdToken(true);
       await loginUserAndStore(idToken, setUser, setMowers);
-      // On success, navigate to the tabs layout (specifically the default index screen)
-      router.replace('/(tabs)');
+      // On success, navigate to the Home tab.
+      router.replace('/(tabs)/home' as any);
     } catch (err: any) {
       if (isAuthOperationCancelled(err) || isZenohOperationCancelled(err)) return;
       console.error('Login screen sign-in failure:', err);

@@ -13,6 +13,10 @@ from src.zenoh.listeners.mower_telemetry import (
     MOWER_TELEMETRY_KEY_EXPR,
     mower_telemetry,
 )
+from src.zenoh.listeners.mower_telemetry_history import (
+    MOWER_TELEMETRY_HISTORY_KEY_EXPR,
+    mower_telemetry_history,
+)
 from src.zenoh.listeners.update_mower_name import (
     UPDATE_MOWER_NAME_KEY_EXPR,
     update_mower_name,
@@ -38,6 +42,8 @@ __all__ = [
     "livekit_upload",
     "MOWER_TELEMETRY_KEY_EXPR",
     "mower_telemetry",
+    "MOWER_TELEMETRY_HISTORY_KEY_EXPR",
+    "mower_telemetry_history",
     "UPDATE_USER_NAME_KEY_EXPR",
     "update_user_name",
     "UPDATE_MOWER_NAME_KEY_EXPR",

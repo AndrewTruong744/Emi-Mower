@@ -2,6 +2,20 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { MOWER_TELEMETRY_MAX_SAMPLES } from '@/store/slices/mowerSlice';
 import { useBoundStore } from '@/store/useBoundStore';
 
+const sample = (timestamp: number, batteryPercentage = 80) => ({
+  timestamp,
+  latitude: 40.7128,
+  longitude: -74.006,
+  batteryPercentage,
+  leftMotorSpeed: 0.6,
+  leftMotorDirection: 1 as const,
+  rightMotorSpeed: 0.5,
+  rightMotorDirection: 1 as const,
+  cuttingMotorSpeed: 2800,
+  slippageDetected: false,
+  imuData: null,
+});
+
 describe('mower store slice', () => {
   beforeEach(() => useBoundStore.getState().clearMowers());
 
@@ -13,38 +27,44 @@ describe('mower store slice', () => {
     expect(useBoundStore.getState().mowers).toEqual([]);
   });
 
-  it('creates detailed mower records and keeps telemetry in a 30-second queue', () => {
+  it('creates empty mower records and retains ordered live telemetry', () => {
     useBoundStore.getState().addMower('mower-1', 'Backyard Mower');
 
     const mower = useBoundStore.getState().mowerDetails['mower-1'];
-    expect(mower).toMatchObject({
+    expect(mower).toEqual({
       uuid: 'mower-1',
       name: 'Backyard Mower',
-      state: expect.any(String),
-      health: expect.any(String),
+      battery: null,
+      state: 'unknown',
+      health: 'unknown',
+      telemetry: [],
     });
-    expect(mower.telemetry.at(-1)).toMatchObject({
-      batteryPercentage: expect.any(Number),
-      leftMotorSpeed: expect.any(Number),
-      leftMotorDirection: expect.any(Number),
-      rightMotorSpeed: expect.any(Number),
-      rightMotorDirection: expect.any(Number),
-      cuttingMotorSpeed: expect.any(Number),
-      slippageDetected: expect.any(Boolean),
-      imuData: {
-        accelX: expect.any(Number),
-        gyroY: expect.any(Number),
-        magZ: expect.any(Number),
-      },
+    useBoundStore.getState().appendTelemetryBatch({
+      'mower-1': [sample(3), sample(1), sample(2), sample(2, 10)],
     });
-    expect(mower.telemetry).toHaveLength(MOWER_TELEMETRY_MAX_SAMPLES);
+    expect(useBoundStore.getState().mowerDetails['mower-1'].telemetry.map((item) => item.timestamp)).toEqual([1, 2, 3]);
+    expect(useBoundStore.getState().mowerDetails['mower-1'].battery).toBe(80);
+    expect(useBoundStore.getState().mowerPositions['mower-1']).toEqual({ x: -74.006, y: 40.7128 });
+  });
 
-    for (let index = 0; index < MOWER_TELEMETRY_MAX_SAMPLES + 4; index += 1) {
-      useBoundStore.getState().appendFakeTelemetry('mower-1');
+  it('updates a live telemetry batch in one notification and ignores unknown mowers', () => {
+    useBoundStore.getState().setMowers(['mower-1', 'mower-2', 'mower-3']);
+    const listener = jest.fn();
+    const unsubscribe = useBoundStore.subscribe(listener);
+
+    useBoundStore.getState().appendTelemetryBatch({
+      'mower-1': [sample(1)],
+      'mower-2': [sample(1)],
+      'mower-3': [sample(1)],
+      unknown: [sample(1)],
+    });
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    for (const uuid of useBoundStore.getState().mowers) {
+      const telemetry = useBoundStore.getState().mowerDetails[uuid].telemetry;
+      expect(telemetry).toHaveLength(1);
     }
-
-    expect(useBoundStore.getState().mowerDetails['mower-1'].telemetry).toHaveLength(
-      MOWER_TELEMETRY_MAX_SAMPLES
-    );
+    expect(useBoundStore.getState().mowerDetails.unknown).toBeUndefined();
   });
 });

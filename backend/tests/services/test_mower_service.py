@@ -1,10 +1,10 @@
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 
 import pytest
 
 from src.exceptions import MowerNotFoundError, OwnershipError, ValidationError
-from src.schemas.valkey import TelemetryRecordCache
 from src.services import mower
+from src.zenoh.generated import TelemetryHistoryPoint, TelemetryRecord
 
 
 async def test_get_mower_data_service_returns_only_requested_mower(monkeypatch):
@@ -18,7 +18,7 @@ async def test_add_telemetry_data_service_delegates_to_repository(monkeypatch):
     add = AsyncMock()
     monkeypatch.setattr(mower, "add_telemetry_to_cache", add)
     telemetry_data = [
-        TelemetryRecordCache(
+        TelemetryRecord(
             mower_id="mower-1",
             timestamp="2026-01-01T00:00:00Z",
             latitude=1,
@@ -30,6 +30,37 @@ async def test_add_telemetry_data_service_delegates_to_repository(monkeypatch):
     await mower.add_telemetry_data_service(telemetry_data)
 
     add.assert_awaited_once_with(telemetry_data)
+
+
+async def test_telemetry_history_service_requires_ownership_and_returns_cursor_page(
+    monkeypatch,
+):
+    monkeypatch.setattr(mower, "verify_ownership", AsyncMock(return_value=True))
+    history = AsyncMock(
+        return_value=(
+            61,
+            [("2026-01-01T00:00:00Z", 0.5, "record-id")],
+            "cursor-2",
+        )
+    )
+    monkeypatch.setattr(mower, "get_telemetry_history", history)
+
+    result = await mower.get_telemetry_history_service(
+        "user-1", "mower-1", "accel_x", "cursor-1", object()
+    )
+
+    assert result.has_more is True
+    assert result.next_cursor == "cursor-2"
+    assert result.points == [
+        TelemetryHistoryPoint(timestamp="2026-01-01T00:00:00Z", value=0.5)
+    ]
+    history.assert_awaited_once_with("mower-1", "accel_x", "cursor-1", ANY)
+
+    monkeypatch.setattr(mower, "verify_ownership", AsyncMock(return_value=False))
+    with pytest.raises(OwnershipError):
+        await mower.get_telemetry_history_service(
+            "user-1", "mower-1", "accel_x", None, object()
+        )
 
 
 async def test_get_mower_data_service_rejects_unowned_mower(monkeypatch):

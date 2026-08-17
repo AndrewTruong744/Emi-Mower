@@ -1,16 +1,22 @@
 import React from 'react';
-import { describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Alert } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import Controls from '@/components/controller/Controls';
 import { __mockGesture } from '../mocks/gesture-handler';
+import { createWrapper, resetHookState } from '../hooks/testUtils';
 
 describe('Controls', () => {
+  beforeEach(resetHookState);
+
   it('renders the mower controls', () => {
+    const QueryWrapper = createWrapper();
     const { getByText } = render(
       <PaperProvider>
-        <Controls />
+        <QueryWrapper>
+          <Controls mowerId="mower-1" />
+        </QueryWrapper>
       </PaperProvider>
     );
     expect(getByText('E-STOP')).toBeTruthy();
@@ -18,11 +24,14 @@ describe('Controls', () => {
     expect(getByText('MAN')).toBeTruthy();
   });
 
-  it('updates power, autonomous mode, emergency stop, and selected config', () => {
+  it('updates power, autonomous mode, and emergency stop', () => {
+    const QueryWrapper = createWrapper();
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { getByText, getAllByRole } = render(
       <PaperProvider>
-        <Controls />
+        <QueryWrapper>
+          <Controls mowerId="mower-1" />
+        </QueryWrapper>
       </PaperProvider>
     );
 
@@ -37,17 +46,17 @@ describe('Controls', () => {
     fireEvent.press(getByText('STOPPED'));
     expect(getByText('E-STOP')).toBeTruthy();
 
-    fireEvent.press(getByText('#1'));
-    fireEvent.press(getByText('Config 2'));
-    expect(getByText('#2')).toBeTruthy();
     expect(alertSpy).toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 
   it('normalizes joystick movement and returns it to center', () => {
+    const QueryWrapper = createWrapper();
     const { getByText } = render(
       <PaperProvider>
-        <Controls />
+        <QueryWrapper>
+          <Controls mowerId="mower-1" />
+        </QueryWrapper>
       </PaperProvider>
     );
     expect(getByText('E-STOP')).toBeTruthy();
@@ -58,5 +67,29 @@ describe('Controls', () => {
       translationY: -100,
     });
     (__mockGesture.endCallback as unknown as () => void)();
+
+  });
+
+  it('disables manual controls until a mower is selected', () => {
+    const QueryWrapper = createWrapper();
+    const screen = render(
+      <PaperProvider>
+        <QueryWrapper>
+          <Controls mowerId={null} />
+        </QueryWrapper>
+      </PaperProvider>
+    );
+
+    fireEvent.press(screen.getByTestId('controller-estop'));
+    fireEvent(screen.getAllByRole('switch')[0], 'valueChange', true);
+    fireEvent(screen.getAllByRole('switch')[1], 'valueChange', true);
+    (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+      translationX: 100,
+      translationY: -100,
+    });
+
+    expect(screen.getByText('E-STOP')).toBeTruthy();
+    expect(screen.getByText('SYS: OFF')).toBeTruthy();
+    expect(screen.getByText('MAN')).toBeTruthy();
   });
 });

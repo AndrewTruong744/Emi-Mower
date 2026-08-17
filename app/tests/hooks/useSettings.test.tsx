@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useBoundStore } from '@/store/useBoundStore';
 import { mockFirebaseUser } from '../mocks/firebase';
 import { createWrapper, mockedZenohQuery, resetHookState } from './testUtils';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/hooks/settings/useSettings';
 
 describe('useSettings', () => {
   beforeEach(resetHookState);
@@ -30,7 +30,9 @@ describe('useSettings', () => {
     await act(async () => missingUser.result.current.updateUsername('NewName'));
     expect(alertSpy).toHaveBeenCalledWith('Error', 'No authenticated user found');
 
-    useBoundStore.getState().setUser({ user_id: 'user-1', email: 'user@example.com', displayName: 'Old' });
+    useBoundStore
+      .getState()
+      .setUser({ user_id: 'user-1', email: 'user@example.com', displayName: 'Old' });
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     mockedZenohQuery.mockRejectedValueOnce(new Error('username failed'));
     await act(async () => {
@@ -46,7 +48,9 @@ describe('useSettings', () => {
     await act(async () => missingUser.result.current.changeEmail());
     expect(alertSpy).toHaveBeenCalledWith('Error', 'No authenticated user found');
 
-    useBoundStore.getState().setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    useBoundStore
+      .getState()
+      .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     mockedZenohQuery.mockResolvedValueOnce({ new_email: 'new@example.com' });
     await act(async () => result.current.changeEmail());
@@ -57,7 +61,9 @@ describe('useSettings', () => {
   });
 
   it('reports an email response without a new address', async () => {
-    useBoundStore.getState().setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    useBoundStore
+      .getState()
+      .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
     mockedZenohQuery.mockResolvedValueOnce({});
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });

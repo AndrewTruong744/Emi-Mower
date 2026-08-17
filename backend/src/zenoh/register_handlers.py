@@ -1,10 +1,11 @@
 """Register the backend's Zenoh handler declarations."""
 
-from src.schemas.valkey import TelemetryListCache
 from src.zenoh.generated import (
     AddMowerToUserRequest,
     LiveKitConsumeRequest,
     LiveKitUploadRequest,
+    TelemetryHistoryRequest,
+    TelemetryList,
     UpdateMowerNameRequest,
     UpdateUserEmailRequest,
     UpdateUserNameRequest,
@@ -15,6 +16,7 @@ from src.zenoh.listeners import (
     LIVEKIT_CONSUME_KEY_EXPR,
     LIVEKIT_UPLOAD_KEY_EXPR,
     LOGIN_KEY_EXPR,
+    MOWER_TELEMETRY_HISTORY_KEY_EXPR,
     MOWER_TELEMETRY_KEY_EXPR,
     UPDATE_MOWER_NAME_KEY_EXPR,
     UPDATE_USER_EMAIL_KEY_EXPR,
@@ -23,6 +25,7 @@ from src.zenoh.listeners import (
     livekit_consume,
     livekit_upload,
     mower_telemetry,
+    mower_telemetry_history,
     update_mower_name,
     update_user_email,
     update_user_name,
@@ -57,6 +60,12 @@ def register_handlers(
         include_query_key=True,
     )
     query_handler.declare(
+        MOWER_TELEMETRY_HISTORY_KEY_EXPR,
+        mower_telemetry_history,
+        request_model=TelemetryHistoryRequest,
+        include_query_key=True,
+    )
+    query_handler.declare(
         UPDATE_USER_EMAIL_KEY_EXPR,
         update_user_email,
         request_model=UpdateUserEmailRequest,
@@ -76,5 +85,5 @@ def register_handlers(
     message_handler.declare(
         MOWER_TELEMETRY_KEY_EXPR,
         mower_telemetry,
-        message_model=TelemetryListCache,
+        message_model=TelemetryList,
     )

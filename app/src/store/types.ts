@@ -26,8 +26,8 @@ export interface UserActions {
 
 export type UserSlice = UserState & UserActions;
 
-export type MowerOperatingState = 'on' | 'off' | 'stopped';
-export type MowerHealth = 'healthy' | 'attention' | 'critical';
+export type MowerOperatingState = 'on' | 'off' | 'stopped' | 'unknown';
+export type MowerHealth = 'healthy' | 'attention' | 'critical' | 'unknown';
 
 export interface MowerImuTelemetry {
   accelX: number;
@@ -52,13 +52,13 @@ export interface MowerTelemetrySample {
   rightMotorDirection: -1 | 0 | 1;
   cuttingMotorSpeed: number;
   slippageDetected: boolean;
-  imuData: MowerImuTelemetry;
+  imuData: MowerImuTelemetry | null;
 }
 
 export interface MowerDetails {
   uuid: string;
   name: string;
-  battery: number;
+  battery: number | null;
   state: MowerOperatingState;
   health: MowerHealth;
   telemetry: MowerTelemetrySample[];
@@ -79,13 +79,10 @@ export interface MowerState {
 
 export interface MowerActions {
   setMowers: (mowers: string[]) => void;
-  seedFakeMowers: () => void;
   addMower: (uuid: string, name?: string) => void;
   renameMower: (uuid: string, name: string) => void;
   selectMower: (uuid: string) => void;
-  appendFakeTelemetry: (uuid: string) => void;
-  placeMowersInBoundary: (boundary: MowerMapPosition[]) => void;
-  advanceFakeMowerPositions: () => void;
+  appendTelemetryBatch: (telemetryByMower: Record<string, MowerTelemetrySample[]>) => void;
   clearMowers: () => void;
 }
 

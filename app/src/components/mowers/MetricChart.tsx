@@ -1,20 +1,22 @@
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Surface, Text } from 'react-native-paper';
 
 export interface MetricChartProps {
   title: string;
+  telemetryType?: string;
   value: string;
   values: number[];
   color: string;
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
 }
 
-export function MetricChart({ title, value, values, color, style }: MetricChartProps) {
+export function MetricChart({ title, value, values, color, style, onPress }: MetricChartProps) {
   const minimum = Math.min(...values, 0);
   const maximum = Math.max(...values, 0);
   const range = Math.max(maximum - minimum, 1);
 
-  return (
+  const chart = (
     <Surface elevation={1} style={[styles.card, style]}>
       <View style={styles.header}>
         <Text variant="titleSmall" style={styles.title}>
@@ -43,6 +45,19 @@ export function MetricChart({ title, value, values, color, style }: MetricChartP
         <Text variant="labelSmall">now</Text>
       </View>
     </Surface>
+  );
+
+  if (!onPress) return chart;
+  return (
+    <Pressable
+      accessibilityHint="Opens the full telemetry history"
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${title} telemetry history`}
+      onPress={onPress}
+      testID={`metric-chart-${title.toLowerCase().replaceAll(' ', '-')}`}
+    >
+      {chart}
+    </Pressable>
   );
 }
 

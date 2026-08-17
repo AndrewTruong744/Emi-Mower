@@ -52,10 +52,54 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("scripts.seed_fake_mowers")
+TELEMETRY_SAMPLES_PER_MOWER = 180
+TELEMETRY_SAMPLE_INTERVAL_SECONDS = 30
+
+
+def _fake_telemetry(
+    fake_mower: dict, mower_index: int, now: datetime
+) -> list[MowerTelemetryModel]:
+    """Create a deterministic, graph-friendly history for one fake mower."""
+    records: list[MowerTelemetryModel] = []
+    for sample_index in range(TELEMETRY_SAMPLES_PER_MOWER):
+        phase = sample_index + mower_index * 11
+        records.append(
+            MowerTelemetryModel(
+                mower_id=fake_mower["id"],
+                timestamp=now
+                - timedelta(
+                    seconds=(TELEMETRY_SAMPLES_PER_MOWER - 1 - sample_index)
+                    * TELEMETRY_SAMPLE_INTERVAL_SECONDS
+                ),
+                latitude=fake_mower["latitude"] + (phase % 7) * 0.00001,
+                longitude=fake_mower["longitude"] - (phase % 5) * 0.00001,
+                battery_percentage=max(
+                    fake_mower["battery_percentage"] - sample_index // 45, 0
+                ),
+                left_motor_speed=0.35 + mower_index * 0.1 + (phase % 9) * 0.01,
+                left_motor_direction=1,
+                right_motor_speed=0.4 + mower_index * 0.1 + (phase % 7) * 0.01,
+                right_motor_direction=1,
+                cutting_motor_speed=2_650.0 + (phase % 12) * 30,
+                slippage_detected=phase % 53 == 0,
+                imu_data=MowerImuModel(
+                    accel_x=0.01 * (phase % 10),
+                    accel_y=0.02 * (phase % 8),
+                    accel_z=9.81 + (phase % 5) * 0.01,
+                    gyro_x=0.01 * (phase % 6),
+                    gyro_y=0.01 * (phase % 9),
+                    gyro_z=0.02 * (phase % 7),
+                    mag_x=22.0 + (phase % 4),
+                    mag_y=-4.0 + (phase % 3),
+                    mag_z=41.0 + (phase % 5),
+                ),
+            )
+        )
+    return records
 
 
 async def seed_fake_mowers() -> None:
-    """Upsert three fake mowers and one telemetry sample for each mower."""
+    """Upsert fake mowers and 180 timestamped telemetry records for each."""
 
     async with AsyncSessionLocal() as db:
         try:
@@ -93,31 +137,7 @@ async def seed_fake_mowers() -> None:
 
             now = datetime.now(timezone.utc)
             for index, fake_mower in enumerate(FAKE_MOWERS):
-                telemetry = MowerTelemetryModel(
-                    mower_id=fake_mower["id"],
-                    timestamp=now - timedelta(minutes=index * 5),
-                    latitude=fake_mower["latitude"],
-                    longitude=fake_mower["longitude"],
-                    battery_percentage=fake_mower["battery_percentage"],
-                    left_motor_speed=0.35 + index * 0.1,
-                    left_motor_direction=1,
-                    right_motor_speed=0.4 + index * 0.1,
-                    right_motor_direction=1,
-                    cutting_motor_speed=2_800.0,
-                    slippage_detected=False,
-                    imu_data=MowerImuModel(
-                        accel_x=0.01 * index,
-                        accel_y=0.02 * index,
-                        accel_z=9.81,
-                        gyro_x=0.0,
-                        gyro_y=0.01 * index,
-                        gyro_z=0.02 * index,
-                        mag_x=22.0,
-                        mag_y=-4.0,
-                        mag_z=41.0,
-                    ),
-                )
-                db.add(telemetry)
+                db.add_all(_fake_telemetry(fake_mower, index, now))
 
             await db.commit()
             logger.info(

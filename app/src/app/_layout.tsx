@@ -21,6 +21,7 @@ import {
   isAuthSessionCurrent,
 } from '@/auth/session';
 import { cancelZenohOperations, closeZenoh, isZenohOperationCancelled } from '@/config/zenohClient';
+import { useMowerTelemetrySubscription } from '@/hooks/api/mower/useMowerTelemetrySubscription';
 
 // Create a single client instance outside the component scope to keep it stable
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ export const unstable_settings = {
 };
 
 function RootLayoutNav() {
+  useMowerTelemetrySubscription();
   const systemColorScheme = useNativeColorScheme();
   const themePreference = useBoundStore((state) => state.themePreference);
   const colorScheme =
@@ -135,7 +137,7 @@ function RootLayoutNav() {
     } else {
       // If logged in and in the auth group, send to tabs home
       if (inAuthGroup || segs.length === 0) {
-        router.replace('/(tabs)' as any);
+        router.replace('/(tabs)/home' as any);
       }
     }
   }, [idToken, segments, isInitializing, router]);

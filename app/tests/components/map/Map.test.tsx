@@ -35,7 +35,9 @@ describe('Map', () => {
     fireEvent.press(screen.getByTestId('confirm-cutting-area'));
     await waitFor(() => expect(screen.getByText('Mowing session active')).toBeTruthy());
     expect(useBoundStore.getState().areaImageUri).toMatch(/cutting-area-preview/);
-    expect(Object.keys(useBoundStore.getState().mowerPositions)).toHaveLength(6);
+    // Markers are driven only by received live telemetry; starting a session
+    // must not invent mower positions inside the boundary.
+    expect(Object.keys(useBoundStore.getState().mowerPositions)).toHaveLength(0);
 
     fireEvent.press(screen.getByTestId('pause-mowing-session'));
     expect(screen.getByText('Mowing paused')).toBeTruthy();

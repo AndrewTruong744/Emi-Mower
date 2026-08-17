@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from src.exceptions import OwnershipError
-from src.schemas.valkey import TelemetryListCache
-from src.zenoh.generated import UserLoginRequest
+from src.zenoh.generated import TelemetryList, UserLoginRequest
 from src.zenoh.zenoh_handler import (
     ZenohMessageHandler,
     ZenohQueryHandler,
@@ -149,7 +148,7 @@ async def test_message_handler_accepts_root_model_lists(monkeypatch):
     monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
     callback = AsyncMock()
     handler = ZenohMessageHandler(Mock(), Mock())
-    payload = TelemetryListCache(
+    payload = TelemetryList(
         [
             {
                 "mower_id": "mower-1",
@@ -164,7 +163,7 @@ async def test_message_handler_accepts_root_model_lists(monkeypatch):
     await handler._process(
         FakeSample(payload.model_dump_json().encode()),
         callback,
-        TelemetryListCache,
+        TelemetryList,
     )
 
     callback.assert_awaited_once()

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Image } from 'react-native';
 import { useBoundaryDrawing } from './useBoundaryDrawing';
 import { useLandscapeMap } from './useLandscapeMap';
-import { useMowerPositionSimulator } from './useMowerPositionSimulator';
 import { useBoundStore } from '@/store/useBoundStore';
 
 const LOCAL_CUTTING_AREA_IMAGE_URI =
@@ -17,26 +16,17 @@ export function useMap() {
   const isSessionActive = useBoundStore((state) => state.isSessionActive);
   const isSessionPaused = useBoundStore((state) => state.isSessionPaused);
   const cuttingBoundary = useBoundStore((state) => state.cuttingBoundary);
-  const seedFakeMowers = useBoundStore((state) => state.seedFakeMowers);
-  const placeMowersInBoundary = useBoundStore((state) => state.placeMowersInBoundary);
   const startMowingSession = useBoundStore((state) => state.startMowingSession);
   const setSessionPaused = useBoundStore((state) => state.setSessionPaused);
   const cancelMowingSession = useBoundStore((state) => state.cancelMowingSession);
 
   useLandscapeMap();
-  useMowerPositionSimulator();
-
-  useEffect(() => {
-    seedFakeMowers();
-  }, [seedFakeMowers]);
-
   const confirmCuttingArea = useCallback(() => {
     if (points.length < 3) return;
-    placeMowersInBoundary(points);
     startMowingSession(points, LOCAL_CUTTING_AREA_IMAGE_URI);
     setConfirmModalVisible(false);
     clear();
-  }, [clear, placeMowersInBoundary, points, startMowingSession]);
+  }, [clear, points, startMowingSession]);
 
   const acceptBoundary = useCallback(() => {
     if (points.length >= 3) setConfirmModalVisible(true);

@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
-import { Button, Menu, Switch, Text } from 'react-native-paper';
-import { useControls } from '@/hooks/useControls';
+import { Button, Switch, Text } from 'react-native-paper';
+import { useController } from '@/hooks/controller/useController';
+import { useJoystickCommand } from '@/hooks/api/mower/useJoystickCommand';
 
-export default function Controls() {
+interface ControlsProps {
+  mowerId: string | null;
+}
+
+export default function Controls({ mowerId }: ControlsProps) {
+  const joystickCommand = useJoystickCommand();
+  const selectedMowerId = mowerId?.trim() ?? '';
+  const isDisabled = !selectedMowerId;
+  const sendJoystickCommand = useCallback(
+    ({ x, y }: { x: number; y: number }) => {
+      if (selectedMowerId) joystickCommand.mutate({ mowerId: selectedMowerId, x, y });
+    },
+    [joystickCommand, selectedMowerId]
+  );
   const {
     animatedStyle,
     currentConfig,
@@ -13,38 +27,20 @@ export default function Controls() {
     handleAutonomous,
     handleEStop,
     handlePower,
-    menuVisible,
-    selectConfig,
-    selectedId,
-    setMenuVisible,
-  } = useControls();
+  } = useController({ disabled: isDisabled, onMove: sendJoystickCommand });
 
   return (
     <View style={styles.controls}>
-      <View style={styles.bar}>
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <Button
-              mode="outlined"
-              onPress={() => setMenuVisible(true)}
-              style={styles.dropdownButton}
-              labelStyle={styles.dropdownButtonLabel}
-            >
-              #{selectedId}
-            </Button>
-          }
-        >
-          {[1, 2, 3, 4].map((id) => (
-            <Menu.Item key={id} onPress={() => selectConfig(id)} title={`Config ${id}`} />
-          ))}
-        </Menu>
-
+      <View style={[styles.bar, isDisabled && styles.disabled]}>
         <Button
           mode="contained"
+          disabled={isDisabled}
           onPress={handleEStop}
-          style={[styles.estopButton, currentConfig.estop ? styles.estopActive : styles.estopInactive]}
+          testID="controller-estop"
+          style={[
+            styles.estopButton,
+            currentConfig.estop ? styles.estopActive : styles.estopInactive,
+          ]}
           labelStyle={styles.estopLabel}
         >
           {currentConfig.estop ? 'STOPPED' : 'E-STOP'}
@@ -52,12 +48,13 @@ export default function Controls() {
 
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.power ? 'SYS: ON' : 'SYS: OFF'}</Text>
-          <Switch value={currentConfig.power} onValueChange={handlePower} color="#22c55e" />
+          <Switch disabled={isDisabled} value={currentConfig.power} onValueChange={handlePower} color="#22c55e" />
         </View>
 
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.autonomous ? 'AUTO' : 'MAN'}</Text>
           <Switch
+            disabled={isDisabled}
             value={currentConfig.autonomous}
             onValueChange={handleAutonomous}
             color="#3b82f6"
@@ -65,7 +62,7 @@ export default function Controls() {
         </View>
       </View>
 
-      <View style={styles.base}>
+      <View style={[styles.base, isDisabled && styles.disabled]}>
         <GestureDetector gesture={gesture}>
           <Animated.View style={[styles.knob, animatedStyle]} />
         </GestureDetector>
@@ -83,9 +80,10 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
   },
+  disabled: { opacity: 0.45 },
   bar: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: '#f1f5f9',
     borderRadius: 12,
     flexDirection: 'row',
     gap: 8,
@@ -93,17 +91,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 8,
     width: '95%',
-  },
-  dropdownButton: {
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 8,
-    minWidth: 0,
-  },
-  dropdownButtonLabel: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-    marginHorizontal: 2,
   },
   estopButton: {
     borderRadius: 8,
@@ -130,14 +117,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   toggleLabel: {
-    color: '#fff',
+    color: '#334155',
     fontSize: 12,
     fontWeight: '600',
   },
   base: {
     alignItems: 'center',
-    backgroundColor: '#c8c8c8',
-    borderColor: '#ccc',
+    backgroundColor: '#e2e8f0',
+    borderColor: '#cbd5e1',
     borderRadius: JOYSTICK_SIZE / 2,
     borderWidth: 2,
     height: JOYSTICK_SIZE,

@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.exceptions import RepositoryError
 from src.models.mower import MowerImuModel, MowerTelemetryModel
-from src.schemas.valkey import TelemetryRecordCache, mower_telemetry_key
+from src.schemas.valkey import mower_telemetry_key
+from src.zenoh.generated import TelemetryRecord
 
 logger = logging.getLogger("repositories.telemetry")
 
 
 async def add_telemetry_to_cache(
-    telemetry_data: list[TelemetryRecordCache],
+    telemetry_data: list[TelemetryRecord],
 ) -> int:
     """Append telemetry records to their mower-specific Valkey lists."""
     if not telemetry_data:
@@ -38,7 +39,7 @@ async def add_telemetry_to_cache(
 
 
 def _build_telemetry_models(
-    telemetry_data: list[TelemetryRecordCache],
+    telemetry_data: list[TelemetryRecord],
 ) -> list[MowerTelemetryModel]:
     models: list[MowerTelemetryModel] = []
     for record in telemetry_data:
@@ -85,7 +86,7 @@ def _build_telemetry_models(
 
 
 async def push_cached_telemetry_to_db(
-    telemetry_data: list[TelemetryRecordCache], db: AsyncSession
+    telemetry_data: list[TelemetryRecord], db: AsyncSession
 ) -> int:
     """Persist cached telemetry records and return the number inserted."""
     telemetry_models = _build_telemetry_models(telemetry_data)

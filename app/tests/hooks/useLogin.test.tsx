@@ -36,7 +36,7 @@ describe('useLogin', () => {
       'user/login',
       expect.objectContaining({ id_token: 'firebase-token' })
     );
-    expect(mockLoginReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockLoginReplace).toHaveBeenCalledWith('/(tabs)/home');
     expect(useBoundStore.getState()).toMatchObject({
       user_id: 'user-1',
       mowers: ['mower-1'],

@@ -2,14 +2,14 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.schemas.valkey import TelemetryListCache
 from src.services.mower import add_telemetry_data_service
+from src.zenoh.generated import TelemetryList
 
 MOWER_TELEMETRY_KEY_EXPR = "mower/*/telemetry"
 
 
 async def mower_telemetry(
-    payload: TelemetryListCache, db: AsyncSession
+    payload: TelemetryList, db: AsyncSession
 ) -> None:
     """Buffer a telemetry batch; the sender does not receive a reply."""
     del db

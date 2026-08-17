@@ -7,11 +7,12 @@ import pytest
 
 from src.exceptions import RepositoryError
 from src.repositories import telemetry
-from src.schemas.valkey import TelemetryRecordCache, mower_telemetry_key
+from src.schemas.valkey import mower_telemetry_key
+from src.zenoh.generated import TelemetryRecord
 
 
-def record(mower_id: str, *, with_imu: bool = False) -> TelemetryRecordCache:
-    return TelemetryRecordCache(
+def record(mower_id: str, *, with_imu: bool = False) -> TelemetryRecord:
+    return TelemetryRecord(
         mower_id=mower_id,
         timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
         latitude=1.0,

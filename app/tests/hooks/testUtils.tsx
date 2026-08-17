@@ -4,11 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { useBoundStore } from '@/store/useBoundStore';
-import { zenohQuery } from '@/config/zenohClient';
+import { zenohPut, zenohQuery } from '@/config/zenohClient';
 
 export const mockReplace = jest.fn();
 
 jest.mock('@/config/zenohClient', () => ({
+  zenohPut: jest.fn(),
   zenohQuery: jest.fn(),
   closeZenoh: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
   cancelZenohOperations: jest.fn(),
@@ -19,6 +20,7 @@ jest.mock('expo-router', () => ({
 }));
 
 export const mockedZenohQuery = zenohQuery as jest.Mock<(...args: any[]) => any>;
+export const mockedZenohPut = zenohPut as jest.Mock<(...args: any[]) => any>;
 
 export function createWrapper() {
   const client = new QueryClient({

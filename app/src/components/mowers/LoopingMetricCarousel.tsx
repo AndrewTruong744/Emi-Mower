@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
+  FlatList,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -14,50 +12,47 @@ interface LoopingMetricCarouselProps {
   testID: string;
 }
 
-/** A paged chart carousel that wraps from the final metric back to the first. */
+/**
+ * A virtualized paged chart carousel. Rendering only the nearby page keeps a
+ * mower selection light even when each chart contains a full telemetry window.
+ */
 export function LoopingMetricCarousel({ charts, testID }: LoopingMetricCarouselProps) {
-  const scrollViewRef = useRef<ScrollView>(null);
   const { width: windowWidth } = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(Math.max(windowWidth - 40, 1));
-  const loopedCharts = charts.length > 1 ? [charts.at(-1)!, ...charts, charts[0]] : charts;
 
-  useEffect(() => {
-    if (pageWidth && charts.length > 1) {
-      requestAnimationFrame(() => scrollViewRef.current?.scrollTo({ x: pageWidth, animated: false }));
-    }
-  }, [charts.length, pageWidth]);
+  const onLayout = useCallback((width: number) => {
+    setPageWidth((currentWidth) => (currentWidth === width ? currentWidth : width));
+  }, []);
 
-  const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (!pageWidth || charts.length < 2) return;
-
-    const page = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
-    if (page === 0) {
-      scrollViewRef.current?.scrollTo({ x: pageWidth * charts.length, animated: false });
-    } else if (page === charts.length + 1) {
-      scrollViewRef.current?.scrollTo({ x: pageWidth, animated: false });
-    }
-  };
+  const renderChart = useCallback(
+    ({ item }: { item: MetricChartProps }) => (
+      <View style={{ width: pageWidth }}>
+        <MetricChart {...item} style={styles.chart} />
+      </View>
+    ),
+    [pageWidth]
+  );
 
   return (
     <View
       testID={testID}
-      onLayout={(event) => setPageWidth(event.nativeEvent.layout.width)}
+      onLayout={(event) => onLayout(event.nativeEvent.layout.width)}
       style={styles.container}
     >
-      <ScrollView
-        ref={scrollViewRef}
+      <FlatList
+        data={charts}
+        renderItem={renderChart}
+        keyExtractor={(chart) => chart.title}
         horizontal
         pagingEnabled
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleMomentumEnd}
-      >
-        {loopedCharts.map((chart, index) => (
-          <View key={`${chart.title}-${index}`} style={{ width: pageWidth }}>
-            <MetricChart {...chart} style={styles.chart} />
-          </View>
-        ))}
-      </ScrollView>
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
+        windowSize={2}
+        removeClippedSubviews
+        getItemLayout={(_, index) => ({ index, length: pageWidth, offset: pageWidth * index })}
+      />
     </View>
   );
 }

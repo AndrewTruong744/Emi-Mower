@@ -1,7 +1,7 @@
 from importlib import import_module
 from unittest.mock import AsyncMock, Mock
 
-from src.schemas.valkey import TelemetryListCache
+from src.zenoh.generated import TelemetryList
 from src.zenoh.listeners import MOWER_TELEMETRY_KEY_EXPR, mower_telemetry
 
 
@@ -10,7 +10,7 @@ async def test_mower_telemetry_listener_buffers_the_payload(monkeypatch):
 
     service = AsyncMock()
     monkeypatch.setattr(listener, "add_telemetry_data_service", service)
-    payload = TelemetryListCache(
+    payload = TelemetryList(
         [
             {
                 "mower_id": "mower-1",

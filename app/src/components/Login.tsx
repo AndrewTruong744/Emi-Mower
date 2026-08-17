@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Modal, Portal, Text } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Avatar, Button, Modal, Portal, Surface, Text } from 'react-native-paper';
 import { useLogin } from '@/hooks/useLogin';
 import { useBoundStore } from '@/store/useBoundStore';
 
@@ -11,34 +11,42 @@ export default function Login() {
 
   return (
     <View style={loginStyles.container}>
-      <View style={loginStyles.card}>
-        <View style={loginStyles.logoContainer}>
-          <Avatar.Icon size={80} icon="robot" style={loginStyles.logoIcon} color="#FFFFFF" />
-          <Text style={loginStyles.title}>Emi Mower</Text>
-          <Text style={loginStyles.subtitle}>
-            Manage and operate your lawn mower fleet autonomously
+      <ScrollView contentContainerStyle={loginStyles.scrollContent}>
+        <View style={loginStyles.header}>
+          <Text variant="headlineMedium" style={loginStyles.title}>
+            Emi Mower
+          </Text>
+          <Text variant="bodyLarge" style={loginStyles.subtitle}>
+            Your connected mower fleet, all in one place.
           </Text>
         </View>
 
-        {isLoading ? (
-          <ActivityIndicator
-            animating={true}
-            color="#4CAF50"
-            size="large"
-            style={loginStyles.loader}
-          />
-        ) : (
-          <Button
-            mode="contained"
-            icon="google"
-            onPress={handleGoogleLogin}
-            style={loginStyles.button}
-            labelStyle={loginStyles.buttonLabel}
-          >
-            Sign in with Google
-          </Button>
-        )}
-      </View>
+        <Surface elevation={1} style={loginStyles.card}>
+          <View style={loginStyles.logoContainer}>
+            <Avatar.Icon size={72} icon="robot" style={loginStyles.logoIcon} color="#FFFFFF" />
+            <Text variant="titleLarge" style={loginStyles.cardTitle}>
+              Welcome back
+            </Text>
+            <Text variant="bodyMedium" style={loginStyles.cardDescription}>
+              Sign in to monitor your fleet and operate your mower.
+            </Text>
+          </View>
+
+          {isLoading ? (
+            <ActivityIndicator animating color="#2563eb" size="large" style={loginStyles.loader} />
+          ) : (
+            <Button
+              mode="contained"
+              icon="google"
+              onPress={handleGoogleLogin}
+              style={loginStyles.button}
+              labelStyle={loginStyles.buttonLabel}
+            >
+              Sign in with Google
+            </Button>
+          )}
+        </Surface>
+      </ScrollView>
 
       <Portal>
         <Modal
@@ -46,15 +54,17 @@ export default function Login() {
           onDismiss={clearError}
           contentContainerStyle={loginStyles.errorModal}
         >
-          <Text variant="titleLarge" style={loginStyles.errorModalTitle}>
-            {error?.title ?? 'Error'}
-          </Text>
-          <Text style={loginStyles.errorModalMessage}>
-            {error?.message ?? 'Something went wrong. Please try again.'}
-          </Text>
-          <Button mode="contained" onPress={clearError}>
-            Dismiss
-          </Button>
+          <Surface elevation={3} style={loginStyles.errorSurface}>
+            <Text variant="titleLarge" style={loginStyles.errorModalTitle}>
+              {error?.title ?? 'Error'}
+            </Text>
+            <Text style={loginStyles.errorModalMessage}>
+              {error?.message ?? 'Something went wrong. Please try again.'}
+            </Text>
+            <Button mode="contained" onPress={clearError}>
+              Dismiss
+            </Button>
+          </Surface>
         </Modal>
       </Portal>
     </View>
@@ -62,86 +72,41 @@ export default function Login() {
 }
 
 const loginStyles = StyleSheet.create({
-  container: {
-    backgroundColor: '#121212',
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
+  container: { flex: 1 },
   card: {
     alignItems: 'center',
-    backgroundColor: '#1E1E1E',
     borderRadius: 16,
-    elevation: 8,
-    padding: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    padding: 24,
   },
+  cardDescription: { marginTop: 6, opacity: 0.7, textAlign: 'center' },
+  cardTitle: { fontWeight: '700', marginTop: 16 },
+  errorSurface: { borderRadius: 16, padding: 24 },
+  errorModal: { margin: 20 },
+  errorModalMessage: { marginBottom: 24, opacity: 0.72 },
+  errorModalTitle: { fontWeight: '700', marginBottom: 12 },
+  header: { marginBottom: 20 },
+  loader: { marginVertical: 10 },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   logoIcon: {
-    alignItems: 'center',
-    backgroundColor: '#4CAF50',
-    borderRadius: 40,
-    elevation: 5,
-    height: 80,
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    width: 80,
+    backgroundColor: '#2563eb',
   },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-    textAlign: 'center',
-  },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20, paddingBottom: 36 },
   subtitle: {
-    color: '#B0B0B0',
-    fontSize: 16,
-    lineHeight: 22,
-    marginTop: 8,
-    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.7,
   },
+  title: { fontWeight: '700' },
   button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    elevation: 3,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingVertical: 4,
     width: '100%',
   },
   buttonLabel: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  loader: {
-    marginTop: 20,
-  },
-  errorModal: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    margin: 24,
-    padding: 24,
-  },
-  errorModalTitle: {
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  errorModalMessage: {
-    color: '#FFFFFF',
-    marginBottom: 24,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

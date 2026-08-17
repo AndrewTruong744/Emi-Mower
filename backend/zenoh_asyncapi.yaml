@@ -37,7 +37,6 @@ channels:
     parameters:
       mower_id:
         description: Mower whose name is being updated.
-        schema: {type: string}
     messages:
       updateMowerNameRequest: {$ref: '#/components/messages/UpdateMowerNameRequest'}
       updateMowerNameResponse: {$ref: '#/components/messages/UpdateMowerNameResponse'}
@@ -53,7 +52,6 @@ channels:
     parameters:
       mower_id:
         description: Mower room to consume.
-        schema: {type: string}
     messages:
       livekitConsumeRequest: {$ref: '#/components/messages/LiveKitConsumeRequest'}
       livekitTokenResponse: {$ref: '#/components/messages/LiveKitTokenResponse'}
@@ -63,11 +61,35 @@ channels:
     parameters:
       mower_id:
         description: Mower room to publish.
-        schema: {type: string}
     messages:
       livekitUploadRequest: {$ref: '#/components/messages/LiveKitUploadRequest'}
       livekitTokenResponse: {$ref: '#/components/messages/LiveKitTokenResponse'}
       problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  mowerJoystick:
+    address: mower/{mower_id}/joystick
+    parameters:
+      mower_id:
+        description: Mower receiving the normalized joystick command.
+    messages:
+      joystickCommand: {$ref: '#/components/messages/JoystickCommand'}
+  mowerTelemetryHistory:
+    address: mower/{mower_id}/telemetry/{telemetry_type}/old
+    parameters:
+      mower_id:
+        description: Mower whose historical graph telemetry is requested.
+      telemetry_type:
+        description: Graph metric, such as left_motor_speed or accel_x.
+    messages:
+      telemetryHistoryRequest: {$ref: '#/components/messages/TelemetryHistoryRequest'}
+      telemetryHistoryResponse: {$ref: '#/components/messages/TelemetryHistoryResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  mowerTelemetry:
+    address: mower/{mower_id}/telemetry
+    parameters:
+      mower_id:
+        description: Mower that published this live telemetry batch.
+    messages:
+      telemetryList: {$ref: '#/components/messages/TelemetryList'}
 operations:
   userLogin:
     action: receive
@@ -146,6 +168,29 @@ operations:
       messages:
         - {$ref: '#/channels/livekitUpload/messages/livekitTokenResponse'}
         - {$ref: '#/channels/livekitUpload/messages/problemDetails'}
+  mowerJoystick:
+    action: send
+    channel: {$ref: '#/channels/mowerJoystick'}
+    summary: Send a normalized joystick command to a mower
+    messages:
+      - {$ref: '#/channels/mowerJoystick/messages/joystickCommand'}
+  mowerTelemetryHistory:
+    action: receive
+    channel: {$ref: '#/channels/mowerTelemetryHistory'}
+    summary: Get an owned mower's paginated historical graph telemetry
+    messages:
+      - {$ref: '#/channels/mowerTelemetryHistory/messages/telemetryHistoryRequest'}
+    reply:
+      channel: {$ref: '#/channels/mowerTelemetryHistory'}
+      messages:
+        - {$ref: '#/channels/mowerTelemetryHistory/messages/telemetryHistoryResponse'}
+        - {$ref: '#/channels/mowerTelemetryHistory/messages/problemDetails'}
+  mowerTelemetry:
+    action: receive
+    channel: {$ref: '#/channels/mowerTelemetry'}
+    summary: Receive a mower's live telemetry batch for buffering and fan-out
+    messages:
+      - {$ref: '#/channels/mowerTelemetry/messages/telemetryList'}
 components:
   messages:
     UserLoginRequest:
@@ -190,6 +235,18 @@ components:
     LiveKitTokenResponse:
       name: LiveKitTokenResponse
       payload: {$ref: '#/components/schemas/LiveKitTokenResponse'}
+    JoystickCommand:
+      name: JoystickCommand
+      payload: {$ref: '#/components/schemas/JoystickCommand'}
+    TelemetryHistoryRequest:
+      name: TelemetryHistoryRequest
+      payload: {$ref: '#/components/schemas/TelemetryHistoryRequest'}
+    TelemetryHistoryResponse:
+      name: TelemetryHistoryResponse
+      payload: {$ref: '#/components/schemas/TelemetryHistoryResponse'}
+    TelemetryList:
+      name: TelemetryList
+      payload: {$ref: '#/components/schemas/TelemetryList'}
   schemas:
     UserLoginRequest:
       type: object
@@ -312,6 +369,84 @@ components:
           format: uri
           description: LiveKit WebSocket endpoint used to connect.
         expires_in: {type: integer, example: 3600}
+    JoystickCommand:
+      type: object
+      required: [x, y]
+      additionalProperties: false
+      description: Normalized manual drive vector, where each axis ranges from -1 to 1.
+      properties:
+        x: {type: number, minimum: -1, maximum: 1}
+        y: {type: number, minimum: -1, maximum: 1}
+    TelemetryHistoryRequest:
+      type: object
+      required: [id_token]
+      additionalProperties: false
+      properties:
+        id_token:
+          type: string
+          description: Firebase Identity Platform ID token.
+        cursor:
+          type: string
+          nullable: true
+          description: Opaque next_cursor returned by the previous page. Omit for the newest 60 points.
+    TelemetryHistoryPoint:
+      type: object
+      required: [timestamp, value]
+      additionalProperties: false
+      properties:
+        timestamp: {type: string, format: date-time}
+        value: {type: number}
+    TelemetryHistoryResponse:
+      type: object
+      required: [telemetry_type, limit, total, has_more, next_cursor, points]
+      additionalProperties: false
+      properties:
+        telemetry_type: {type: string}
+        limit: {type: integer, example: 60}
+        total: {type: integer}
+        has_more: {type: boolean}
+        next_cursor: {type: string, nullable: true}
+        points:
+          type: array
+          items: {$ref: '#/components/schemas/TelemetryHistoryPoint'}
+    ImuTelemetry:
+      type: object
+      required: [accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z]
+      additionalProperties: false
+      properties:
+        accel_x: {type: number}
+        accel_y: {type: number}
+        accel_z: {type: number}
+        gyro_x: {type: number}
+        gyro_y: {type: number}
+        gyro_z: {type: number}
+        mag_x: {type: number}
+        mag_y: {type: number}
+        mag_z: {type: number}
+    TelemetryRecord:
+      type: object
+      required: [mower_id, timestamp, latitude, longitude, battery_percentage]
+      additionalProperties: false
+      properties:
+        mower_id: {type: string}
+        timestamp: {type: string, format: date-time}
+        latitude: {type: number}
+        longitude: {type: number}
+        battery_percentage: {type: integer}
+        left_motor_speed: {type: number, default: 0}
+        left_motor_direction: {type: integer, default: 0, enum: [-1, 0, 1]}
+        right_motor_speed: {type: number, default: 0}
+        right_motor_direction: {type: integer, default: 0, enum: [-1, 0, 1]}
+        cutting_motor_speed: {type: number, default: 0}
+        slippage_detected: {type: boolean, default: false}
+        rgb_image_url: {type: string, nullable: true}
+        lidar_image_url: {type: string, nullable: true}
+        imu_data:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/ImuTelemetry'}]
+    TelemetryList:
+      type: array
+      items: {$ref: '#/components/schemas/TelemetryRecord'}
     ProblemDetails:
       type: object
       required: [type, title, status, detail, instance, code, timestamp]

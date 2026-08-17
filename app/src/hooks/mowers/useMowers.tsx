@@ -1,26 +1,32 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useBoundStore } from '@/store/useBoundStore';
-import { useMowerTelemetrySimulator } from './useMowerTelemetrySimulator';
+
+export interface MowerOption {
+  uuid: string;
+  name: string;
+}
 
 export function useMowers() {
   const mowerIds = useBoundStore((state) => state.mowers);
-  const mowerDetails = useBoundStore((state) => state.mowerDetails);
   const selectedMowerUuid = useBoundStore((state) => state.selectedMowerUuid);
-  const seedFakeMowers = useBoundStore((state) => state.seedFakeMowers);
+  const mowerNames = useBoundStore(
+    useShallow((state) => state.mowers.map((uuid) => state.mowerDetails[uuid]?.name ?? uuid))
+  );
   const addMowerToStore = useBoundStore((state) => state.addMower);
   const renameMowerInStore = useBoundStore((state) => state.renameMower);
   const selectMowerInStore = useBoundStore((state) => state.selectMower);
 
-  useEffect(() => {
-    seedFakeMowers();
-  }, [seedFakeMowers]);
-
-  useMowerTelemetrySimulator();
-
-  const activeMower = selectedMowerUuid ? mowerDetails[selectedMowerUuid] ?? null : null;
+  const activeMower = useMemo<MowerOption | null>(
+    () =>
+      selectedMowerUuid
+        ? { uuid: selectedMowerUuid, name: mowerNames[mowerIds.indexOf(selectedMowerUuid)] ?? selectedMowerUuid }
+        : null,
+    [mowerIds, mowerNames, selectedMowerUuid]
+  );
   const mowerOptions = useMemo(
-    () => mowerIds.map((uuid) => mowerDetails[uuid]).filter(Boolean),
-    [mowerDetails, mowerIds]
+    () => mowerIds.map((uuid, index) => ({ uuid, name: mowerNames[index] ?? uuid })),
+    [mowerIds, mowerNames]
   );
 
   const addMower = useCallback(
@@ -53,6 +59,7 @@ export function useMowers() {
   return {
     activeMower,
     addMower,
+    mowerIds,
     mowerOptions,
     renameActiveMower,
     selectMower: selectMowerInStore,

@@ -4,13 +4,16 @@ import { useMowers } from '@/hooks/mowers/useMowers';
 import { useBoundStore } from '@/store/useBoundStore';
 
 describe('useMowers', () => {
-  beforeEach(() => useBoundStore.getState().resetStore());
+  beforeEach(() => {
+    useBoundStore.getState().resetStore();
+    useBoundStore.getState().setMowers(['mower-1', 'mower-2']);
+  });
 
-  it('seeds fake mower data, switches the displayed mower, and manages mower names', async () => {
+  it('uses the authenticated fleet, switches the displayed mower, and manages mower names', async () => {
     const { result } = renderHook(() => useMowers());
 
     await waitFor(() => expect(result.current.activeMower).not.toBeNull());
-    expect(result.current.mowerOptions).toHaveLength(6);
+    expect(result.current.mowerOptions).toHaveLength(2);
 
     const secondMower = result.current.mowerOptions[1];
     act(() => result.current.selectMower(secondMower.uuid));

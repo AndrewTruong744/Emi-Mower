@@ -5,6 +5,8 @@ import {
   closeZenoh,
   connectZenoh,
   getZenohLocator,
+  zenohPut,
+  zenohSubscribe,
   zenohQuery,
 } from '@/config/zenohClient';
 
@@ -58,6 +60,41 @@ describe('Zenoh client', () => {
     await closeZenoh();
 
     expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes JSON commands without waiting for a reply', async () => {
+    const session = {
+      put: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValue(session);
+
+    await zenohPut('mower/mower-1/joystick', { x: 0.5, y: -0.25 });
+
+    expect(session.put).toHaveBeenCalledWith('mower/mower-1/joystick', JSON.stringify({ x: 0.5, y: -0.25 }), {
+      encoding: Encoding.APPLICATION_JSON,
+    });
+  });
+
+  it('declares JSON subscriptions on the shared session and cleans them up', async () => {
+    const undeclare = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const session = {
+      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValue(session);
+    const onPayload = jest.fn();
+
+    const unsubscribe = await zenohSubscribe('mower/*/telemetry', onPayload);
+    expect(session.declareSubscriber).toHaveBeenCalledWith('mower/*/telemetry', {
+      handler: expect.any(Function),
+    });
+    const handler = session.declareSubscriber.mock.calls[0][1].handler;
+    handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
+    expect(onPayload).toHaveBeenCalledWith('[{"mower_id":"mower-1"}]');
+
+    await unsubscribe();
+    expect(undeclare).toHaveBeenCalledTimes(1);
   });
 
   it('maps Zenoh errors and response edge cases', async () => {

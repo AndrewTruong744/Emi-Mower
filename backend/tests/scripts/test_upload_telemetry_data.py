@@ -5,12 +5,12 @@ from uuid import uuid4
 
 import pytest
 
-from src.schemas.valkey import TelemetryRecordCache
 from src.scripts import upload_telemetry_data as worker
+from src.zenoh.generated import TelemetryRecord
 
 
 def telemetry_json(mower_id: str) -> str:
-    return TelemetryRecordCache(
+    return TelemetryRecord(
         mower_id=mower_id,
         timestamp=datetime.now(timezone.utc),
         latitude=1.0,
@@ -54,7 +54,7 @@ async def test_process_key_skips_invalid_records_and_cleans_key(monkeypatch):
 @pytest.mark.asyncio
 async def test_process_key_persists_valid_record_with_nested_imu(monkeypatch):
     mower_id = str(uuid4())
-    record = TelemetryRecordCache(
+    record = TelemetryRecord(
         mower_id=mower_id,
         timestamp=datetime.now(timezone.utc),
         latitude=1.0,

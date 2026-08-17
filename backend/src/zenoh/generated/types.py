@@ -4,9 +4,9 @@ Do not edit manually. Regenerate with ``backend/scripts/generate_types.sh``.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, RootModel
 
 
 class UserLoginRequest(BaseModel):
@@ -110,6 +110,79 @@ class LiveKitTokenResponse(BaseModel):
     expires_in: int
 
 
+class JoystickCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float
+    y: float
+
+
+class TelemetryHistoryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    cursor: str | None = None
+
+
+class TelemetryHistoryPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timestamp: datetime
+    value: float
+
+
+class TelemetryHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    telemetry_type: str
+    limit: int
+    total: int
+    has_more: bool
+    next_cursor: str | None = None
+    points: list[TelemetryHistoryPoint]
+
+
+class ImuTelemetry(BaseModel):
+    """Generated from ``components.schemas.ImuTelemetry``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    accel_x: float
+    accel_y: float
+    accel_z: float
+    gyro_x: float
+    gyro_y: float
+    gyro_z: float
+    mag_x: float
+    mag_y: float
+    mag_z: float
+
+
+class TelemetryRecord(BaseModel):
+    """Generated from ``components.schemas.TelemetryRecord``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mower_id: str
+    timestamp: datetime
+    latitude: float
+    longitude: float
+    battery_percentage: int
+    left_motor_speed: float = 0.0
+    left_motor_direction: Literal[-1, 0, 1] = 0
+    right_motor_speed: float = 0.0
+    right_motor_direction: Literal[-1, 0, 1] = 0
+    cutting_motor_speed: float = 0.0
+    slippage_detected: bool = False
+    rgb_image_url: str | None = None
+    lidar_image_url: str | None = None
+    imu_data: ImuTelemetry | None = None
+
+
+class TelemetryList(RootModel[list[TelemetryRecord]]):
+    """Generated from ``components.schemas.TelemetryList``."""
+
+
 class ProblemDetails(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -136,6 +209,9 @@ WireMessage = (
     | LiveKitConsumeRequest
     | LiveKitUploadRequest
     | LiveKitTokenResponse
+    | JoystickCommand
+    | TelemetryHistoryRequest
+    | TelemetryHistoryResponse
     | ProblemDetails
     | dict[str, Any]
 )

@@ -6,8 +6,8 @@ interface MowerStatusSectionProps {
   mower: MowerDetails;
 }
 
-const stateColors = { on: '#16a34a', off: '#64748b', stopped: '#dc2626' };
-const healthColors = { healthy: '#16a34a', attention: '#d97706', critical: '#dc2626' };
+const stateColors = { on: '#16a34a', off: '#64748b', stopped: '#dc2626', unknown: '#64748b' };
+const healthColors = { healthy: '#16a34a', attention: '#d97706', critical: '#dc2626', unknown: '#64748b' };
 
 export function MowerStatusSection({ mower }: MowerStatusSectionProps) {
   return (
@@ -16,7 +16,7 @@ export function MowerStatusSection({ mower }: MowerStatusSectionProps) {
         Current status
       </Text>
       <View style={styles.metrics}>
-        <StatusMetric label="Battery" value={`${Math.round(mower.battery)}%`} color="#2563eb" />
+        <StatusMetric label="Battery" value={mower.battery == null ? '—' : `${Math.round(mower.battery)}%`} color="#2563eb" />
         <StatusMetric label="State" value={mower.state.toUpperCase()} color={stateColors[mower.state]} />
         <StatusMetric label="Health" value={mower.health.replace('-', ' ').toUpperCase()} color={healthColors[mower.health]} />
       </View>

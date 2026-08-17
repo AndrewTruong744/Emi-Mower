@@ -1,11 +1,11 @@
 import { Alert } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
-import { useBoundStore } from '@/store/useBoundStore';
-import { usePatchUsername } from './api/user/usePatchUsername';
-import { usePatchUserEmail } from './api/user/usePatchUserEmail';
-import { useChangeEmail } from './useChangeEmail';
-import { useLogout } from './useLogout';
 import { firebaseAuth } from '@/config/firebase';
+import { useBoundStore } from '@/store/useBoundStore';
+import { usePatchUsername } from '../api/user/usePatchUsername';
+import { usePatchUserEmail } from '../api/user/usePatchUserEmail';
+import { useChangeEmail } from '../useChangeEmail';
+import { useLogout } from '../useLogout';
 
 export const useSettings = () => {
   const { user_id, email, displayName, setUser, setAuthToken } = useBoundStore(
@@ -34,11 +34,7 @@ export const useSettings = () => {
         newUserName,
       });
       if (response.new_user_name) {
-        setUser({
-          user_id,
-          email,
-          displayName: response.new_user_name,
-        });
+        setUser({ user_id, email, displayName: response.new_user_name });
         Alert.alert('Success', 'Username updated successfully');
       }
     } catch (err: any) {
@@ -53,28 +49,20 @@ export const useSettings = () => {
       return;
     }
     try {
-      // Get temporary new tokens from Google
       const tempTokens = await triggerChangeEmail();
-
-      // Patch user email passing the new ID token
       const response = await patchUserEmailMutation.mutateAsync({
         newIdToken: tempTokens.idToken,
         newEmail: tempTokens.email || '',
       });
 
-      if (response.new_email) {
-        // Update Zustand store on success
-        const refreshedIdToken = await firebaseAuth.currentUser?.getIdToken(true);
-        setAuthToken(refreshedIdToken || tempTokens.idToken);
-        setUser({
-          user_id,
-          email: response.new_email,
-          displayName,
-        });
-        Alert.alert('Success', 'Email updated successfully');
-      } else {
+      if (!response.new_email) {
         throw new Error('Email update did not return the new email address.');
       }
+
+      const refreshedIdToken = await firebaseAuth.currentUser?.getIdToken(true);
+      setAuthToken(refreshedIdToken || tempTokens.idToken);
+      setUser({ user_id, email: response.new_email, displayName });
+      Alert.alert('Success', 'Email updated successfully');
     } catch (err: any) {
       Alert.alert('Email Update Failed', err.message || 'Failed to update email');
     }
@@ -89,11 +77,7 @@ export const useSettings = () => {
   };
 
   return {
-    user: {
-      user_id,
-      email,
-      displayName,
-    },
+    user: { user_id, email, displayName },
     updateUsername: handleUpdateUsername,
     changeEmail: handleChangeEmail,
     logout: handleLogout,

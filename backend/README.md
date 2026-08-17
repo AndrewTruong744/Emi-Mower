@@ -158,6 +158,11 @@ uv run python -m src.scripts.clear_all_data
 
 ## Generated Zenoh types
 
+`zenoh_asyncapi.yaml` is the telemetry wire-contract source of truth. The
+committed Python and TypeScript models are consumed directly by the backend
+listener and app subscription. The Zenoh contract tests fail when the
+telemetry schemas and either generated output drift.
+
 ```bash
 npm install --global @asyncapi/cli
 ./scripts/generate_types.sh

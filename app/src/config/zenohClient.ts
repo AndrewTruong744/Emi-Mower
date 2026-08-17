@@ -168,3 +168,65 @@ export async function zenohQuery<T>(keyExpr: string, payload: unknown): Promise<
     throw error;
   }
 }
+
+/** Publish a JSON command without waiting for a reply from the mower. */
+export async function zenohPut(keyExpr: string, payload: unknown): Promise<void> {
+  const operationVersion = zenohSessionVersion;
+  try {
+    const { Encoding } = await loadZenoh();
+    const session = await connectZenoh();
+    if (operationVersion !== zenohSessionVersion) {
+      throw new ZenohOperationCancelled();
+    }
+
+    await session.put(keyExpr, JSON.stringify(payload), {
+      encoding: Encoding.APPLICATION_JSON,
+    });
+
+    if (operationVersion !== zenohSessionVersion) {
+      throw new ZenohOperationCancelled();
+    }
+  } catch (error) {
+    if (isZenohOperationCancelled(error) || operationVersion !== zenohSessionVersion) {
+      throw new ZenohOperationCancelled();
+    }
+    useBoundStore.getState().reportError(error, {
+      source: 'zenoh',
+      title: 'Zenoh command failed',
+    });
+    throw error;
+  }
+}
+
+/** Declare a JSON subscriber on the authenticated shared Zenoh session. */
+export async function zenohSubscribe(
+  keyExpr: string,
+  onPayload: (payload: string) => void
+): Promise<() => Promise<void>> {
+  const operationVersion = zenohSessionVersion;
+  try {
+    const session = await connectZenoh();
+    if (operationVersion !== zenohSessionVersion) throw new ZenohOperationCancelled();
+
+    const subscriber = await session.declareSubscriber(keyExpr, {
+      handler: (sample) => onPayload(sample.payload().toString()),
+    });
+
+    return async () => {
+      try {
+        await subscriber.undeclare();
+      } catch {
+        // Session shutdown can undeclare the subscriber before React cleanup.
+      }
+    };
+  } catch (error) {
+    if (isZenohOperationCancelled(error) || operationVersion !== zenohSessionVersion) {
+      throw new ZenohOperationCancelled();
+    }
+    useBoundStore.getState().reportError(error, {
+      source: 'zenoh',
+      title: 'Zenoh telemetry subscription failed',
+    });
+    throw error;
+  }
+}

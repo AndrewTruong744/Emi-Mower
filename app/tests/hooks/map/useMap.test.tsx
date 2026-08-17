@@ -15,11 +15,19 @@ describe('useMap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useBoundStore.getState().resetStore();
+    useBoundStore.getState().setMowers(['mower-1']);
+    useBoundStore.getState().appendTelemetryBatch({
+      'mower-1': [{
+        timestamp: 1, latitude: 40.7128, longitude: -74.006, batteryPercentage: 80,
+        leftMotorSpeed: 0, leftMotorDirection: 0, rightMotorSpeed: 0, rightMotorDirection: 0,
+        cuttingMotorSpeed: 0, slippageDetected: false, imuData: null,
+      }],
+    });
   });
 
   it('locks to landscape, accepts a drawing into a mowing session, and unlocks on exit', async () => {
     const { result, unmount } = renderHook(() => useMap());
-    await waitFor(() => expect(result.current.mowerMarkers).toHaveLength(6));
+    await waitFor(() => expect(result.current.mowerMarkers).toHaveLength(1));
     expect(ScreenOrientation.lockAsync).toHaveBeenCalledWith(
       ScreenOrientation.OrientationLock.LANDSCAPE
     );
