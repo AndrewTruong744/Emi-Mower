@@ -1,14 +1,14 @@
 import { jest, describe, expect, it, beforeEach } from '@jest/globals';
 import { Config, Encoding, ReplyError, open } from '@eclipse-zenoh/zenoh-ts';
-import { useBoundStore } from '@/store/useBoundStore';
 import {
   closeZenoh,
   connectZenoh,
-  getZenohLocator,
   zenohPut,
   zenohSubscribe,
   zenohQuery,
 } from '@/config/zenohClient';
+import { OperationCancelled } from '@/errors/operationCancelled';
+import { useBoundStore } from '@/store/useBoundStore';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;
 
@@ -23,8 +23,9 @@ function reply(payload: unknown) {
 describe('Zenoh client', () => {
   beforeEach(async () => {
     await closeZenoh();
-    useBoundStore.getState().clearError();
     mockedOpen.mockReset();
+    useBoundStore.getState().enableZenoh();
+    useBoundStore.getState().clearErrors();
   });
 
   it('connects once and sends typed JSON queries', async () => {
@@ -37,7 +38,6 @@ describe('Zenoh client', () => {
       close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     };
     mockedOpen.mockResolvedValue(session);
-    expect(getZenohLocator()).toContain('ws://');
     await expect(zenohQuery('user/login', { id_token: 'token' })).resolves.toEqual({ ok: true });
     await expect(zenohQuery('user/login', { id_token: 'token-2' })).resolves.toEqual({ ok: true });
     expect(mockedOpen).toHaveBeenCalledTimes(1);
@@ -62,6 +62,34 @@ describe('Zenoh client', () => {
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
+  it('awaits active subscriber cleanup before closing the session', async () => {
+    let finishUndeclare: (() => void) | undefined;
+    const onClose = jest.fn();
+    const undeclare = jest.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUndeclare = resolve;
+        })
+    );
+    const session = {
+      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValue(session);
+    await zenohSubscribe('mower/*/telemetry', jest.fn(), onClose);
+
+    const closing = closeZenoh();
+    await Promise.resolve();
+
+    expect(undeclare).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(session.close).not.toHaveBeenCalled();
+
+    finishUndeclare?.();
+    await closing;
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
   it('publishes JSON commands without waiting for a reply', async () => {
     const session = {
       put: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
@@ -71,9 +99,22 @@ describe('Zenoh client', () => {
 
     await zenohPut('mower/mower-1/joystick', { x: 0.5, y: -0.25 });
 
-    expect(session.put).toHaveBeenCalledWith('mower/mower-1/joystick', JSON.stringify({ x: 0.5, y: -0.25 }), {
-      encoding: Encoding.APPLICATION_JSON,
-    });
+    expect(session.put).toHaveBeenCalledWith(
+      'mower/mower-1/joystick',
+      JSON.stringify({ x: 0.5, y: -0.25 }),
+      {
+        encoding: Encoding.APPLICATION_JSON,
+      }
+    );
+  });
+
+  it('does not open or publish while Zenoh is disabled', async () => {
+    useBoundStore.getState().disableZenoh();
+
+    await expect(zenohPut('mower/mower-1/joystick', { x: 0, y: 0 })).rejects.toBeInstanceOf(
+      OperationCancelled
+    );
+    expect(mockedOpen).not.toHaveBeenCalled();
   });
 
   it('declares JSON subscriptions on the shared session and cleans them up', async () => {
@@ -93,6 +134,10 @@ describe('Zenoh client', () => {
     handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
     expect(onPayload).toHaveBeenCalledWith('[{"mower_id":"mower-1"}]');
 
+    useBoundStore.getState().disableZenoh();
+    handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
+    expect(onPayload).toHaveBeenCalledTimes(1);
+
     await unsubscribe();
     expect(undeclare).toHaveBeenCalledTimes(1);
   });
@@ -103,7 +148,9 @@ describe('Zenoh client', () => {
         (async function* () {
           yield {
             result: () =>
-              new (ReplyError as unknown as new (message: string) => ReplyError)('backend unavailable'),
+              new (ReplyError as unknown as new (message: string) => ReplyError)(
+                'backend unavailable'
+              ),
           };
         })()
       ),
@@ -111,6 +158,12 @@ describe('Zenoh client', () => {
     };
     mockedOpen.mockResolvedValue(errorSession);
     await expect(zenohQuery('user/login', {})).rejects.toThrow('backend unavailable');
+    expect(useBoundStore.getState().errorQueue).toEqual([
+      expect.objectContaining({
+        code: 'zenoh.request_failed',
+        message: 'backend unavailable',
+      }),
+    ]);
 
     await closeZenoh();
     mockedOpen.mockRejectedValueOnce(new Error('connection failed'));
@@ -152,10 +205,5 @@ describe('Zenoh client', () => {
     await expect(zenohQuery('user/login', {})).rejects.toThrow(
       'Zenoh returned no response for user/login'
     );
-    expect(useBoundStore.getState().error).toMatchObject({
-      title: 'Zenoh request failed',
-      message: 'Zenoh returned no response for user/login',
-      source: 'zenoh',
-    });
   });
 });

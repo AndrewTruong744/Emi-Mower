@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { useBoundStore } from '@/store/useBoundStore';
-import { zenohPut, zenohQuery } from '@/config/zenohClient';
+import { closeZenoh, zenohPut, zenohQuery } from '@/config/zenohClient';
+import { queryClient } from '@/config/queryClient';
 
 export const mockReplace = jest.fn();
 
@@ -12,8 +13,6 @@ jest.mock('@/config/zenohClient', () => ({
   zenohPut: jest.fn(),
   zenohQuery: jest.fn(),
   closeZenoh: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-  cancelZenohOperations: jest.fn(),
-  isZenohOperationCancelled: jest.fn(() => false),
 }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: mockReplace }),
@@ -21,18 +20,24 @@ jest.mock('expo-router', () => ({
 
 export const mockedZenohQuery = zenohQuery as jest.Mock<(...args: any[]) => any>;
 export const mockedZenohPut = zenohPut as jest.Mock<(...args: any[]) => any>;
+export const mockedCloseZenoh = closeZenoh as jest.Mock<(...args: any[]) => any>;
 
 export function createWrapper() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      mutations: { retry: false, gcTime: 0 },
+      queries: { retry: false, gcTime: 0 },
+    },
   });
+
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
 }
 
 export function resetHookState() {
   jest.clearAllMocks();
+  queryClient.clear();
   mockFirebaseUser.getIdToken.mockResolvedValue('firebase-token');
   mockFirebaseUser.updateEmail.mockResolvedValue(undefined);
   mockFirebaseAuth.currentUser = mockFirebaseUser;

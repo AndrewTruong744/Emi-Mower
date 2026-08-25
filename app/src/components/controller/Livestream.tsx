@@ -25,7 +25,7 @@ export function Livestream({ mowerId }: LivestreamProps) {
       const nextCredentials = await streamCredentials.mutateAsync(mowerId);
       setCredentials(nextCredentials);
     } catch {
-      // React Query exposes the failure below while keeping the panel disconnected.
+      // The global error host reports the failed connection; keep this panel disconnected.
     }
   };
 
@@ -61,12 +61,6 @@ export function Livestream({ mowerId }: LivestreamProps) {
             </>
           ) : null}
 
-          {streamCredentials.error ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {streamCredentials.error.message || 'Unable to connect to the livestream.'}
-            </Text>
-          ) : null}
-
           <Button
             mode={isConnected ? 'outlined' : 'contained'}
             disabled={!mowerId || streamCredentials.isPending}
@@ -84,7 +78,6 @@ export function Livestream({ mowerId }: LivestreamProps) {
 
 const styles = StyleSheet.create({
   card: { alignSelf: 'center', aspectRatio: 16 / 9, borderRadius: 16, marginBottom: 16, width: '100%' },
-  error: { color: '#fecaca', marginBottom: 12, textAlign: 'center' },
   frame: { backgroundColor: '#0f172a', borderRadius: 16, flex: 1, overflow: 'hidden' },
   header: {
     alignItems: 'center',

@@ -28,5 +28,7 @@ export const usePatchUserEmail = () => {
         new_id_token: newIdToken,
       });
     },
+    retry: false,
+    gcTime: 0,
   });
 };

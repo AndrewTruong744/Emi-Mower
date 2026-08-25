@@ -24,21 +24,24 @@ describe('useSettings', () => {
     alertSpy.mockRestore();
   });
 
-  it('handles missing users and username failures', async () => {
+  it('reports missing users and username failures globally', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const missingUser = renderHook(() => useSettings(), { wrapper: createWrapper() });
     await act(async () => missingUser.result.current.updateUsername('NewName'));
-    expect(alertSpy).toHaveBeenCalledWith('Error', 'No authenticated user found');
+    expect(useBoundStore.getState().errorQueue[0]).toMatchObject({
+      title: 'Authentication failed',
+      message: 'No authenticated user found',
+    });
 
     useBoundStore
       .getState()
       .setUser({ user_id: 'user-1', email: 'user@example.com', displayName: 'Old' });
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     mockedZenohQuery.mockRejectedValueOnce(new Error('username failed'));
-    await act(async () => {
-      await expect(result.current.updateUsername('NewName')).rejects.toThrow('username failed');
-    });
-    expect(alertSpy).toHaveBeenCalledWith('Update Failed', 'username failed');
+    await act(async () => result.current.updateUsername('NewName'));
+    expect(useBoundStore.getState().errorQueue).toContainEqual(
+      expect.objectContaining({ title: 'Request failed', message: 'username failed' })
+    );
     alertSpy.mockRestore();
   });
 
@@ -46,7 +49,10 @@ describe('useSettings', () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const missingUser = renderHook(() => useSettings(), { wrapper: createWrapper() });
     await act(async () => missingUser.result.current.changeEmail());
-    expect(alertSpy).toHaveBeenCalledWith('Error', 'No authenticated user found');
+    expect(useBoundStore.getState().errorQueue[0]).toMatchObject({
+      title: 'Authentication failed',
+      message: 'No authenticated user found',
+    });
 
     useBoundStore
       .getState()
@@ -68,9 +74,11 @@ describe('useSettings', () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     await act(async () => result.current.changeEmail());
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Email Update Failed',
-      'Email update did not return the new email address.'
+    expect(useBoundStore.getState().errorQueue[0]).toEqual(
+      expect.objectContaining({
+        title: 'Request failed',
+        message: 'Email update did not return the new email address.',
+      })
     );
     alertSpy.mockRestore();
   });

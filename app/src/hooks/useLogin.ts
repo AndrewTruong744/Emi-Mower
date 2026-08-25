@@ -1,30 +1,23 @@
-import { useRouter } from 'expo-router';
 import { useGoogleAuth } from './useGoogleAuth';
-import { loginUserAndStore } from '@/zenoh/UserLogin';
 import { useBoundStore } from '@/store/useBoundStore';
-import { isAuthOperationCancelled } from '@/auth/session';
-import { isZenohOperationCancelled } from '@/config/zenohClient';
+import { isOperationCancelled } from '@/errors/operationCancelled';
+import { reportAppError } from '@/errors/reporter';
+import { clearAuthenticatedQueryCache } from '@/config/queryClient';
 
 export const useLogin = () => {
-  const router = useRouter();
   const { signInWithGoogle, isLoading } = useGoogleAuth();
-  const setUser = useBoundStore((state) => state.setUser);
-  const setMowers = useBoundStore((state) => state.setMowers);
-  const clearError = useBoundStore((state) => state.clearError);
-  const reportError = useBoundStore((state) => state.reportError);
+  const clearErrors = useBoundStore((state) => state.clearErrors);
 
   const handleGoogleLogin = async () => {
     try {
-      clearError();
-      const firebaseUser = await signInWithGoogle();
-      const idToken = await firebaseUser.getIdToken(true);
-      await loginUserAndStore(idToken, setUser, setMowers);
-      // On success, navigate to the Home tab.
-      router.replace('/(tabs)/home' as any);
+      clearAuthenticatedQueryCache();
+      clearErrors();
+      await signInWithGoogle();
+      // The Firebase auth-state listener handles Zenoh login and routing.
     } catch (err: any) {
-      if (isAuthOperationCancelled(err) || isZenohOperationCancelled(err)) return;
+      if (isOperationCancelled(err)) return;
       console.error('Login screen sign-in failure:', err);
-      reportError(err, { source: 'auth', title: 'Sign-in failed' });
+      reportAppError('auth.sign_in_failed', err);
     }
   };
 

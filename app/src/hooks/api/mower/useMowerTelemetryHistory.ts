@@ -1,16 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { TelemetryHistoryResponse } from '@/generated/zenoh';
+import type { TelemetryHistoryResponse } from '@/generated/zenoh';
 import { zenohQuery } from '@/config/zenohClient';
 import { getFirebaseIdToken } from '@/zenoh/UserLogin';
 
 export const TELEMETRY_HISTORY_PAGE_SIZE = 60;
 
-export function mowerTelemetryHistoryKey(mowerId: string, telemetryType: string, cursor?: string | null) {
-  return ['mower', mowerId, 'telemetry', telemetryType, 'old', cursor ?? null] as const;
-}
-
 export function telemetryHistoryPath(mowerId: string, telemetryType: string) {
   return `mower/${mowerId}/telemetry/${telemetryType}/old`;
+}
+
+export function mowerTelemetryHistoryQueryKey(
+  mowerId: string,
+  telemetryType: string,
+  cursor: string | null | undefined
+) {
+  return ['mower-telemetry-history', mowerId, telemetryType, cursor ?? null] as const;
 }
 
 interface UseMowerTelemetryHistoryOptions {
@@ -27,9 +31,12 @@ export function useMowerTelemetryHistory({
   cursor,
   enabled = true,
 }: UseMowerTelemetryHistoryOptions) {
-  return useQuery({
-    queryKey: mowerTelemetryHistoryKey(mowerId, telemetryType, cursor),
-    enabled: enabled && Boolean(mowerId) && Boolean(telemetryType),
+  const canFetch = enabled && Boolean(mowerId) && Boolean(telemetryType);
+
+  const query = useQuery({
+    queryKey: mowerTelemetryHistoryQueryKey(mowerId, telemetryType, cursor),
+    enabled: canFetch,
+    staleTime: 30_000,
     queryFn: async () => {
       const idToken = await getFirebaseIdToken();
       return zenohQuery<TelemetryHistoryResponse>(telemetryHistoryPath(mowerId, telemetryType), {
@@ -38,4 +45,6 @@ export function useMowerTelemetryHistory({
       });
     },
   });
+
+  return { data: query.data ?? null, error: query.error, isFetching: query.isFetching };
 }

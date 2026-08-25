@@ -8,16 +8,23 @@ describe('useMowerTelemetryHistory', () => {
 
   it('uses the opaque cursor returned by the previous history page', async () => {
     mockedZenohQuery.mockResolvedValue({
-      telemetry_type: 'accel_x', limit: 60, total: 180, has_more: true, next_cursor: 'cursor-2', points: [],
+      telemetry_type: 'accel_x',
+      limit: 60,
+      total: 180,
+      has_more: true,
+      next_cursor: 'cursor-2',
+      points: [],
     });
     const { result } = renderHook(
-      () => useMowerTelemetryHistory({ mowerId: 'mower-1', telemetryType: 'accel_x', cursor: 'cursor-1' }),
+      () =>
+        useMowerTelemetryHistory({ mowerId: 'mower-1', telemetryType: 'accel_x', cursor: 'cursor-1' }),
       { wrapper: createWrapper() }
     );
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
     expect(mockedZenohQuery).toHaveBeenCalledWith('mower/mower-1/telemetry/accel_x/old', {
-      id_token: 'firebase-token', cursor: 'cursor-1',
+      id_token: 'firebase-token',
+      cursor: 'cursor-1',
     });
   });
 
@@ -28,7 +35,7 @@ describe('useMowerTelemetryHistory', () => {
     );
 
     await act(async () => undefined);
-    expect(result.current.fetchStatus).toBe('idle');
+    expect(result.current.isFetching).toBe(false);
     expect(mockedZenohQuery).not.toHaveBeenCalled();
   });
 });

@@ -15,8 +15,11 @@ export const useBoundStore = create<BoundStoreState>()((...a) => ({
   ...createThemeSlice(...a),
   ...createErrorSlice(...a),
   resetStore: () =>
-    a[0]({
+    a[0]((state) => ({
       idToken: null,
+      authStatus: 'signedOut',
+      zenohEnabled: false,
+      authGeneration: state.authGeneration + 1,
       user_id: null,
       email: null,
       displayName: null,
@@ -29,6 +32,6 @@ export const useBoundStore = create<BoundStoreState>()((...a) => ({
       cuttingBoundary: [],
       areaImageUri: null,
       themePreference: 'system',
-      error: null,
-    }),
+      errorQueue: [],
+    })),
 }));

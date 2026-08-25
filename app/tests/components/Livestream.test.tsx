@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { createWrapper, mockedZenohQuery, resetHookState } from '../hooks/testUtils';
 import { Livestream } from '@/components/controller/Livestream';
+import { useBoundStore } from '@/store/useBoundStore';
 
 describe('Livestream', () => {
   beforeEach(resetHookState);
@@ -35,7 +36,7 @@ describe('Livestream', () => {
     expect(screen.queryByTestId('livestream-preview')).toBeNull();
   });
 
-  it('does not connect without a selected mower and displays a credential error', async () => {
+  it('does not connect without a selected mower and reports a credential error globally', async () => {
     const noMowerScreen = renderLivestream(null);
     fireEvent.press(noMowerScreen.getByTestId('livestream-toggle'));
     expect(mockedZenohQuery).not.toHaveBeenCalled();
@@ -43,6 +44,11 @@ describe('Livestream', () => {
     mockedZenohQuery.mockRejectedValue(new Error('Viewer token denied'));
     const screen = renderLivestream();
     fireEvent.press(screen.getByTestId('livestream-toggle'));
-    await waitFor(() => expect(screen.getByText('Viewer token denied')).toBeTruthy());
+    await waitFor(() =>
+      expect(useBoundStore.getState().errorQueue[0]).toMatchObject({
+        title: 'Livestream unavailable',
+        message: 'Viewer token denied',
+      })
+    );
   });
 });

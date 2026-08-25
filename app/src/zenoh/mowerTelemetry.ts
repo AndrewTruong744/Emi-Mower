@@ -51,11 +51,20 @@ function parseRecord(record: TelemetryRecord): MowerTelemetryMessage {
       latitude: asFiniteNumber(record.latitude, 'latitude'),
       longitude: asFiniteNumber(record.longitude, 'longitude'),
       batteryPercentage: asFiniteNumber(record.battery_percentage, 'battery_percentage'),
-      leftMotorSpeed: record.left_motor_speed == null ? 0 : asFiniteNumber(record.left_motor_speed, 'left_motor_speed'),
+      leftMotorSpeed:
+        record.left_motor_speed == null
+          ? 0
+          : asFiniteNumber(record.left_motor_speed, 'left_motor_speed'),
       leftMotorDirection: asDirection(record.left_motor_direction, 'left_motor_direction'),
-      rightMotorSpeed: record.right_motor_speed == null ? 0 : asFiniteNumber(record.right_motor_speed, 'right_motor_speed'),
+      rightMotorSpeed:
+        record.right_motor_speed == null
+          ? 0
+          : asFiniteNumber(record.right_motor_speed, 'right_motor_speed'),
       rightMotorDirection: asDirection(record.right_motor_direction, 'right_motor_direction'),
-      cuttingMotorSpeed: record.cutting_motor_speed == null ? 0 : asFiniteNumber(record.cutting_motor_speed, 'cutting_motor_speed'),
+      cuttingMotorSpeed:
+        record.cutting_motor_speed == null
+          ? 0
+          : asFiniteNumber(record.cutting_motor_speed, 'cutting_motor_speed'),
       slippageDetected: record.slippage_detected ?? false,
       imuData: parseImu(record.imu_data),
     },
@@ -77,13 +86,18 @@ export function parseMowerTelemetryPayload(payload: string): MowerTelemetryMessa
 /** Subscribe to the same mower telemetry model accepted by the backend listener. */
 export async function subscribeToMowerTelemetry(
   onTelemetry: (messages: MowerTelemetryMessage[]) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onClose?: () => void
 ): Promise<() => Promise<void>> {
-  return zenohSubscribe(MOWER_TELEMETRY_KEY_EXPR, (payload) => {
-    try {
-      onTelemetry(parseMowerTelemetryPayload(payload));
-    } catch (error) {
-      onError(error instanceof Error ? error : new Error('Unable to decode mower telemetry'));
-    }
-  });
+  return zenohSubscribe(
+    MOWER_TELEMETRY_KEY_EXPR,
+    (payload) => {
+      try {
+        onTelemetry(parseMowerTelemetryPayload(payload));
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error('Unable to decode mower telemetry'));
+      }
+    },
+    onClose
+  );
 }

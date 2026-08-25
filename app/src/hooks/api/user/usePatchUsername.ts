@@ -17,5 +17,7 @@ export const usePatchUsername = () => {
         new_user_name: newUserName,
       });
     },
+    retry: false,
+    gcTime: 0,
   });
 };

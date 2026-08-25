@@ -23,7 +23,6 @@ module.exports = {
     'src/config/zenohClient.ts',
     'src/config/keyExprShim.ts',
     'src/config/leb128Shim.ts',
-    'src/config/runtime*.ts',
     'src/components/**/*.{ts,tsx}',
     '!src/generated/**',
     '!src/components/ui/icon-symbol.ios.tsx',

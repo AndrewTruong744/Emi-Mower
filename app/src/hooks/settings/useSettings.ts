@@ -6,6 +6,7 @@ import { usePatchUsername } from '../api/user/usePatchUsername';
 import { usePatchUserEmail } from '../api/user/usePatchUserEmail';
 import { useChangeEmail } from '../useChangeEmail';
 import { useLogout } from '../useLogout';
+import { reportAppError } from '@/errors/reporter';
 
 export const useSettings = () => {
   const { user_id, email, displayName, setUser, setAuthToken } = useBoundStore(
@@ -25,7 +26,7 @@ export const useSettings = () => {
 
   const handleUpdateUsername = async (newUserName: string) => {
     if (!user_id) {
-      Alert.alert('Error', 'No authenticated user found');
+      reportAppError('auth.session_failed', new Error('No authenticated user found'));
       return;
     }
     try {
@@ -38,14 +39,13 @@ export const useSettings = () => {
         Alert.alert('Success', 'Username updated successfully');
       }
     } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Failed to update username');
-      throw err;
+      reportAppError('zenoh.request_failed', err);
     }
   };
 
   const handleChangeEmail = async () => {
     if (!user_id) {
-      Alert.alert('Error', 'No authenticated user found');
+      reportAppError('auth.session_failed', new Error('No authenticated user found'));
       return;
     }
     try {
@@ -64,17 +64,11 @@ export const useSettings = () => {
       setUser({ user_id, email: response.new_email, displayName });
       Alert.alert('Success', 'Email updated successfully');
     } catch (err: any) {
-      Alert.alert('Email Update Failed', err.message || 'Failed to update email');
+      reportAppError('zenoh.request_failed', err);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (err: any) {
-      Alert.alert('Logout Failed', err.message || 'Failed to logout');
-    }
-  };
+  const handleLogout = () => logout();
 
   return {
     user: { user_id, email, displayName },

@@ -1,148 +1,177 @@
-import type { Session } from '@eclipse-zenoh/zenoh-ts';
-import { Platform } from 'react-native';
+import {
+  Config,
+  Duration,
+  Encoding,
+  open,
+  ReplyError,
+  type Session,
+} from '@eclipse-zenoh/zenoh-ts';
+import { reportAppError } from '@/errors/reporter';
+import { isOperationCancelled, OperationCancelled } from '@/errors/operationCancelled';
 import { useBoundStore } from '@/store/useBoundStore';
-import { loadZenoh } from './runtime';
+import { env } from './env';
 
-const defaultZenohHost = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
-const configuredZenohHost =
-  process.env.EXPO_PUBLIC_ZENOH_HOST?.replace(/^['"]|['"]$/g, '') || defaultZenohHost;
-const configuredZenohPort =
-  process.env.EXPO_PUBLIC_ZENOH_PORT?.replace(/^['"]|['"]$/g, '') || '10000';
 const zenohQueryTimeoutMs = 5_000;
-
-const zenohLocator =
-  process.env.EXPO_PUBLIC_ZENOH_URL?.replace(/^['"]|['"]$/g, '') ||
-  `ws://${configuredZenohHost}:${configuredZenohPort}`;
+const zenohLocator = env.zenohUrl;
 
 let sessionPromise: Promise<Session> | null = null;
 let sessionLocator: string | null = null;
-let zenohSessionVersion = 0;
+const activeSubscriberCleanups = new Set<() => Promise<void>>();
 
-export class ZenohOperationCancelled extends Error {
-  constructor() {
-    super('Zenoh operation cancelled');
-    this.name = 'ZenohOperationCancelled';
+function getZenohLifecycle(): { enabled: boolean; generation: number } {
+  const { zenohEnabled, authGeneration } = useBoundStore.getState();
+  return { enabled: zenohEnabled, generation: authGeneration };
+}
+
+function isZenohOperationActive(operationGeneration: number): boolean {
+  const { enabled, generation } = getZenohLifecycle();
+  return enabled && generation === operationGeneration;
+}
+
+interface ZenohOperation {
+  isActive: () => boolean;
+  assertActive: () => void;
+  waitFor: <T>(promise: Promise<T>) => Promise<T>;
+}
+
+/** Captures one auth generation for a finite Zenoh operation. */
+function createZenohOperation(): ZenohOperation {
+  const { generation } = getZenohLifecycle();
+  const isActive = () => isZenohOperationActive(generation);
+  const assertActive = () => {
+    if (!isActive()) throw new OperationCancelled('Zenoh operation cancelled');
+  };
+
+  assertActive();
+  return {
+    isActive,
+    assertActive,
+    async waitFor<T>(promise: Promise<T>): Promise<T> {
+      const result = await promise;
+      assertActive();
+      return result;
+    },
+  };
+}
+
+function trackSubscriber(
+  subscriber: { undeclare(): Promise<void> },
+  onClose?: () => void
+): () => Promise<void> {
+  let cleanupPromise: Promise<void> | undefined;
+  const cleanup = () => {
+    cleanupPromise ??= (async () => {
+      try {
+        onClose?.();
+      } catch {
+        // Local cleanup must not prevent the Zenoh declaration from closing.
+      }
+      try {
+        await subscriber.undeclare();
+      } catch {
+        // Session shutdown can undeclare the subscriber before local cleanup.
+      }
+    })().finally(() => activeSubscriberCleanups.delete(cleanup));
+    return cleanupPromise;
+  };
+  activeSubscriberCleanups.add(cleanup);
+  return cleanup;
+}
+
+async function openZenohSession(locator: string, operation: ZenohOperation): Promise<Session> {
+  const session = await open(new Config(locator, zenohQueryTimeoutMs));
+  try {
+    operation.assertActive();
+    return session;
+  } catch (error) {
+    try {
+      await session.close();
+    } catch {
+      // The connection is already invalidated; preserve the cancellation error.
+    }
+    throw error;
   }
 }
 
-export function cancelZenohOperations(): void {
-  zenohSessionVersion += 1;
-}
-
-export function isZenohOperationCancelled(error: unknown): boolean {
-  return error instanceof ZenohOperationCancelled;
-}
-
-function getAuthenticatedLocator(username: string, password: string): string {
-  const schemeSeparator = zenohLocator.indexOf('://');
-  if (schemeSeparator < 0) {
-    throw new Error('Zenoh locator must include a URL scheme before authenticating');
+async function clearFailedSession(pendingSession: Promise<Session>): Promise<void> {
+  try {
+    await pendingSession;
+  } catch {
+    if (sessionPromise === pendingSession) {
+      sessionPromise = null;
+      sessionLocator = null;
+    }
   }
-
-  const scheme = zenohLocator.slice(0, schemeSeparator + 3);
-  const authorityAndPath = zenohLocator.slice(schemeSeparator + 3);
-  return `${scheme}${encodeURIComponent(username)}:${encodeURIComponent(password)}@${authorityAndPath}`;
 }
 
-export function getZenohLocator(): string {
-  return zenohLocator;
-}
-
-export async function connectZenoh(
-  username?: string,
-  password?: string,
-  assertCurrent?: () => void
-): Promise<Session> {
-  if ((username === undefined) !== (password === undefined)) {
+export async function connectZenoh(username?: string, password?: string): Promise<Session> {
+  const hasCredentials = username !== undefined;
+  if (hasCredentials !== (password !== undefined)) {
     throw new Error('Zenoh username and token must be provided together');
   }
-  assertCurrent?.();
+  const operation = createZenohOperation();
 
   // A no-credential call reuses whichever session is active. This keeps all
   // post-login queries on the authenticated session established below.
-  if (sessionPromise && username === undefined) {
-    return sessionPromise;
+  if (sessionPromise && !hasCredentials) {
+    return operation.waitFor(sessionPromise);
   }
 
-  const targetLocator =
-    username === undefined ? zenohLocator : getAuthenticatedLocator(username, password!);
+  let targetLocator = zenohLocator;
+  if (hasCredentials) {
+    const authenticatedUrl = new URL(zenohLocator);
+    authenticatedUrl.username = username!;
+    authenticatedUrl.password = password!;
+    targetLocator = authenticatedUrl.toString();
+  }
 
   if (sessionPromise && sessionLocator !== targetLocator) {
     await closeZenoh();
-    assertCurrent?.();
+    operation.assertActive();
   }
 
   if (!sessionPromise) {
-    const operationVersion = zenohSessionVersion;
     sessionLocator = targetLocator;
-    const pendingSession = loadZenoh()
-      .then(async ({ Config, open }) => {
-        const session = await open(new Config(targetLocator, zenohQueryTimeoutMs));
-        try {
-          assertCurrent?.();
-          if (operationVersion !== zenohSessionVersion) {
-            throw new ZenohOperationCancelled();
-          }
-        } catch (error) {
-          await session.close();
-          throw error;
-        }
-        return session;
-      })
-      .catch((error) => {
-        if (sessionPromise === pendingSession) {
-          sessionPromise = null;
-          sessionLocator = null;
-        }
-        throw error;
-      });
+    const pendingSession = openZenohSession(targetLocator, operation);
     sessionPromise = pendingSession;
+    void clearFailedSession(pendingSession);
   }
 
-  return sessionPromise;
+  return operation.waitFor(sessionPromise!);
 }
 
 export async function closeZenoh(): Promise<void> {
+  await Promise.allSettled([...activeSubscriberCleanups].map((cleanup) => cleanup()));
+
   const pendingSession = sessionPromise;
   sessionPromise = null;
   sessionLocator = null;
 
-  let session: Session | null = null;
   try {
-    session = pendingSession ? await pendingSession : null;
+    await (await pendingSession)?.close();
   } catch {
-    // A cancelled connection attempt has no session to close.
-  }
-  try {
-    await session?.close();
-  } catch {
-    // Logout must still clear local auth state if the transport is already down.
+    // A failed connection or closed transport must not block local logout.
   }
 }
 
 export async function zenohQuery<T>(keyExpr: string, payload: unknown): Promise<T> {
-  const operationVersion = zenohSessionVersion;
+  const operation = createZenohOperation();
   try {
-    const { Duration, Encoding, ReplyError } = await loadZenoh();
-    const session = await connectZenoh();
-    if (operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
-    }
-    const receiver = await session.get(keyExpr, {
-      encoding: Encoding.APPLICATION_JSON,
-      payload: JSON.stringify(payload),
-      timeout: Duration.milliseconds.of(zenohQueryTimeoutMs),
-    });
-
-    if (operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
-    }
+    const session = await operation.waitFor(connectZenoh());
+    const receiver = await operation.waitFor(
+      session.get(keyExpr, {
+        encoding: Encoding.APPLICATION_JSON,
+        payload: JSON.stringify(payload),
+        timeout: Duration.milliseconds.of(zenohQueryTimeoutMs),
+      })
+    );
 
     if (!receiver) {
       throw new Error(`Zenoh returned no receiver for ${keyExpr}`);
     }
 
     for await (const reply of receiver) {
+      operation.assertActive();
       const result = reply.result();
       if (result instanceof ReplyError) {
         throw new Error(result.payload().toString() || `Zenoh request failed: ${keyExpr}`);
@@ -158,42 +187,30 @@ export async function zenohQuery<T>(keyExpr: string, payload: unknown): Promise<
 
     throw new Error(`Zenoh returned no response for ${keyExpr}`);
   } catch (error) {
-    if (isZenohOperationCancelled(error) || operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
+    if (isOperationCancelled(error) || !operation.isActive()) {
+      throw new OperationCancelled('Zenoh operation cancelled');
     }
-    useBoundStore.getState().reportError(error, {
-      source: 'zenoh',
-      title: 'Zenoh request failed',
-    });
+    reportAppError('zenoh.request_failed', error);
     throw error;
   }
 }
 
 /** Publish a JSON command without waiting for a reply from the mower. */
 export async function zenohPut(keyExpr: string, payload: unknown): Promise<void> {
-  const operationVersion = zenohSessionVersion;
+  const operation = createZenohOperation();
   try {
-    const { Encoding } = await loadZenoh();
-    const session = await connectZenoh();
-    if (operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
-    }
+    const session = await operation.waitFor(connectZenoh());
 
-    await session.put(keyExpr, JSON.stringify(payload), {
-      encoding: Encoding.APPLICATION_JSON,
-    });
-
-    if (operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
-    }
+    await operation.waitFor(
+      session.put(keyExpr, JSON.stringify(payload), {
+        encoding: Encoding.APPLICATION_JSON,
+      })
+    );
   } catch (error) {
-    if (isZenohOperationCancelled(error) || operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
+    if (isOperationCancelled(error) || !operation.isActive()) {
+      throw new OperationCancelled('Zenoh operation cancelled');
     }
-    useBoundStore.getState().reportError(error, {
-      source: 'zenoh',
-      title: 'Zenoh command failed',
-    });
+    reportAppError('zenoh.command_failed', error);
     throw error;
   }
 }
@@ -201,32 +218,33 @@ export async function zenohPut(keyExpr: string, payload: unknown): Promise<void>
 /** Declare a JSON subscriber on the authenticated shared Zenoh session. */
 export async function zenohSubscribe(
   keyExpr: string,
-  onPayload: (payload: string) => void
+  onPayload: (payload: string) => void,
+  onClose?: () => void
 ): Promise<() => Promise<void>> {
-  const operationVersion = zenohSessionVersion;
+  const operation = createZenohOperation();
   try {
-    const session = await connectZenoh();
-    if (operationVersion !== zenohSessionVersion) throw new ZenohOperationCancelled();
-
+    const session = await operation.waitFor(connectZenoh());
     const subscriber = await session.declareSubscriber(keyExpr, {
-      handler: (sample) => onPayload(sample.payload().toString()),
+      handler: (sample) => {
+        if (operation.isActive()) {
+          onPayload(sample.payload().toString());
+        }
+      },
     });
 
-    return async () => {
-      try {
-        await subscriber.undeclare();
-      } catch {
-        // Session shutdown can undeclare the subscriber before React cleanup.
-      }
-    };
-  } catch (error) {
-    if (isZenohOperationCancelled(error) || operationVersion !== zenohSessionVersion) {
-      throw new ZenohOperationCancelled();
+    const cleanup = trackSubscriber(subscriber, onClose);
+    try {
+      operation.assertActive();
+    } catch (error) {
+      await cleanup();
+      throw error;
     }
-    useBoundStore.getState().reportError(error, {
-      source: 'zenoh',
-      title: 'Zenoh telemetry subscription failed',
-    });
+    return cleanup;
+  } catch (error) {
+    if (isOperationCancelled(error) || !operation.isActive()) {
+      throw new OperationCancelled('Zenoh operation cancelled');
+    }
+    reportAppError('zenoh.subscription_failed', error);
     throw error;
   }
 }

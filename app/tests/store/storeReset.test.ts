@@ -13,18 +13,30 @@ describe('bound store reset', () => {
     });
     useBoundStore.getState().setMowers(['mower-1']);
     useBoundStore.getState().setThemePreference('dark');
-    useBoundStore.getState().reportError(new Error('stale error'));
+    useBoundStore.getState().reportError({
+      id: 'stale-error',
+      code: 'zenoh.request_failed',
+      title: 'Request failed',
+      message: 'stale error',
+      presentation: 'toast',
+      priority: 'normal',
+      retryable: true,
+      dedupeKey: 'zenoh.request_failed',
+      count: 1,
+      occurredAt: Date.now(),
+    });
 
     useBoundStore.getState().resetStore();
 
     expect(useBoundStore.getState()).toMatchObject({
       idToken: null,
+      zenohEnabled: false,
       user_id: null,
       email: null,
       displayName: null,
       mowers: [],
       themePreference: 'system',
-      error: null,
+      errorQueue: [],
     });
   });
 });

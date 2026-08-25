@@ -3,6 +3,7 @@ import { getFirebaseIdToken, loginUserAndStore, userLogin } from '@/zenoh/UserLo
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { closeZenoh } from '@/config/zenohClient';
 import { open } from '@eclipse-zenoh/zenoh-ts';
+import { useBoundStore } from '@/store/useBoundStore';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;
 
@@ -26,6 +27,7 @@ describe('UserLogin', () => {
   beforeEach(async () => {
     await closeZenoh();
     mockedOpen.mockReset();
+    useBoundStore.getState().enableZenoh();
   });
 
   it('calls the login route and stores returned user data', async () => {
@@ -66,30 +68,4 @@ describe('UserLogin', () => {
     await expect(getFirebaseIdToken()).resolves.toBe('firebase-token');
   });
 
-  it('shares an in-flight login between the Firebase listener and login screen', async () => {
-    let releaseReply!: () => void;
-    const replyReady = new Promise<void>((resolve) => {
-      releaseReply = resolve;
-    });
-    const session = {
-      get: jest.fn<(...args: any[]) => any>().mockImplementation(() =>
-        (async function* () {
-          await replyReady;
-          yield loginReply();
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValue(session);
-    const firstSetUser = jest.fn();
-    const secondSetUser = jest.fn();
-
-    const firstLogin = loginUserAndStore('firebase-token', firstSetUser);
-    const secondLogin = loginUserAndStore('firebase-token', secondSetUser);
-    releaseReply();
-    await expect(Promise.all([firstLogin, secondLogin])).resolves.toHaveLength(2);
-    expect(session.get).toHaveBeenCalledTimes(1);
-    expect(firstSetUser).toHaveBeenCalledTimes(1);
-    expect(secondSetUser).not.toHaveBeenCalled();
-  });
 });

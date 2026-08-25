@@ -1,14 +1,10 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Modal, Portal, Surface, Text } from 'react-native-paper';
+import { ActivityIndicator, Avatar, Button, Surface, Text } from 'react-native-paper';
 import { useLogin } from '@/hooks/useLogin';
-import { useBoundStore } from '@/store/useBoundStore';
 
 export default function Login() {
   const { handleGoogleLogin, isLoading } = useLogin();
-  const error = useBoundStore((state) => state.error);
-  const clearError = useBoundStore((state) => state.clearError);
-
   return (
     <View style={loginStyles.container}>
       <ScrollView contentContainerStyle={loginStyles.scrollContent}>
@@ -48,25 +44,6 @@ export default function Login() {
         </Surface>
       </ScrollView>
 
-      <Portal>
-        <Modal
-          visible={Boolean(error)}
-          onDismiss={clearError}
-          contentContainerStyle={loginStyles.errorModal}
-        >
-          <Surface elevation={3} style={loginStyles.errorSurface}>
-            <Text variant="titleLarge" style={loginStyles.errorModalTitle}>
-              {error?.title ?? 'Error'}
-            </Text>
-            <Text style={loginStyles.errorModalMessage}>
-              {error?.message ?? 'Something went wrong. Please try again.'}
-            </Text>
-            <Button mode="contained" onPress={clearError}>
-              Dismiss
-            </Button>
-          </Surface>
-        </Modal>
-      </Portal>
     </View>
   );
 }
@@ -80,10 +57,6 @@ const loginStyles = StyleSheet.create({
   },
   cardDescription: { marginTop: 6, opacity: 0.7, textAlign: 'center' },
   cardTitle: { fontWeight: '700', marginTop: 16 },
-  errorSurface: { borderRadius: 16, padding: 24 },
-  errorModal: { margin: 20 },
-  errorModalMessage: { marginBottom: 24, opacity: 0.72 },
-  errorModalTitle: { fontWeight: '700', marginBottom: 12 },
   header: { marginBottom: 20 },
   loader: { marginVertical: 10 },
   logoContainer: {

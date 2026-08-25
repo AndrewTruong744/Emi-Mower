@@ -1,10 +1,26 @@
+import type { AppError } from '@/errors/types';
+
+export type AuthStatus =
+  | 'initializing'
+  | 'authenticating'
+  | 'authenticated'
+  | 'signingOut'
+  | 'signedOut';
+
 export interface AuthState {
   idToken: string | null;
+  authStatus: AuthStatus;
+  zenohEnabled: boolean;
+  authGeneration: number;
 }
 
 export interface AuthActions {
   setAuthToken: (idToken: string | null) => void;
   clearAuth: () => void;
+  setAuthStatus: (authStatus: AuthStatus) => void;
+  enableZenoh: () => void;
+  startZenohSession: () => void;
+  disableZenoh: () => void;
 }
 
 export type AuthSlice = AuthState & AuthActions;
@@ -116,27 +132,14 @@ export interface ThemeActions {
 
 export type ThemeSlice = ThemeState & ThemeActions;
 
-export type AppErrorSource = 'auth' | 'zenoh' | 'network' | 'unknown';
-
-export interface AppError {
-  id: string;
-  title: string;
-  message: string;
-  source: AppErrorSource;
-}
-
-export interface ErrorReportOptions {
-  title?: string;
-  source?: AppErrorSource;
-}
-
 export interface ErrorState {
-  error: AppError | null;
+  errorQueue: AppError[];
 }
 
 export interface ErrorActions {
-  reportError: (error: unknown, options?: ErrorReportOptions) => void;
-  clearError: () => void;
+  reportError: (error: AppError) => void;
+  dismissError: (id: string) => void;
+  clearErrors: () => void;
 }
 
 export type ErrorSlice = ErrorState & ErrorActions;

@@ -1,6 +1,5 @@
 import { firebaseAuth } from '@/config/firebase';
 import type { UserLoginResponse } from '@/generated/zenoh';
-import { assertAuthSessionCurrent, getAuthSessionVersion } from '@/auth/session';
 import { connectZenoh, zenohQuery } from '@/config/zenohClient';
 
 export const USER_LOGIN_KEY = 'user/login';
@@ -14,10 +13,6 @@ type SetUser = (user: {
 }) => void;
 type SetMowers = (mowers: string[]) => void;
 type StoredLogin = UserLoginResponse['user_data'];
-
-let inFlightLogin:
-  | { authSessionVersion: number; promise: Promise<StoredLogin> }
-  | null = null;
 
 export async function userLogin(idToken: string): Promise<UserLoginResponse> {
   if (!idToken) {
@@ -41,40 +36,20 @@ export async function loginUserAndStore(
   setUser: SetUser,
   setMowers?: SetMowers
 ): Promise<StoredLogin> {
-  const authSessionVersion = getAuthSessionVersion();
-  if (inFlightLogin?.authSessionVersion === authSessionVersion) {
-    return inFlightLogin.promise;
-  }
+  const response = await userLogin(idToken);
+  setUser({
+    user_id: response.user_data.id,
+    email: response.user_data.email,
+    displayName: response.user_data.name,
+  });
+  const mowers = Array.isArray(response.user_data.mowers)
+    ? response.user_data.mowers.filter((mower): mower is string => typeof mower === 'string')
+    : [];
+  setMowers?.(mowers);
 
-  const promise = (async (): Promise<StoredLogin> => {
-    const response = await userLogin(idToken);
-    assertAuthSessionCurrent(authSessionVersion);
-    setUser({
-      user_id: response.user_data.id,
-      email: response.user_data.email,
-      displayName: response.user_data.name,
-    });
-    const mowers = Array.isArray(response.user_data.mowers)
-      ? response.user_data.mowers.filter((mower): mower is string => typeof mower === 'string')
-      : [];
-    setMowers?.(mowers);
-
-    // user/login is intentionally reachable by the guest session. Replace it
-    // immediately with the user-scoped session so mower routes use the ACL
-    // provisioned for this username and one-time Zenoh password.
-    await connectZenoh(response.user_id, response.token, () =>
-      assertAuthSessionCurrent(authSessionVersion)
-    );
-    assertAuthSessionCurrent(authSessionVersion);
-    return response.user_data;
-  })();
-
-  inFlightLogin = { authSessionVersion, promise };
-  try {
-    return await promise;
-  } finally {
-    if (inFlightLogin?.promise === promise) {
-      inFlightLogin = null;
-    }
-  }
+  // user/login is intentionally reachable by the guest session. Replace it
+  // immediately with the user-scoped session so mower routes use the ACL
+  // provisioned for this username and one-time Zenoh password.
+  await connectZenoh(response.user_id, response.token);
+  return response.user_data;
 }
