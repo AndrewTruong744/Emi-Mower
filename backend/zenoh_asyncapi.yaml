@@ -72,6 +72,15 @@ channels:
         description: Mower receiving the normalized joystick command.
     messages:
       joystickCommand: {$ref: '#/components/messages/JoystickCommand'}
+  mowerCommand:
+    address: mower/{mower_id}/command
+    parameters:
+      mower_id:
+        description: Mower receiving a one-off control command.
+    messages:
+      mowerCommandRequest: {$ref: '#/components/messages/MowerCommandRequest'}
+      mowerCommandResponse: {$ref: '#/components/messages/MowerCommandResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
   mowerTelemetryHistory:
     address: mower/{mower_id}/telemetry/{telemetry_type}/old
     parameters:
@@ -174,6 +183,17 @@ operations:
     summary: Send a normalized joystick command to a mower
     messages:
       - {$ref: '#/channels/mowerJoystick/messages/joystickCommand'}
+  mowerCommand:
+    action: receive
+    channel: {$ref: '#/channels/mowerCommand'}
+    summary: Request a one-off mower control action and receive its acceptance result
+    messages:
+      - {$ref: '#/channels/mowerCommand/messages/mowerCommandRequest'}
+    reply:
+      channel: {$ref: '#/channels/mowerCommand'}
+      messages:
+        - {$ref: '#/channels/mowerCommand/messages/mowerCommandResponse'}
+        - {$ref: '#/channels/mowerCommand/messages/problemDetails'}
   mowerTelemetryHistory:
     action: receive
     channel: {$ref: '#/channels/mowerTelemetryHistory'}
@@ -238,6 +258,12 @@ components:
     JoystickCommand:
       name: JoystickCommand
       payload: {$ref: '#/components/schemas/JoystickCommand'}
+    MowerCommandRequest:
+      name: MowerCommandRequest
+      payload: {$ref: '#/components/schemas/MowerCommandRequest'}
+    MowerCommandResponse:
+      name: MowerCommandResponse
+      payload: {$ref: '#/components/schemas/MowerCommandResponse'}
     TelemetryHistoryRequest:
       name: TelemetryHistoryRequest
       payload: {$ref: '#/components/schemas/TelemetryHistoryRequest'}
@@ -377,6 +403,44 @@ components:
       properties:
         x: {type: number, minimum: -1, maximum: 1}
         y: {type: number, minimum: -1, maximum: 1}
+    MowerCommandRequest:
+      oneOf:
+        - {$ref: '#/components/schemas/EmergencyStopCommand'}
+        - {$ref: '#/components/schemas/SetPowerCommand'}
+        - {$ref: '#/components/schemas/SetModeCommand'}
+      discriminator:
+        propertyName: type
+    EmergencyStopCommand:
+      type: object
+      required: [command_id, type]
+      additionalProperties: false
+      properties:
+        command_id: {type: string}
+        type: {const: emergency_stop}
+    SetPowerCommand:
+      type: object
+      required: [command_id, type, enabled]
+      additionalProperties: false
+      properties:
+        command_id: {type: string}
+        type: {const: set_power}
+        enabled: {type: boolean}
+    SetModeCommand:
+      type: object
+      required: [command_id, type, mode]
+      additionalProperties: false
+      properties:
+        command_id: {type: string}
+        type: {const: set_mode}
+        mode: {type: string, enum: [manual, auto]}
+    MowerCommandResponse:
+      type: object
+      required: [command_id, status]
+      additionalProperties: false
+      properties:
+        command_id: {type: string}
+        status: {type: string, enum: [accepted, rejected]}
+        reason: {type: string}
     TelemetryHistoryRequest:
       type: object
       required: [id_token]

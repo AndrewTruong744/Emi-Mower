@@ -1,15 +1,12 @@
 import { useMutation } from '@tanstack/react-query';
 import type { JoystickCommand } from '@/generated/zenoh';
+import { mowerJoystickPath } from '@/generated/zenohPaths';
 import { zenohPut } from '@/config/zenohClient';
 import { reportAppError } from '@/errors/reporter';
 import { InputValidationError, isInputValidationError } from '@/errors/types';
 
 export interface JoystickCommandParams extends JoystickCommand {
   mowerId: string;
-}
-
-export function joystickCommandPath(mowerId: string) {
-  return `mower/${mowerId}/joystick`;
 }
 
 /** Publishes one normalized joystick vector to the selected mower. */
@@ -23,7 +20,7 @@ export function useJoystickCommand() {
         throw new InputValidationError('Joystick coordinates must be normalized between -1 and 1');
       }
 
-      await zenohPut(joystickCommandPath(normalizedMowerId), { x, y });
+      await zenohPut(mowerJoystickPath(normalizedMowerId), { x, y });
     },
     retry: false,
     gcTime: 0,

@@ -117,6 +117,40 @@ class JoystickCommand(BaseModel):
     y: float
 
 
+class EmergencyStopCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str
+    type: Literal["emergency_stop"]
+
+
+class SetPowerCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str
+    type: Literal["set_power"]
+    enabled: bool
+
+
+class SetModeCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str
+    type: Literal["set_mode"]
+    mode: Literal["manual", "auto"]
+
+
+MowerCommandRequest = EmergencyStopCommand | SetPowerCommand | SetModeCommand
+
+
+class MowerCommandResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str
+    status: Literal["accepted", "rejected"]
+    reason: str | None = None
+
+
 class TelemetryHistoryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -210,6 +244,10 @@ WireMessage = (
     | LiveKitUploadRequest
     | LiveKitTokenResponse
     | JoystickCommand
+    | EmergencyStopCommand
+    | SetPowerCommand
+    | SetModeCommand
+    | MowerCommandResponse
     | TelemetryHistoryRequest
     | TelemetryHistoryResponse
     | ProblemDetails

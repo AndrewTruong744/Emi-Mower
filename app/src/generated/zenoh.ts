@@ -57,6 +57,31 @@ export interface JoystickCommand {
   y: number;
 }
 
+export interface EmergencyStopCommand {
+  command_id: string;
+  type: 'emergency_stop';
+}
+
+export interface SetPowerCommand {
+  command_id: string;
+  type: 'set_power';
+  enabled: boolean;
+}
+
+export interface SetModeCommand {
+  command_id: string;
+  type: 'set_mode';
+  mode: 'manual' | 'auto';
+}
+
+export type MowerCommandRequest = EmergencyStopCommand | SetPowerCommand | SetModeCommand;
+
+export interface MowerCommandResponse {
+  command_id: string;
+  status: 'accepted' | 'rejected';
+  reason?: string;
+}
+
 export interface TelemetryHistoryRequest {
   id_token: string;
   cursor?: string | null;

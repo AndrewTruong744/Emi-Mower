@@ -12,7 +12,6 @@ describe('useGoogleAuth', () => {
     const { result } = renderHook(() => useGoogleAuth());
     await act(async () => result.current.signInWithGoogle());
     expect(useBoundStore.getState()).toMatchObject({
-      idToken: null,
       user_id: null,
       authStatus: 'signedOut',
     });

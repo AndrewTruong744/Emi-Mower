@@ -16,7 +16,6 @@ export const useBoundStore = create<BoundStoreState>()((...a) => ({
   ...createErrorSlice(...a),
   resetStore: () =>
     a[0]((state) => ({
-      idToken: null,
       authStatus: 'signedOut',
       zenohEnabled: false,
       authGeneration: state.authGeneration + 1,

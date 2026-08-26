@@ -12,7 +12,10 @@ import pytest
 from pydantic import ValidationError
 
 from src.zenoh.generated import (
+    EmergencyStopCommand,
     ImuTelemetry,
+    MowerCommandResponse,
+    SetModeCommand,
     TelemetryList,
     TelemetryRecord,
 )
@@ -65,6 +68,16 @@ def test_telemetry_channel_references_the_shared_telemetry_list_message():
     channel = document.split("  mowerTelemetry:\n", 1)[1].split("operations:\n", 1)[0]
     assert "address: mower/{mower_id}/telemetry" in channel
     assert "telemetryList: {$ref: '#/components/messages/TelemetryList'}" in channel
+
+
+def test_mower_command_contract_is_typed_and_has_an_acceptance_reply():
+    document = ASYNCAPI_PATH.read_text()
+    channel = document.split("  mowerCommand:\n", 1)[1].split("  mowerTelemetryHistory:\n", 1)[0]
+    assert "address: mower/{mower_id}/command" in channel
+    assert "mowerCommandRequest: {$ref: '#/components/messages/MowerCommandRequest'}" in channel
+    assert EmergencyStopCommand(command_id="command-1", type="emergency_stop").type == "emergency_stop"
+    assert SetModeCommand(command_id="command-2", type="set_mode", mode="auto").mode == "auto"
+    assert MowerCommandResponse(command_id="command-3", status="accepted").status == "accepted"
 
 
 def test_generated_telemetry_model_applies_asyncapi_defaults_and_direction_bounds():

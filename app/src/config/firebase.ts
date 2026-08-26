@@ -7,7 +7,14 @@ export const firebaseApp = getApp();
 // is being registered in an Expo dev-client bundle.
 export const firebaseAuth = nativeAuth() as unknown as Auth;
 
-// Keep this named export for callers from older bundles while all current code uses
-// firebaseAuth directly.
-export const auth = nativeAuth;
+/** Return Firebase's current ID token, refreshing it when requested. */
+export async function getFirebaseIdToken(forceRefresh = false): Promise<string> {
+  const user = firebaseAuth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated Firebase user found');
+  }
+
+  return user.getIdToken(forceRefresh);
+}
+
 export default firebaseApp;

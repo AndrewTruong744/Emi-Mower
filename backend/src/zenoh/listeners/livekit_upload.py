@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.livekit import livekit_upload_service
 from src.zenoh.generated import LiveKitTokenResponse, LiveKitUploadRequest
+from src.zenoh.generated.paths import livekit_upload_path
 from src.zenoh.listeners.livekit import mower_id_from_query_key
 
-LIVEKIT_UPLOAD_KEY_EXPR = "mower/*/livekit/upload"
+LIVEKIT_UPLOAD_KEY_EXPR = livekit_upload_path("*")
 
 
 async def livekit_upload(

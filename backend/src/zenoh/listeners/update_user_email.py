@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.services.auth import verify_zenoh_google_id_token
 from src.services.user import update_user_email_service
 from src.zenoh.generated import UpdateUserEmailRequest, UpdateUserEmailResponse
+from src.zenoh.generated.paths import update_user_email_path
 
-UPDATE_USER_EMAIL_KEY_EXPR = "user/update_email"
+UPDATE_USER_EMAIL_KEY_EXPR = update_user_email_path()
 
 
 async def update_user_email(

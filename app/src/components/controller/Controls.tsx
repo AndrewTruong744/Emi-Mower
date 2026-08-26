@@ -1,10 +1,11 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { Button, Switch, Text } from 'react-native-paper';
 import { useController } from '@/hooks/controller/useController';
 import { useJoystickCommand } from '@/hooks/api/mower/useJoystickCommand';
+import { useMowerCommand } from '@/hooks/api/mower/useMowerCommand';
 
 interface ControlsProps {
   mowerId: string | null;
@@ -12,14 +13,9 @@ interface ControlsProps {
 
 export default function Controls({ mowerId }: ControlsProps) {
   const joystickCommand = useJoystickCommand();
+  const mowerCommand = useMowerCommand();
   const selectedMowerId = mowerId?.trim() ?? '';
   const isDisabled = !selectedMowerId;
-  const sendJoystickCommand = useCallback(
-    ({ x, y }: { x: number; y: number }) => {
-      if (selectedMowerId) joystickCommand.mutate({ mowerId: selectedMowerId, x, y });
-    },
-    [joystickCommand, selectedMowerId]
-  );
   const {
     animatedStyle,
     currentConfig,
@@ -27,14 +23,23 @@ export default function Controls({ mowerId }: ControlsProps) {
     handleAutonomous,
     handleEStop,
     handlePower,
-  } = useController({ disabled: isDisabled, onMove: sendJoystickCommand });
+  } = useController({
+    disabled: isDisabled || mowerCommand.isPending,
+    onMove: ({ x, y }) => {
+      if (selectedMowerId) joystickCommand.mutate({ mowerId: selectedMowerId, x, y });
+    },
+    onCommand: async (command) => {
+      if (!selectedMowerId) return;
+      await mowerCommand.mutateAsync({ mowerId: selectedMowerId, command });
+    },
+  });
 
   return (
     <View style={styles.controls}>
       <View style={[styles.bar, isDisabled && styles.disabled]}>
         <Button
           mode="contained"
-          disabled={isDisabled}
+          disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
           onPress={handleEStop}
           testID="controller-estop"
           style={[
@@ -48,13 +53,18 @@ export default function Controls({ mowerId }: ControlsProps) {
 
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.power ? 'SYS: ON' : 'SYS: OFF'}</Text>
-          <Switch disabled={isDisabled} value={currentConfig.power} onValueChange={handlePower} color="#22c55e" />
+          <Switch
+            disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
+            value={currentConfig.power}
+            onValueChange={handlePower}
+            color="#22c55e"
+          />
         </View>
 
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.autonomous ? 'AUTO' : 'MAN'}</Text>
           <Switch
-            disabled={isDisabled}
+            disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
             value={currentConfig.autonomous}
             onValueChange={handleAutonomous}
             color="#3b82f6"

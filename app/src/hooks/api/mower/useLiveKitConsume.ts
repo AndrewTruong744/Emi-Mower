@@ -1,12 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { zenohQuery } from '@/config/zenohClient';
 import { LiveKitTokenResponse } from '@/generated/zenoh';
+import { livekitConsumePath } from '@/generated/zenohPaths';
 import { reportAppError } from '@/errors/reporter';
 import { InputValidationError, isInputValidationError } from '@/errors/types';
-
-export function liveKitConsumePath(mowerId: string) {
-  return `mower/${mowerId}/livekit/consume`;
-}
 
 /** Requests a short-lived, consumer-only LiveKit credential over the authenticated Zenoh session. */
 export function useLiveKitConsume() {
@@ -16,7 +13,7 @@ export function useLiveKitConsume() {
       if (!normalizedMowerId)
         throw new InputValidationError('A mower must be selected to view its livestream');
 
-      return zenohQuery<LiveKitTokenResponse>(liveKitConsumePath(normalizedMowerId), {});
+      return zenohQuery<LiveKitTokenResponse>(livekitConsumePath(normalizedMowerId), {});
     },
     retry: false,
     gcTime: 0,

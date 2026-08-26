@@ -1,14 +1,6 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import {
-  MOWER_TELEMETRY_KEY_EXPR,
-  parseMowerTelemetryPayload,
-  subscribeToMowerTelemetry,
-} from '@/zenoh/mowerTelemetry';
-import { zenohSubscribe } from '@/config/zenohClient';
+import { describe, expect, it } from '@jest/globals';
+import { parseMowerTelemetryPayload } from '@/zenoh/mowerTelemetry';
 import type { TelemetryList } from '@/generated/zenoh';
-
-jest.mock('@/config/zenohClient', () => ({ zenohSubscribe: jest.fn() }));
-const mockZenohSubscribe = zenohSubscribe as jest.Mock<(...args: any[]) => any>;
 
 const backendRecord: TelemetryList[number] = {
   mower_id: 'mower-1',
@@ -75,7 +67,7 @@ describe('mower telemetry Zenoh listener', () => {
     ]);
   });
 
-  it('rejects malformed payloads and reports a bad subscription message without ending the listener', async () => {
+  it('rejects malformed payloads', () => {
     expect(() => parseMowerTelemetryPayload('{')).toThrow('not valid JSON');
     expect(() => parseMowerTelemetryPayload(JSON.stringify({ ...backendRecord }))).toThrow(
       'must be an array'
@@ -86,26 +78,5 @@ describe('mower telemetry Zenoh listener', () => {
     expect(() =>
       parseMowerTelemetryPayload(JSON.stringify([{ ...backendRecord, left_motor_direction: 2 }]))
     ).toThrow('left_motor_direction');
-
-    let payloadHandler: ((payload: string) => void) | undefined;
-    mockZenohSubscribe.mockImplementation(
-      async (_key: string, handler: (payload: string) => void) => {
-        payloadHandler = handler;
-        return async () => undefined;
-      }
-    );
-    const onTelemetry = jest.fn();
-    const onError = jest.fn();
-    await subscribeToMowerTelemetry(onTelemetry, onError);
-
-    expect(mockZenohSubscribe).toHaveBeenCalledWith(
-      MOWER_TELEMETRY_KEY_EXPR,
-      expect.any(Function),
-      undefined
-    );
-    payloadHandler!('invalid');
-    payloadHandler!(JSON.stringify([backendRecord]));
-    expect((onError.mock.calls[0][0] as Error).message).toContain('not valid JSON');
-    expect(onTelemetry).toHaveBeenCalledWith([expect.objectContaining({ mowerId: 'mower-1' })]);
   });
 });

@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import type { TelemetryHistoryResponse } from '@/generated/zenoh';
+import { mowerTelemetryHistoryPath } from '@/generated/zenohPaths';
+import { getFirebaseIdToken } from '@/config/firebase';
 import { zenohQuery } from '@/config/zenohClient';
-import { getFirebaseIdToken } from '@/zenoh/UserLogin';
 
 export const TELEMETRY_HISTORY_PAGE_SIZE = 60;
-
-export function telemetryHistoryPath(mowerId: string, telemetryType: string) {
-  return `mower/${mowerId}/telemetry/${telemetryType}/old`;
-}
 
 export function mowerTelemetryHistoryQueryKey(
   mowerId: string,
@@ -39,7 +36,7 @@ export function useMowerTelemetryHistory({
     staleTime: 30_000,
     queryFn: async () => {
       const idToken = await getFirebaseIdToken();
-      return zenohQuery<TelemetryHistoryResponse>(telemetryHistoryPath(mowerId, telemetryType), {
+      return zenohQuery<TelemetryHistoryResponse>(mowerTelemetryHistoryPath(mowerId, telemetryType), {
         id_token: idToken,
         cursor: cursor ?? null,
       });

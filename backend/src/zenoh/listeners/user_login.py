@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.user import user_login_service
 from src.zenoh.generated import UserLoginRequest, UserLoginResponse
+from src.zenoh.generated.paths import user_login_path
 
-LOGIN_KEY_EXPR = "user/login"
+LOGIN_KEY_EXPR = user_login_path()
 
 
 async def user_login(

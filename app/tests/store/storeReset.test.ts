@@ -5,7 +5,6 @@ describe('bound store reset', () => {
   beforeEach(() => useBoundStore.getState().resetStore());
 
   it('clears user-scoped data and restores defaults', () => {
-    useBoundStore.getState().setAuthToken('firebase-token');
     useBoundStore.getState().setUser({
       user_id: 'user-1',
       email: 'user@example.com',
@@ -29,7 +28,6 @@ describe('bound store reset', () => {
     useBoundStore.getState().resetStore();
 
     expect(useBoundStore.getState()).toMatchObject({
-      idToken: null,
       zenohEnabled: false,
       user_id: null,
       email: null,

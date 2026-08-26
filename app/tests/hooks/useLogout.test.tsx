@@ -19,7 +19,6 @@ describe('useLogout', () => {
         })
     );
     useBoundStore.getState().setAuthStatus('authenticated');
-    useBoundStore.getState().setAuthToken('firebase-token');
     useBoundStore.getState().setUser({
       user_id: 'user-1',
       email: 'user@example.com',
@@ -36,7 +35,6 @@ describe('useLogout', () => {
     expect(useBoundStore.getState()).toMatchObject({
       authStatus: 'signingOut',
       zenohEnabled: false,
-      idToken: 'firebase-token',
     });
     expect(queryClient.getQueryData(['telemetry-history', 'old-account'])).toBeUndefined();
 
@@ -50,7 +48,6 @@ describe('useLogout', () => {
     expect(result.current.isLoading).toBe(false);
     expect(useBoundStore.getState()).toMatchObject({
       authStatus: 'signedOut',
-      idToken: null,
       user_id: null,
     });
   });
@@ -78,7 +75,6 @@ describe('useLogout', () => {
         })
     );
     useBoundStore.getState().setAuthStatus('authenticated');
-    useBoundStore.getState().setAuthToken('firebase-token');
 
     const { result } = renderHook(() => useLogout());
     let logoutPromise: Promise<void> | undefined;
@@ -92,7 +88,6 @@ describe('useLogout', () => {
     expect(mockedCloseZenoh).toHaveBeenCalledTimes(1);
     expect(useBoundStore.getState()).toMatchObject({
       authStatus: 'signingOut',
-      idToken: 'firebase-token',
     });
 
     await act(async () => {

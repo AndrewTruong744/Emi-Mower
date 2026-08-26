@@ -20,6 +20,21 @@ async def test_configure_user_app_writes_password_and_acl_triad():
     assert requests[0].url.path.endswith("/dictionary/user-1")
     assert b"user/**" in requests[1].content
     assert b"mower/mower-1/**" in requests[1].content
+    assert b"declare_queryable" not in requests[1].content
+
+
+async def test_configure_mower_device_can_serve_command_queries():
+    requests = []
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        zenoh = ZenohAdminClient("http://app", "http://mower", client)
+        await zenoh.configure_mower_device("mower-1")
+
+    assert b'"declare_queryable"' in requests[0].content
 
 
 async def test_zenoh_admin_client_maps_http_failure_to_domain_error():

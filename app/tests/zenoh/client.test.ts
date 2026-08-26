@@ -117,7 +117,7 @@ describe('Zenoh client', () => {
     expect(mockedOpen).not.toHaveBeenCalled();
   });
 
-  it('declares JSON subscriptions on the shared session and cleans them up', async () => {
+  it('declares JSON subscriptions and lets closeZenoh clean them up', async () => {
     const undeclare = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
     const session = {
       declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
@@ -126,7 +126,7 @@ describe('Zenoh client', () => {
     mockedOpen.mockResolvedValue(session);
     const onPayload = jest.fn();
 
-    const unsubscribe = await zenohSubscribe('mower/*/telemetry', onPayload);
+    await zenohSubscribe('mower/*/telemetry', onPayload);
     expect(session.declareSubscriber).toHaveBeenCalledWith('mower/*/telemetry', {
       handler: expect.any(Function),
     });
@@ -138,7 +138,7 @@ describe('Zenoh client', () => {
     handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
     expect(onPayload).toHaveBeenCalledTimes(1);
 
-    await unsubscribe();
+    await closeZenoh();
     expect(undeclare).toHaveBeenCalledTimes(1);
   });
 

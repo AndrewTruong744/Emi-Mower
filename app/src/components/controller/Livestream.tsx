@@ -1,38 +1,14 @@
-import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Chip, Surface, Text } from 'react-native-paper';
-import { LiveKitTokenResponse } from '@/generated/zenoh';
-import { useLiveKitConsume } from '@/hooks/api/mower/useLiveKitConsume';
+import { useLivestream } from '@/hooks/controller/useLivestream';
 
 interface LivestreamProps {
   mowerId: string | null;
 }
 
-/** Holds the consumer credential for the selected mower's LiveKit stream. */
+/** Renders the selected mower's LiveKit connection controls. */
 export function Livestream({ mowerId }: LivestreamProps) {
-  const [credentials, setCredentials] = useState<LiveKitTokenResponse | null>(null);
-  const streamCredentials = useLiveKitConsume();
-  const isConnected = credentials !== null;
-
-  useEffect(() => {
-    setCredentials(null);
-    streamCredentials.reset();
-  }, [mowerId]);
-
-  const connect = async () => {
-    if (!mowerId) return;
-    try {
-      const nextCredentials = await streamCredentials.mutateAsync(mowerId);
-      setCredentials(nextCredentials);
-    } catch {
-      // The global error host reports the failed connection; keep this panel disconnected.
-    }
-  };
-
-  const disconnect = () => {
-    setCredentials(null);
-    streamCredentials.reset();
-  };
+  const { connect, disconnect, isConnected, isPending } = useLivestream(mowerId);
 
   return (
     <Surface elevation={1} style={styles.card} testID="livestream-card">
@@ -63,8 +39,8 @@ export function Livestream({ mowerId }: LivestreamProps) {
 
           <Button
             mode={isConnected ? 'outlined' : 'contained'}
-            disabled={!mowerId || streamCredentials.isPending}
-            loading={streamCredentials.isPending}
+            disabled={!mowerId || isPending}
+            loading={isPending}
             onPress={isConnected ? disconnect : connect}
             testID="livestream-toggle"
           >

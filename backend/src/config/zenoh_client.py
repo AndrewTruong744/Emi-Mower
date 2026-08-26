@@ -76,6 +76,7 @@ class ZenohAdminClient:
         subject_id: str,
         policy_id: str,
         key_exprs: list[str],
+        messages: list[str],
         base_url: str,
     ) -> None:
         await self._put(
@@ -85,13 +86,7 @@ class ZenohAdminClient:
                 "id": rule_id,
                 "permission": "allow",
                 "flows": ["ingress", "egress"],
-                "messages": [
-                    "put",
-                    "declare_subscriber",
-                    "query",
-                    "reply",
-                    "delete",
-                ],
+                "messages": messages,
                 "key_exprs": key_exprs,
             },
         )
@@ -140,6 +135,7 @@ class ZenohAdminClient:
             subject_id=f"subject_{user_id}",
             policy_id=f"policy_{user_id}",
             key_exprs=key_exprs,
+            messages=["put", "declare_subscriber", "query", "reply", "delete"],
             base_url=self.app_base_url,
         )
 
@@ -151,6 +147,14 @@ class ZenohAdminClient:
             subject_id=f"subject_mower_{mower_id}",
             policy_id=f"policy_mower_{mower_id}",
             key_exprs=[f"mower/{mower_id}/**"],
+            messages=[
+                "put",
+                "declare_subscriber",
+                "declare_queryable",
+                "query",
+                "reply",
+                "delete",
+            ],
             base_url=self.mower_base_url,
         )
 

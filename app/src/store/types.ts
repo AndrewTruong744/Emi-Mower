@@ -8,15 +8,12 @@ export type AuthStatus =
   | 'signedOut';
 
 export interface AuthState {
-  idToken: string | null;
   authStatus: AuthStatus;
   zenohEnabled: boolean;
   authGeneration: number;
 }
 
 export interface AuthActions {
-  setAuthToken: (idToken: string | null) => void;
-  clearAuth: () => void;
   setAuthStatus: (authStatus: AuthStatus) => void;
   enableZenoh: () => void;
   startZenohSession: () => void;

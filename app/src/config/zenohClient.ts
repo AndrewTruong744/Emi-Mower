@@ -23,7 +23,8 @@ function getZenohLifecycle(): { enabled: boolean; generation: number } {
   return { enabled: zenohEnabled, generation: authGeneration };
 }
 
-function isZenohOperationActive(operationGeneration: number): boolean {
+/** Whether a captured Zenoh auth generation still owns the active session. */
+export function isZenohOperationActive(operationGeneration: number): boolean {
   const { enabled, generation } = getZenohLifecycle();
   return enabled && generation === operationGeneration;
 }
@@ -215,12 +216,12 @@ export async function zenohPut(keyExpr: string, payload: unknown): Promise<void>
   }
 }
 
-/** Declare a JSON subscriber on the authenticated shared Zenoh session. */
+/** Declare a JSON subscriber; closeZenoh owns its registered cleanup. */
 export async function zenohSubscribe(
   keyExpr: string,
   onPayload: (payload: string) => void,
   onClose?: () => void
-): Promise<() => Promise<void>> {
+): Promise<void> {
   const operation = createZenohOperation();
   try {
     const session = await operation.waitFor(connectZenoh());
@@ -239,7 +240,6 @@ export async function zenohSubscribe(
       await cleanup();
       throw error;
     }
-    return cleanup;
   } catch (error) {
     if (isOperationCancelled(error) || !operation.isActive()) {
       throw new OperationCancelled('Zenoh operation cancelled');

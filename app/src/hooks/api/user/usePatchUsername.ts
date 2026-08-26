@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { UpdateUserNameResponse } from '@/generated/zenoh';
-import { getFirebaseIdToken, UPDATE_USER_NAME_KEY } from '@/zenoh/UserLogin';
+import { updateUserNamePath } from '@/generated/zenohPaths';
+import { getFirebaseIdToken } from '@/config/firebase';
 import { zenohQuery } from '@/config/zenohClient';
 
 interface PatchUsernameParams {
@@ -12,7 +13,7 @@ export const usePatchUsername = () => {
   return useMutation({
     mutationFn: async ({ newUserName }: PatchUsernameParams) => {
       const idToken = await getFirebaseIdToken(true);
-      return zenohQuery<UpdateUserNameResponse>(UPDATE_USER_NAME_KEY, {
+      return zenohQuery<UpdateUserNameResponse>(updateUserNamePath(), {
         id_token: idToken,
         new_user_name: newUserName,
       });

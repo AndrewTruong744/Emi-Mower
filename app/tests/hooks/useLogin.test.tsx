@@ -26,7 +26,6 @@ describe('useLogin', () => {
     expect(mockedZenohQuery).not.toHaveBeenCalled();
     expect(mockLoginReplace).not.toHaveBeenCalled();
     expect(useBoundStore.getState()).toMatchObject({
-      idToken: null,
       authStatus: 'signedOut',
     });
     expect(queryClient.getQueryData(['telemetry-history', 'old-account'])).toBeUndefined();

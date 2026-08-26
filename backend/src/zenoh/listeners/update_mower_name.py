@@ -6,8 +6,9 @@ from src.exceptions import ValidationError
 from src.services.auth import verify_zenoh_google_id_token
 from src.services.mower import update_mower_name_service
 from src.zenoh.generated import UpdateMowerNameRequest, UpdateMowerNameResponse
+from src.zenoh.generated.paths import update_mower_name_path
 
-UPDATE_MOWER_NAME_KEY_EXPR = "mower/*/update_name"
+UPDATE_MOWER_NAME_KEY_EXPR = update_mower_name_path("*")
 
 
 def _mower_id_from_query_key(key_expr: str) -> str:

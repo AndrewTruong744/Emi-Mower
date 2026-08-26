@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.mower import add_telemetry_data_service
 from src.zenoh.generated import TelemetryList
+from src.zenoh.generated.paths import mower_telemetry_path
 
-MOWER_TELEMETRY_KEY_EXPR = "mower/*/telemetry"
+MOWER_TELEMETRY_KEY_EXPR = mower_telemetry_path("*")
 
 
 async def mower_telemetry(

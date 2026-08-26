@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.livekit import livekit_consume_service
 from src.zenoh.generated import LiveKitConsumeRequest, LiveKitTokenResponse
+from src.zenoh.generated.paths import livekit_consume_path
 from src.zenoh.listeners.livekit import mower_id_from_query_key
 
-LIVEKIT_CONSUME_KEY_EXPR = "mower/*/livekit/consume"
+LIVEKIT_CONSUME_KEY_EXPR = livekit_consume_path("*")
 
 
 async def livekit_consume(

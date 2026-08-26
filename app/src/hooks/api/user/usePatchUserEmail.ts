@@ -2,7 +2,8 @@ import { useMutation } from '@tanstack/react-query';
 import { updateEmail } from '@react-native-firebase/auth';
 import { firebaseAuth } from '@/config/firebase';
 import { UpdateUserEmailResponse } from '@/generated/zenoh';
-import { getFirebaseIdToken, UPDATE_USER_EMAIL_KEY } from '@/zenoh/UserLogin';
+import { updateUserEmailPath } from '@/generated/zenohPaths';
+import { getFirebaseIdToken } from '@/config/firebase';
 import { zenohQuery } from '@/config/zenohClient';
 
 interface PatchUserEmailParams {
@@ -23,7 +24,7 @@ export const usePatchUserEmail = () => {
 
       await updateEmail(firebaseUser, newEmail);
       const idToken = await getFirebaseIdToken(true);
-      return zenohQuery<UpdateUserEmailResponse>(UPDATE_USER_EMAIL_KEY, {
+      return zenohQuery<UpdateUserEmailResponse>(updateUserEmailPath(), {
         id_token: idToken,
         new_id_token: newIdToken,
       });

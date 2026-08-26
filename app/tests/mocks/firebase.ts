@@ -17,6 +17,15 @@ export const mockFirebaseAuth = {
 
 export const firebaseAuth = mockFirebaseAuth;
 
+export async function getFirebaseIdToken(forceRefresh = false): Promise<string> {
+  const user = mockFirebaseAuth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated Firebase user found');
+  }
+
+  return user.getIdToken(forceRefresh);
+}
+
 const auth = Object.assign(
   jest.fn(() => mockFirebaseAuth),
   {

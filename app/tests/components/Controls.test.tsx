@@ -1,11 +1,11 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Alert } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
-import Controls from '@/components/controller/Controls';
 import { __mockGesture } from '../mocks/gesture-handler';
-import { createWrapper, resetHookState } from '../hooks/testUtils';
+import { createWrapper, mockedZenohQuery, resetHookState } from '../hooks/testUtils';
+import Controls from '@/components/controller/Controls';
 
 describe('Controls', () => {
   beforeEach(resetHookState);
@@ -24,7 +24,11 @@ describe('Controls', () => {
     expect(getByText('MAN')).toBeTruthy();
   });
 
-  it('updates power, autonomous mode, and emergency stop', () => {
+  it('updates power, autonomous mode, and emergency stop after the mower accepts each command', async () => {
+    mockedZenohQuery.mockImplementation(async (_path, payload) => ({
+      command_id: payload.command_id,
+      status: 'accepted',
+    }));
     const QueryWrapper = createWrapper();
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { getByText, getAllByRole } = render(
@@ -35,16 +39,20 @@ describe('Controls', () => {
       </PaperProvider>
     );
 
-    fireEvent(getAllByRole('switch')[0], 'valueChange', true);
-    fireEvent(getAllByRole('switch')[1], 'valueChange', true);
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[0], 'valueChange', true);
+    });
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[1], 'valueChange', true);
+    });
     expect(getByText('SYS: ON')).toBeTruthy();
     expect(getByText('AUTO')).toBeTruthy();
 
-    fireEvent.press(getByText('E-STOP'));
+    await act(async () => {
+      fireEvent.press(getByText('E-STOP'));
+    });
     expect(getByText('STOPPED')).toBeTruthy();
     expect(getByText('SYS: OFF')).toBeTruthy();
-    fireEvent.press(getByText('STOPPED'));
-    expect(getByText('E-STOP')).toBeTruthy();
 
     expect(alertSpy).toHaveBeenCalled();
     alertSpy.mockRestore();

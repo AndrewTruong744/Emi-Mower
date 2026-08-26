@@ -6,8 +6,9 @@ from src.exceptions import ValidationError
 from src.services.auth import verify_zenoh_google_id_token
 from src.services.mower import get_telemetry_history_service
 from src.zenoh.generated import TelemetryHistoryRequest, TelemetryHistoryResponse
+from src.zenoh.generated.paths import mower_telemetry_history_path
 
-MOWER_TELEMETRY_HISTORY_KEY_EXPR = "mower/*/telemetry/*/old"
+MOWER_TELEMETRY_HISTORY_KEY_EXPR = mower_telemetry_history_path("*", "*")
 
 
 def _telemetry_path_from_query_key(key_expr: str) -> tuple[str, str]:

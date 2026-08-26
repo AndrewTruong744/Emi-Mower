@@ -15,3 +15,5 @@ asyncapi generate models typescript zenoh_asyncapi.yaml \
   --tsModelType interface \
   --tsExportType named \
   --save-output ../app/src/generated/zenoh.ts
+
+node scripts/generate_zenoh_paths.mjs

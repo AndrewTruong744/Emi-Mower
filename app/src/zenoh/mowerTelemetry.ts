@@ -1,8 +1,10 @@
-import { zenohSubscribe } from '@/config/zenohClient';
+import { isZenohOperationActive, zenohSubscribe } from '@/config/zenohClient';
+import { reportAppError } from '@/errors/reporter';
+import { mowerTelemetryPath } from '@/generated/zenohPaths';
 import type { ImuTelemetry, TelemetryList, TelemetryRecord } from '@/generated/zenoh';
+import { ACTIVE_TELEMETRY_FLUSH_MS, TelemetryBuffer } from '@/hooks/mowers/telemetryBuffer';
+import { useBoundStore } from '@/store/useBoundStore';
 import { MowerImuTelemetry, MowerTelemetrySample } from '@/store/types';
-
-export const MOWER_TELEMETRY_KEY_EXPR = 'mower/*/telemetry';
 
 export interface MowerTelemetryMessage {
   mowerId: string;
@@ -84,20 +86,76 @@ export function parseMowerTelemetryPayload(payload: string): MowerTelemetryMessa
 }
 
 /** Subscribe to the same mower telemetry model accepted by the backend listener. */
-export async function subscribeToMowerTelemetry(
+async function subscribeToMowerTelemetry(
   onTelemetry: (messages: MowerTelemetryMessage[]) => void,
-  onError: (error: Error) => void,
   onClose?: () => void
-): Promise<() => Promise<void>> {
-  return zenohSubscribe(
-    MOWER_TELEMETRY_KEY_EXPR,
+): Promise<void> {
+  await zenohSubscribe(
+    mowerTelemetryPath('*'),
     (payload) => {
       try {
         onTelemetry(parseMowerTelemetryPayload(payload));
       } catch (error) {
-        onError(error instanceof Error ? error : new Error('Unable to decode mower telemetry'));
+        reportAppError(
+          'telemetry.invalid_payload',
+          error instanceof Error ? error : new Error('Unable to decode mower telemetry')
+        );
       }
     },
     onClose
   );
+}
+
+/**
+ * Establishes the app's live telemetry stream for an authenticated Zenoh
+ * session. zenohClient owns subscriber teardown; this module owns the
+ * telemetry buffer and its flush timer.
+ */
+export async function initializeMowerTelemetrySubscription(authGeneration: number): Promise<void> {
+  if (useBoundStore.getState().mowers.length === 0) return;
+
+  const buffer = new TelemetryBuffer();
+  let flushInterval: ReturnType<typeof setInterval> | undefined;
+  let stopped = false;
+  const stopBuffer = () => {
+    stopped = true;
+    if (flushInterval) clearInterval(flushInterval);
+    flushInterval = undefined;
+    buffer.clear();
+  };
+
+  await subscribeToMowerTelemetry(
+    (messages) => {
+      if (!isZenohOperationActive(authGeneration)) return;
+
+      const { mowers } = useBoundStore.getState();
+      const mowerIds = new Set(mowers);
+      for (const { mowerId, sample } of messages) {
+        if (!mowerIds.has(mowerId)) continue;
+        if (buffer.enqueue(mowerId, sample)) {
+          reportAppError(
+            'telemetry.delayed',
+            new Error(`Telemetry queue reached its limit for mower ${mowerId}`),
+            { dedupeKey: `telemetry.delayed:${mowerId}` }
+          );
+        }
+      }
+    },
+    stopBuffer
+  );
+
+  // closeZenoh can finish while the declaration resolves. Its registered
+  // cleanup calls stopBuffer, so do not start a timer for that closed session.
+  if (stopped) return;
+
+  flushInterval = setInterval(() => {
+    if (!isZenohOperationActive(authGeneration)) {
+      stopBuffer();
+      return;
+    }
+
+    const { appendTelemetryBatch, selectedMowerUuid } = useBoundStore.getState();
+    const batch = buffer.flush(selectedMowerUuid, Date.now());
+    if (Object.keys(batch).length > 0) appendTelemetryBatch(batch);
+  }, ACTIVE_TELEMETRY_FLUSH_MS);
 }
