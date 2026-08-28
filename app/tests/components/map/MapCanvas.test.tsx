@@ -109,6 +109,29 @@ describe('MapCanvas', () => {
     });
   });
 
+  it('closes the live boundary preview once it has three points', () => {
+    const points = [
+      { x: -74.006, y: 40.7128 },
+      { x: -74.005, y: 40.7128 },
+      { x: -74.005, y: 40.7138 },
+    ];
+    const screen = render(
+      <MapCanvas
+        boundary={points}
+        isBoundaryClosed={false}
+        isSessionActive={false}
+        mowerMarkers={[]}
+        onMapPress={jest.fn()}
+      />
+    );
+
+    const source = screen.UNSAFE_getByProps({ id: 'cutting-boundary' });
+    expect(source.props.data.geometry).toEqual({
+      type: 'Polygon',
+      coordinates: [[[-74.006, 40.7128], [-74.005, 40.7128], [-74.005, 40.7138], [-74.006, 40.7128]]],
+    });
+  });
+
   it('adds map points while drawing and ignores map presses during a session', () => {
     const onMapPress = jest.fn();
     const screen = render(

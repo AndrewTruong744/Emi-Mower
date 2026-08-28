@@ -23,6 +23,7 @@ export function Map() {
     isSessionPaused,
     mowerMarkers,
     setSessionPaused,
+    undoBoundaryPoint,
   } = useMap();
 
   const boundary = isSessionActive ? cuttingBoundary : drawingBoundary;
@@ -51,6 +52,7 @@ export function Map() {
           pointCount={drawingBoundary.length}
           onAccept={acceptBoundary}
           onClear={clearBoundary}
+          onUndo={undoBoundaryPoint}
         />
       )}
       <ConfirmCuttingAreaModal

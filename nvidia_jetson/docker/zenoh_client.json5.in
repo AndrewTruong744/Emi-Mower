@@ -1,0 +1,21 @@
+{
+  // Rendered by docker/ros-entrypoint.sh. This container is always a Zenoh
+  // client; the backend is responsible for starting and owning the router.
+  mode: "client",
+
+  connect: {
+    endpoints: ["${ZENOH_ROUTER_ENDPOINT}"]
+  },
+
+  transport: {
+    link: {
+      tls: {
+        connect_certificate: "/etc/mower/certs/mower.crt",
+        connect_private_key: "/etc/mower/certs/mower.key",
+        root_ca_certificate: "/etc/mower/certs/root_ca.pem",
+        enable_mtls: true,
+        verify_name_on_connect: ${ZENOH_VERIFY_NAME_ON_CONNECT}
+      }
+    }
+  }
+}

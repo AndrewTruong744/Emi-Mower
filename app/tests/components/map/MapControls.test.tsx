@@ -11,12 +11,13 @@ import { PaperProvider } from 'react-native-paper';
 describe('map controls', () => {
   it('clears a pending boundary and controls a mower session', () => {
     const onClear = jest.fn();
+    const onUndo = jest.fn();
     const onAccept = jest.fn();
     const onPauseToggle = jest.fn();
     const onCancel = jest.fn();
     const screen = render(
       <PaperProvider>
-        <BoundaryControls pointCount={3} onAccept={onAccept} onClear={onClear} />
+        <BoundaryControls pointCount={3} onAccept={onAccept} onClear={onClear} onUndo={onUndo} />
         <MapSessionControls
           isPaused={false}
           mowerCount={2}
@@ -27,6 +28,7 @@ describe('map controls', () => {
     );
 
     fireEvent.press(screen.getByText('Clear boundary'));
+    fireEvent.press(screen.getByTestId('undo-boundary-point'));
     fireEvent.press(screen.getByTestId('accept-boundary'));
     fireEvent.press(screen.getByTestId('pause-mowing-session'));
     fireEvent.press(screen.getByTestId('cancel-mowing-session'));
@@ -35,6 +37,7 @@ describe('map controls', () => {
       justifyContent: 'space-between',
     });
     expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onUndo).toHaveBeenCalledTimes(1);
     expect(onAccept).toHaveBeenCalledTimes(1);
     expect(onPauseToggle).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledTimes(1);

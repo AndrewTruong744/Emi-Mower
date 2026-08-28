@@ -1,0 +1,32 @@
+name: emi-mower-ros
+
+services:
+  ros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_PHYSICAL_DRIVERS: "0"
+    image: emi-mower-ros:jazzy
+    init: true
+    environment:
+      MOWER_ID: ${MOWER_ID:-mower-01}
+      MOWER_LAUNCH: sim
+      # backend/local-docker-compose.yml uses host networking. Docker Desktop
+      # supplies this DNS name; extra_hosts adds the equivalent on Linux.
+      ZENOH_ROUTER_ENDPOINT: ${ZENOH_ROUTER_ENDPOINT:-tls/host.docker.internal:7448}
+      # Local backend certificates normally name localhost, not the Docker
+      # gateway. Production must override this to true with a matching DNS SAN.
+      ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-false}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      # Place mower.crt, mower.key, and root_ca.pem in this directory. It is
+      # mounted read-only and is intentionally excluded from the build context.
+      - ${MOWER_CERT_DIR:-./certs}:/etc/mower/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'ros2 launch|teleop_gateway' >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s

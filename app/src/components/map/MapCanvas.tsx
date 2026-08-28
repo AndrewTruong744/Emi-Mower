@@ -49,7 +49,10 @@ export function MapCanvas({
   mowerMarkers,
   onMapPress,
 }: MapCanvasProps) {
-  const closedBoundary = isBoundaryClosed || isSessionActive;
+  // Once a boundary has enough vertices to form an area, always preview its
+  // closing edge from the most recently placed point back to the first one.
+  // The stored vertices remain unchanged; GeoJSON closes the rendered ring.
+  const closedBoundary = boundary.length >= 3 || isBoundaryClosed || isSessionActive;
   const canPlaceBoundaryPoints = baseMap === 'satellite';
   const boundaryData =
     boundary.length > 0 ? boundaryFeature(boundary, closedBoundary) : EMPTY_FEATURE_COLLECTION;

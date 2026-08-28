@@ -10,7 +10,7 @@ const LOCAL_CUTTING_AREA_IMAGE_URI =
 
 export function useMap() {
   const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
-  const { addPoint, clear, points } = useBoundaryDrawing();
+  const { addPoint, clear, points, undo } = useBoundaryDrawing();
   const mowerDetails = useBoundStore((state) => state.mowerDetails);
   const mowerPositions = useBoundStore((state) => state.mowerPositions);
   const isSessionActive = useBoundStore((state) => state.isSessionActive);
@@ -40,6 +40,11 @@ export function useMap() {
     setConfirmModalVisible(false);
     clear();
   }, [clear]);
+
+  const undoBoundaryPoint = useCallback(() => {
+    setConfirmModalVisible(false);
+    undo();
+  }, [undo]);
 
   const cancelSession = useCallback(() => {
     cancelMowingSession();
@@ -71,5 +76,6 @@ export function useMap() {
     mowerMarkers,
     setConfirmModalVisible,
     setSessionPaused,
+    undoBoundaryPoint,
   };
 }

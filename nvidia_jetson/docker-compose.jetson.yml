@@ -1,0 +1,18 @@
+services:
+  ros:
+    build:
+      args:
+        BUILD_PHYSICAL_DRIVERS: "1"
+    environment:
+      MOWER_LAUNCH: real
+      # Set this to the TLS DNS name/IP of the backend router and ensure that
+      # name is present in the router certificate's SAN.
+      ZENOH_ROUTER_ENDPOINT: ${ZENOH_ROUTER_ENDPOINT:?set the external Zenoh TLS endpoint}
+      ZENOH_VERIFY_NAME_ON_CONNECT: "true"
+      STM32_UART_DEVICE: ${STM32_UART_DEVICE:-/dev/ttyTHS1}
+      STM32_UART_BAUD: ${STM32_UART_BAUD:-115200}
+    runtime: nvidia
+    devices:
+      - ${STM32_UART_DEVICE:-/dev/ttyTHS1}:${STM32_UART_DEVICE:-/dev/ttyTHS1}
+      - ${RPLIDAR_DEVICE:-/dev/rplidar}:/dev/rplidar
+      - /dev/bus/usb:/dev/bus/usb

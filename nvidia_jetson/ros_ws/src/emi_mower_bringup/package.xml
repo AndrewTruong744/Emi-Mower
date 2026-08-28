@@ -10,7 +10,8 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>depthai_ros_driver</exec_depend>
-  <exec_depend>emi_mower_py</exec_depend>
+  <exec_depend>emi_mower_control</exec_depend>
+  <exec_depend>emi_mower_livekit</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>rmw_zenoh_cpp</exec_depend>

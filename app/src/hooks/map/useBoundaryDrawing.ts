@@ -12,5 +12,9 @@ export function useBoundaryDrawing() {
     setPoints([]);
   }, []);
 
-  return { addPoint, clear, points };
+  const undo = useCallback(() => {
+    setPoints((currentPoints) => currentPoints.slice(0, -1));
+  }, []);
+
+  return { addPoint, clear, points, undo };
 }

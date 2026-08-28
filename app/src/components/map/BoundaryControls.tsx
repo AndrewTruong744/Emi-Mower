@@ -6,6 +6,7 @@ interface BoundaryControlsProps {
   pointCount: number;
   onAccept: () => void;
   onClear: () => void;
+  onUndo: () => void;
 }
 
 export function BoundaryControls({
@@ -13,6 +14,7 @@ export function BoundaryControls({
   pointCount,
   onAccept,
   onClear,
+  onUndo,
 }: BoundaryControlsProps) {
   return (
     <View style={styles.container}>
@@ -26,6 +28,9 @@ export function BoundaryControls({
       {pointCount > 0 && (
         <View style={styles.actions} testID="boundary-actions">
           <Button onPress={onClear}>Clear boundary</Button>
+          <Button onPress={onUndo} testID="undo-boundary-point">
+            Undo
+          </Button>
           {canPlacePoints && pointCount >= 3 && (
             <Button mode="contained" onPress={onAccept} testID="accept-boundary">
               Accept boundary

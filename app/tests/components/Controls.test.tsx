@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { __mockGesture } from '../mocks/gesture-handler';
-import { createWrapper, mockedZenohQuery, resetHookState } from '../hooks/testUtils';
+import { createWrapper, mockedZenohPut, mockedZenohQuery, resetHookState } from '../hooks/testUtils';
 import Controls from '@/components/controller/Controls';
 
 describe('Controls', () => {
@@ -58,7 +58,7 @@ describe('Controls', () => {
     alertSpy.mockRestore();
   });
 
-  it('normalizes joystick movement and returns it to center', () => {
+  it('keeps the joystick inactive while power is off', () => {
     const QueryWrapper = createWrapper();
     const { getByText } = render(
       <PaperProvider>
@@ -74,7 +74,7 @@ describe('Controls', () => {
       translationX: 100,
       translationY: -100,
     });
-    (__mockGesture.endCallback as unknown as () => void)();
+    expect(mockedZenohPut).not.toHaveBeenCalled();
 
   });
 

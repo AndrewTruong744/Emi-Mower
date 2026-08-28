@@ -1,0 +1,10 @@
+ros_ws/build/
+ros_ws/install/
+ros_ws/log/
+**/__pycache__/
+**/*.pyc
+certs/*.key
+certs/*.crt
+certs/*.csr
+certs/*.srl
+.git/

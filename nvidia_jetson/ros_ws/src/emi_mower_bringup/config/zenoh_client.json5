@@ -1,13 +1,13 @@
 {
-  // Set mode to "client" so it connects directly to the backend
-  // zenoh-router-mtls instance.  Change the address for another deployment;
-  // 192.168.1.73 is the backend host used by the current mower/app setup.
+  // Fallback for direct (non-Docker) bringup only. The Docker entrypoint
+  // renders the router endpoint and TLS hostname policy at runtime, so a ROS
+  // client can connect to an external backend router without rebuilding.
   mode: "client",
 
   // Define connection endpoints to your backend server
   connect: {
     endpoints: [
-      "tls/192.168.1.73:7448"
+      "tls/zenoh-router:7448"
     ]
   },
 
@@ -15,8 +15,8 @@
   transport: {
     link: {
       tls: {
-        // Path to the client's own x509 certificate signed by your CA
-        // The certificate must be signed by the backend CA.
+        // Paths inside the ROS container. Mount the mower certificate bundle
+        // at /etc/mower/certs; never bake keys or certificates into an image.
         connect_certificate: "/etc/mower/certs/mower.crt",
 
         // Path to the client's private key

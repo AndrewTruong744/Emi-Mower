@@ -25,8 +25,14 @@ interface UseControllerOptions {
 }
 
 /** Owns all controller configuration, joystick, and emergency-stop state. */
-export function useController({ disabled = false, onMove, onCommand }: UseControllerOptions = {}) {
+export function useController({
+  disabled = false,
+  onMove,
+  onCommand,
+}: UseControllerOptions = {}) {
   const [currentConfig, setCurrentConfig] = useState<RobotConfig>(DEFAULT_CONFIG);
+  const joystickDisabled =
+    disabled || !currentConfig.power || currentConfig.autonomous || currentConfig.estop;
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
@@ -70,8 +76,9 @@ export function useController({ disabled = false, onMove, onCommand }: UseContro
   };
 
   const gesture = Gesture.Pan()
+    .enabled(!joystickDisabled)
     .onUpdate((event) => {
-      if (disabled) return;
+      if (joystickDisabled) return;
       const distance = Math.sqrt(event.translationX ** 2 + event.translationY ** 2);
       const angle = Math.atan2(event.translationY, event.translationX);
       const limitedDistance = Math.min(distance, JOYSTICK_RADIUS);
@@ -83,7 +90,7 @@ export function useController({ disabled = false, onMove, onCommand }: UseContro
       });
     })
     .onEnd(() => {
-      if (disabled) return;
+      if (joystickDisabled) return;
       translateX.value = withSpring(0);
       translateY.value = withSpring(0);
       scheduleOnRN(handleMove, { x: 0, y: 0 });

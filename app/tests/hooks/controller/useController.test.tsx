@@ -36,10 +36,20 @@ describe('useController', () => {
     expect(result.current.currentConfig.power).toBe(true);
   });
 
-  it('forwards normalized joystick coordinates to the supplied command handler', () => {
+  it('forwards normalized joystick coordinates only while powered on in manual mode', async () => {
     const onMove = jest.fn();
-    renderHook(() => useController({ onMove }));
+    const { result, rerender } = renderHook(() => useController({ onMove }));
 
+    (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+      translationX: 100,
+      translationY: -100,
+    });
+    expect(onMove).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.handlePower();
+    });
+    rerender(undefined);
     (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
       translationX: 100,
       translationY: -100,
@@ -51,5 +61,15 @@ describe('useController', () => {
       y: expect.closeTo(Math.SQRT1_2),
     });
     expect(onMove).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+
+    await act(async () => {
+      await result.current.handleAutonomous();
+    });
+    rerender(undefined);
+    (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+      translationX: 100,
+      translationY: -100,
+    });
+    expect(onMove).toHaveBeenCalledTimes(2);
   });
 });

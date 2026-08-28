@@ -16,6 +16,7 @@ export default function Controls({ mowerId }: ControlsProps) {
   const mowerCommand = useMowerCommand();
   const selectedMowerId = mowerId?.trim() ?? '';
   const isDisabled = !selectedMowerId;
+  const controlsDisabled = isDisabled || mowerCommand.isPending;
   const {
     animatedStyle,
     currentConfig,
@@ -24,7 +25,7 @@ export default function Controls({ mowerId }: ControlsProps) {
     handleEStop,
     handlePower,
   } = useController({
-    disabled: isDisabled || mowerCommand.isPending,
+    disabled: controlsDisabled,
     onMove: ({ x, y }) => {
       if (selectedMowerId) joystickCommand.mutate({ mowerId: selectedMowerId, x, y });
     },
@@ -39,7 +40,7 @@ export default function Controls({ mowerId }: ControlsProps) {
       <View style={[styles.bar, isDisabled && styles.disabled]}>
         <Button
           mode="contained"
-          disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
+          disabled={controlsDisabled || currentConfig.estop}
           onPress={handleEStop}
           testID="controller-estop"
           style={[
@@ -54,7 +55,7 @@ export default function Controls({ mowerId }: ControlsProps) {
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.power ? 'SYS: ON' : 'SYS: OFF'}</Text>
           <Switch
-            disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
+            disabled={controlsDisabled || currentConfig.estop}
             value={currentConfig.power}
             onValueChange={handlePower}
             color="#22c55e"
@@ -64,7 +65,7 @@ export default function Controls({ mowerId }: ControlsProps) {
         <View style={styles.toggleContainer}>
           <Text style={styles.toggleLabel}>{currentConfig.autonomous ? 'AUTO' : 'MAN'}</Text>
           <Switch
-            disabled={isDisabled || mowerCommand.isPending || currentConfig.estop}
+            disabled={controlsDisabled || currentConfig.estop}
             value={currentConfig.autonomous}
             onValueChange={handleAutonomous}
             color="#3b82f6"
@@ -72,7 +73,13 @@ export default function Controls({ mowerId }: ControlsProps) {
         </View>
       </View>
 
-      <View style={[styles.base, isDisabled && styles.disabled]}>
+      <View
+        style={[
+          styles.base,
+          (controlsDisabled || !currentConfig.power || currentConfig.autonomous || currentConfig.estop) &&
+            styles.disabled,
+        ]}
+      >
         <GestureDetector gesture={gesture}>
           <Animated.View style={[styles.knob, animatedStyle]} />
         </GestureDetector>

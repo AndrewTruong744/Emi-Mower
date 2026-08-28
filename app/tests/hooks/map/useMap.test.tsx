@@ -49,6 +49,12 @@ describe('useMap', () => {
     });
     expect(result.current.drawingBoundary).toHaveLength(3);
 
+    act(() => result.current.undoBoundaryPoint());
+    expect(result.current.drawingBoundary).toHaveLength(2);
+    expect(result.current.isConfirmModalVisible).toBe(false);
+
+    act(() => result.current.addBoundaryPoint({ x: -74.005, y: 40.7138 }));
+
     act(() => result.current.acceptBoundary());
 
     act(() => result.current.confirmCuttingArea());

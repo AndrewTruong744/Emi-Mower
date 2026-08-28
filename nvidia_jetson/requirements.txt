@@ -1,4 +1,3 @@
-rasyncio
 aiomqtt
 numpy
 eclipse-zenoh==1.9.0
