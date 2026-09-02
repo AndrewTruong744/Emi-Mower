@@ -206,4 +206,80 @@ describe('Zenoh client', () => {
       'Zenoh returned no response for user/login'
     );
   });
+
+  it('requires credentials as a complete pair and switches authenticated sessions', async () => {
+    await expect(connectZenoh('user-only')).rejects.toThrow(
+      'Zenoh username and token must be provided together'
+    );
+
+    const firstSession = {
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    const secondSession = {
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValueOnce(firstSession).mockResolvedValueOnce(secondSession);
+
+    await connectZenoh();
+    await connectZenoh('user-1', 'jwt-token');
+
+    expect(firstSession.close).toHaveBeenCalledTimes(1);
+    expect(mockedOpen).toHaveBeenCalledTimes(2);
+    expect(mockedOpen.mock.calls[1][0].locator).toContain('user-1');
+  });
+
+  it('reports malformed query responses and put/subscription failures', async () => {
+    const malformedSession = {
+      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(
+        (async function* () {
+          yield { result: () => ({ payload: () => ({ toString: () => '{' }) }) };
+        })()
+      ),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValueOnce(malformedSession);
+    await expect(zenohQuery('bad/json', {})).rejects.toThrow();
+    expect(useBoundStore.getState().errorQueue[0]).toEqual(
+      expect.objectContaining({ code: 'zenoh.request_failed' })
+    );
+
+    await closeZenoh();
+    const putSession = {
+      put: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('put failed')),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValueOnce(putSession);
+    await expect(zenohPut('mower/mower-1/command', {})).rejects.toThrow('put failed');
+
+    await closeZenoh();
+    const subscribeSession = {
+      declareSubscriber: jest
+        .fn<(...args: any[]) => any>()
+        .mockRejectedValue(new Error('subscribe failed')),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValueOnce(subscribeSession);
+    await expect(zenohSubscribe('mower/*/telemetry', jest.fn())).rejects.toThrow(
+      'subscribe failed'
+    );
+  });
+
+  it('tolerates cleanup callbacks and undeclare failures during shutdown', async () => {
+    const undeclare = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('already closed'));
+    const session = {
+      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
+      close: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('closed')),
+    };
+    mockedOpen.mockResolvedValueOnce(session);
+    const onClose = jest.fn(() => {
+      throw new Error('local cleanup failed');
+    });
+
+    await zenohSubscribe('mower/*/telemetry', jest.fn(), onClose);
+    await closeZenoh();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(undeclare).toHaveBeenCalledTimes(1);
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
 });

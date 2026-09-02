@@ -125,8 +125,6 @@ export interface TelemetryRecord {
   right_motor_direction?: -1 | 0 | 1;
   cutting_motor_speed?: number;
   slippage_detected?: boolean;
-  rgb_image_url?: string | null;
-  lidar_image_url?: string | null;
   imu_data?: ImuTelemetry | null;
 }
 

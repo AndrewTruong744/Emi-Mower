@@ -13,7 +13,6 @@ RUN apt-get update \
         gettext-base \
         git \
         libclang-dev \
-        libserialport-dev \
         libudev-dev \
         pkg-config \
         procps \
@@ -28,6 +27,7 @@ RUN apt-get update \
 
 COPY requirements.txt /tmp/requirements.txt
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.88.0
+RUN rustup component add rustfmt clippy
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
         cargo-ament-build \
         colcon-cargo \
@@ -44,11 +44,14 @@ RUN rosdep update \
         src/emi_mower_interfaces \
         src/emi_mower_livekit \
         src/emi_mower_control \
+        src/emi_mower_zenoh_gateway \
         --ignore-src --rosdistro jazzy -r -y \
         --skip-keys "ament_cargo ament_python depthai_ros_driver rclrs sllidar_ros2"
 
 # The simulator image deliberately excludes the OAK-D and lidar drivers. The
 # Jetson Compose override sets BUILD_PHYSICAL_DRIVERS=1 and builds them.
+# ament_cargo leaves Cargo intermediates beside the source. They are only useful
+# while compiling; installed executables remain in /ws/install.
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
     && if [ "${BUILD_PHYSICAL_DRIVERS}" = "1" ]; then \
          git clone --depth 1 --branch kilted https://github.com/luxonis/depthai-core.git src/depthai-core \
@@ -56,8 +59,9 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
          && colcon build --merge-install --symlink-install; \
        else \
          colcon build --merge-install --symlink-install --packages-select \
-           emi_mower_interfaces emi_mower_control emi_mower_livekit; \
-       fi
+           emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit; \
+       fi \
+    && find /ws/src -type d -name target -prune -exec rm -rf {} +
 
 COPY docker/ros-entrypoint.sh /usr/local/bin/ros-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/ros-entrypoint.sh

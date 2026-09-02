@@ -1,0 +1,20 @@
+# Linux-only SocketCAN integration. Run after creating vcan0:
+#   sudo modprobe vcan
+#   sudo ip link add dev vcan0 type vcan
+#   sudo ip link set vcan0 up
+#   renode --console stm32/renode/stm32f446re_socketcan.resc
+
+$bin?=@../target/thumbv7em-none-eabi/release/emi-mower-stm32f446re
+$can?="vcan0"
+
+mach create "emi-mower-stm32f446re"
+machine LoadPlatformDescription @platforms/cpus/stm32f4.repl
+
+emulation CreateCANHub "mowerCan"
+connector Connect sysbus.can1 mowerCan
+machine CreateSocketCANBridge "socketcan" $can
+connector Connect socketcan mowerCan
+
+sysbus LoadELF $bin
+showAnalyzer sysbus.can1
+start

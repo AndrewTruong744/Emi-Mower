@@ -72,10 +72,6 @@ class MowerTelemetryModel(Base):
     # Safety Anomalies
     slippage_detected: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
-    # Media File References (Lightweight Cloud Storage URLs)
-    rgb_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    lidar_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-
     # Relationship Link to the IMU breakdown table
     # uselist=False makes this a strict 1-to-1 relationship mapping
     imu_data: Mapped["MowerImuModel"] = relationship(

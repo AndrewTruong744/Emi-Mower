@@ -22,6 +22,10 @@ export const mockedZenohQuery = zenohQuery as jest.Mock<(...args: any[]) => any>
 export const mockedZenohPut = zenohPut as jest.Mock<(...args: any[]) => any>;
 export const mockedCloseZenoh = closeZenoh as jest.Mock<(...args: any[]) => any>;
 
+export function silenceExpectedConsoleError() {
+  return jest.spyOn(console, 'error').mockImplementation(() => undefined);
+}
+
 export function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {

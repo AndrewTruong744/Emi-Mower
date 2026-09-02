@@ -28,10 +28,20 @@ def test_real_and_sim_launches_share_the_zenoh_ros_transport() -> None:
     assert "respawn=True" in text
 
 
-def test_real_uses_uart_while_sim_uses_the_mujoco_command_topic() -> None:
+def test_real_uses_can_while_sim_uses_the_mujoco_command_topic() -> None:
     real = REAL_LAUNCH.read_text()
     sim = SIM_LAUNCH.read_text()
     assert 'executable="stm32_bridge"' in real
     assert 'executable="sim_command_sink"' in sim
     assert "depthai_ros_driver" not in sim
     assert "sllidar_ros2" not in sim
+
+
+def test_launches_use_the_single_native_zenoh_gateway() -> None:
+    real = REAL_LAUNCH.read_text()
+    sim = SIM_LAUNCH.read_text()
+    assert 'package="emi_mower_zenoh_gateway"' in real
+    assert 'package="emi_mower_zenoh_gateway"' in sim
+    assert 'executable="zenoh_gateway"' in real
+    assert 'executable="zenoh_gateway"' in sim
+    assert "teleop_gateway" not in real + sim

@@ -25,7 +25,7 @@ services:
       # mounted read-only and is intentionally excluded from the build context.
       - ${MOWER_CERT_DIR:-./certs}:/etc/mower/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'ros2 launch|teleop_gateway' >/dev/null"]
+      test: ["CMD-SHELL", "pgrep -f 'ros2 launch|zenoh_gateway' >/dev/null"]
       interval: 10s
       timeout: 3s
       retries: 6

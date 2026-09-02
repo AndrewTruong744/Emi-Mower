@@ -408,8 +408,6 @@ components:
         - {$ref: '#/components/schemas/EmergencyStopCommand'}
         - {$ref: '#/components/schemas/SetPowerCommand'}
         - {$ref: '#/components/schemas/SetModeCommand'}
-      discriminator:
-        propertyName: type
     EmergencyStopCommand:
       type: object
       required: [command_id, type]
@@ -503,8 +501,6 @@ components:
         right_motor_direction: {type: integer, default: 0, enum: [-1, 0, 1]}
         cutting_motor_speed: {type: number, default: 0}
         slippage_detected: {type: boolean, default: false}
-        rgb_image_url: {type: string, nullable: true}
-        lidar_image_url: {type: string, nullable: true}
         imu_data:
           nullable: true
           allOf: [{$ref: '#/components/schemas/ImuTelemetry'}]

@@ -1,4 +1,4 @@
-"""Run the physical mower's camera, lidar, LiveKit, and STM32 UART bridge."""
+"""Run the physical mower's camera, lidar, LiveKit, and STM32 CAN bridge."""
 
 import os
 
@@ -27,8 +27,7 @@ def _zenoh_environment():
 
 def generate_launch_description():
     mower_id = LaunchConfiguration("mower_id")
-    uart_device = LaunchConfiguration("uart_device")
-    uart_baud = LaunchConfiguration("uart_baud")
+    can_interface = LaunchConfiguration("can_interface")
 
     sllidar_launch = os.path.join(
         get_package_share_directory("sllidar_ros2"), "launch", "sllidar_s2_launch.py"
@@ -38,19 +37,14 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("mower_id", default_value="mower-01"),
             DeclareLaunchArgument(
-                "uart_device",
+                "can_interface",
                 default_value=EnvironmentVariable(
-                    "STM32_UART_DEVICE", default_value="/dev/ttyTHS1"
+                    "STM32_CAN_INTERFACE", default_value="can0"
                 ),
-            ),
-            DeclareLaunchArgument(
-                "uart_baud",
-                default_value=EnvironmentVariable("STM32_UART_BAUD", default_value="115200"),
             ),
             *_zenoh_environment(),
             SetEnvironmentVariable(name="MOWER_ID", value=mower_id),
-            SetEnvironmentVariable(name="STM32_UART_DEVICE", value=uart_device),
-            SetEnvironmentVariable(name="STM32_UART_BAUD", value=uart_baud),
+            SetEnvironmentVariable(name="STM32_CAN_INTERFACE", value=can_interface),
             Node(
                 package="depthai_ros_driver",
                 executable="camera",
@@ -76,9 +70,9 @@ def generate_launch_description():
                 respawn_delay=2.0,
             ),
             Node(
-                package="emi_mower_control",
-                executable="teleop_gateway",
-                name="teleop_gateway",
+                package="emi_mower_zenoh_gateway",
+                executable="zenoh_gateway",
+                name="zenoh_gateway",
                 respawn=True,
                 respawn_delay=2.0,
             ),

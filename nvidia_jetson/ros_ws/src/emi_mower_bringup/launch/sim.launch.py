@@ -1,4 +1,4 @@
-"""Run the app-to-ROS control path without physical sensors or UART hardware."""
+"""Run the app-to-ROS control path without physical sensors or CAN hardware."""
 
 from pathlib import Path
 
@@ -25,9 +25,9 @@ def generate_launch_description():
             SetEnvironmentVariable(name="MOWER_ID", value=mower_id),
             SetEnvironmentVariable(name="ROS_USE_SIM_TIME", value="true"),
             Node(
-                package="emi_mower_control",
-                executable="teleop_gateway",
-                name="teleop_gateway",
+                package="emi_mower_zenoh_gateway",
+                executable="zenoh_gateway",
+                name="zenoh_gateway",
                 respawn=True,
                 respawn_delay=2.0,
             ),

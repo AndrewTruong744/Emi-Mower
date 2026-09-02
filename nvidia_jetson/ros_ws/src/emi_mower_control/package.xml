@@ -2,7 +2,7 @@
 <package format="3">
   <name>emi_mower_control</name>
   <version>0.1.0</version>
-  <description>Rust Zenoh teleoperation gateway and STM32 UART bridge.</description>
+  <description>Rust STM32 CAN bridge and shared control contract.</description>
   <maintainer email="andrewtruong40024@gmail.com">Andrew Truong</maintainer>
   <license>Apache-2.0</license>
 

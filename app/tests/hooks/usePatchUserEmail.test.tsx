@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
-import { act, renderHook } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { createWrapper, mockedZenohQuery, resetHookState } from './testUtils';
 import { usePatchUserEmail } from '@/hooks/api/user/usePatchUserEmail';
@@ -21,6 +21,7 @@ describe('usePatchUserEmail', () => {
         newEmail: 'new@example.com',
       });
     });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(mockFirebaseUser.updateEmail).toHaveBeenCalledWith('new@example.com');
     expect(mockedZenohQuery).toHaveBeenCalledWith('user/update_email', {
@@ -32,12 +33,17 @@ describe('usePatchUserEmail', () => {
   it('rejects missing Firebase users and email addresses', async () => {
     const { result } = renderHook(() => usePatchUserEmail(), { wrapper: createWrapper() });
     mockFirebaseAuth.currentUser = null;
-    await expect(result.current.mutateAsync({ newIdToken: 'token', newEmail: 'new@example.com' })).rejects.toThrow(
-      'No authenticated Firebase user found'
-    );
+    await act(async () => {
+      await expect(result.current.mutateAsync({ newIdToken: 'token', newEmail: 'new@example.com' })).rejects.toThrow(
+        'No authenticated Firebase user found'
+      );
+    });
     mockFirebaseAuth.currentUser = mockFirebaseUser;
-    await expect(result.current.mutateAsync({ newIdToken: 'token', newEmail: '' })).rejects.toThrow(
-      'A new email address is required'
-    );
+    await act(async () => {
+      await expect(result.current.mutateAsync({ newIdToken: 'token', newEmail: '' })).rejects.toThrow(
+        'A new email address is required'
+      );
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });

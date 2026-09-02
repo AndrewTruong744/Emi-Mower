@@ -3,12 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
-from src.api.public.public import (
-    _dependency_status,
-    health_check,
-    liveness_check,
-    readiness_check,
-)
+from src.api.health import _dependency_status, health_check
 
 
 async def test_dependency_status_reports_both_dependencies_healthy():
@@ -54,19 +49,3 @@ async def test_health_check_raises_503_when_dependency_is_unhealthy():
 
     assert error.value.status_code == 503
     assert error.value.detail["status"] == "unhealthy"
-
-
-async def test_readiness_check_raises_503_when_dependency_is_unhealthy():
-    db = AsyncMock()
-    cache = AsyncMock()
-    cache.ping.side_effect = RuntimeError("valkey unavailable")
-
-    with pytest.raises(HTTPException) as error:
-        await readiness_check(db, cache)
-
-    assert error.value.status_code == 503
-    assert error.value.detail["status"] == "not_ready"
-
-
-async def test_liveness_check_has_no_dependency():
-    assert await liveness_check() == {"status": "alive"}

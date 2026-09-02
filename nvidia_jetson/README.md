@@ -31,7 +31,8 @@ because the existing local router certificate names `localhost`; use a router
 certificate with the production DNS name and set it to `true` in deployment.
 
 For a physical Jetson, use the override. It builds the OAK-D and SLLidar
-drivers, exposes USB, lidar, and UART devices, and starts `real.launch.py`:
+drivers, exposes USB and lidar devices, shares the host CAN interface, and
+starts `real.launch.py`:
 
 ```bash
 cd nvidia_jetson
@@ -40,15 +41,24 @@ ZENOH_ROUTER_ENDPOINT=tls/zenoh.example.internal:7448 \
 docker compose -f docker-compose.yml -f docker-compose.jetson.yml up --build -d
 ```
 
-Set `STM32_UART_DEVICE` and `RPLIDAR_DEVICE` if the udev paths differ. Do not
+Set `STM32_CAN_INTERFACE` and `RPLIDAR_DEVICE` if the host interfaces differ.
+Configure the host CAN interface before starting Compose, for example:
+
+```bash
+sudo ip link set can0 up type can bitrate 500000
+```
+
+Do not
 put the certificate directory in the image or repository; Compose mounts it
 read-only at `/etc/mower/certs`.
 
 If the external router is temporarily down, `rmw_zenoh_cpp` cannot initialize a
 ROS context. The launch files respawn affected nodes every two seconds until it
-can. Once initialized, `teleop_gateway` also reconnects to its native Zenoh
-joystick subscription with exponential backoff (2–30 seconds), and the LiveKit
-node retries its token session.
+can. Once initialized, `zenoh_gateway` reconnects to its native Zenoh routes
+with exponential backoff (2–30 seconds). It translates joystick commands to
+`/teleop/cmd_vel` and publishes typed `/mower/telemetry` batches on the
+AsyncAPI telemetry route. The LiveKit node separately retries its token
+session.
 
 ### OAKD S2 and Slamtex Lidar S2 installation
 - The DepthAI and SLLIDAR ROS 2 drivers are Git submodules. From the repository
@@ -96,3 +106,80 @@ configuration. `rmw_zenoh_cpp` reads `ZENOH_SESSION_CONFIG_URI`; Zenoh-Python
 reads `ZENOH_CONFIG`. Docker renders both from the external router endpoint at
 container startup. The Rust package pins its Zenoh crate to the same 1.9.0
 baseline.
+
+### Local Rust tooling
+
+Install Rust with `rustup` on a development computer even when ROS itself runs
+in Docker. This provides fast formatting and basic editor support. Match the
+container's Rust 1.88.0 toolchain, and install the formatter and linter:
+
+```bash
+# macOS only, if Xcode Command Line Tools are not already installed:
+xcode-select --install
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustup toolchain install 1.88.0
+rustup default 1.88.0
+rustup component add rustfmt clippy
+```
+
+Local formatting does not require ROS:
+
+```bash
+cargo fmt --manifest-path ros_ws/src/emi_mower_control/Cargo.toml --check
+cargo fmt --manifest-path ros_ws/src/emi_mower_zenoh_gateway/Cargo.toml --check
+```
+
+`cargo check`, Clippy, and Rust tests for ROS packages need the Linux ROS
+environment, so run them in the supplied container rather than relying on a
+macOS host.
+
+### One-command ROS tests
+
+Run all offline ROS Python tests and Rust integration tests with:
+
+```bash
+cd nvidia_jetson
+./scripts/test.sh
+```
+
+The first run builds `emi-mower-ros-test:jazzy`; later runs reuse Docker
+volumes for Colcon and Cargo outputs. The test image contains ROS Jazzy, the
+Rust compiler, and test dependencies, but it does **not** copy `ros_ws` or
+prebuild the workspace. Compose bind-mounts your checkout at runtime, so an
+edit to a test or source file does not rebuild the image. The suite is offline:
+it does not start Zenoh, access a camera, or open the STM32 CAN interface.
+
+The launcher performs the equivalent of:
+
+```bash
+colcon build --packages-select emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit
+python3 -m pytest ros_ws/src/emi_mower_interfaces/test ros_ws/src/emi_mower_bringup/test ros_ws/src/emi_mower_livekit/test ros_ws/src/emi_mower_control/test
+cargo test --manifest-path ros_ws/src/emi_mower_control/Cargo.toml
+cargo test --manifest-path ros_ws/src/emi_mower_zenoh_gateway/Cargo.toml
+```
+
+To inspect the test image without running tests:
+
+```bash
+docker compose -f docker-compose.test.yml build ros-test
+```
+
+### Rust formatting, error checks, and linting
+
+Run these inside the test image so that `rclrs` and generated ROS messages are
+available:
+
+```bash
+cd nvidia_jetson
+docker compose -f docker-compose.test.yml run --rm --entrypoint bash ros-test -lc '
+  source /opt/ros/jazzy/setup.bash
+  cargo fmt --manifest-path /ws/src/emi_mower_control/Cargo.toml --check
+  cargo fmt --manifest-path /ws/src/emi_mower_zenoh_gateway/Cargo.toml --check
+  cargo check --manifest-path /ws/src/emi_mower_control/Cargo.toml
+  cargo check --manifest-path /ws/src/emi_mower_zenoh_gateway/Cargo.toml
+  cargo clippy --manifest-path /ws/src/emi_mower_control/Cargo.toml --all-targets -- -D warnings
+  cargo clippy --manifest-path /ws/src/emi_mower_zenoh_gateway/Cargo.toml --all-targets -- -D warnings
+'
+```

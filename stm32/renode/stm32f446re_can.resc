@@ -1,0 +1,15 @@
+# Run with: renode --console stm32/renode/stm32f446re_can.resc
+# Override with: -e 'include @stm32/renode/stm32f446re_can.resc $bin=@/absolute/path/firmware.elf'
+
+$bin?=@../target/thumbv7em-none-eabi/release/emi-mower-stm32f446re
+
+mach create "emi-mower-stm32f446re"
+machine LoadPlatformDescription @platforms/cpus/stm32f4.repl
+
+# The generic STM32F4 model includes the bxCAN `sysbus.can1` peripheral.
+emulation CreateCANHub "mowerCan"
+connector Connect sysbus.can1 mowerCan
+
+sysbus LoadELF $bin
+showAnalyzer sysbus.can1
+start

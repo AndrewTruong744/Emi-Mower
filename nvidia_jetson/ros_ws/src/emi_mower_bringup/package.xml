@@ -11,6 +11,7 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>depthai_ros_driver</exec_depend>
   <exec_depend>emi_mower_control</exec_depend>
+  <exec_depend>emi_mower_zenoh_gateway</exec_depend>
   <exec_depend>emi_mower_livekit</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

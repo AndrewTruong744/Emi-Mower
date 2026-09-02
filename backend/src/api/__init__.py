@@ -1,3 +1,3 @@
-from src.api.api_v1 import router as api_v1_router
+from src.api.health import router as health_router
 
-__all__ = ["api_v1_router"]
+__all__ = ["health_router"]

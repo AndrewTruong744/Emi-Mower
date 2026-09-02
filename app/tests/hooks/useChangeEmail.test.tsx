@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { act, renderHook } from '@testing-library/react-native';
 import { mockGoogleSignin } from '../mocks/google-signin';
-import { resetHookState } from './testUtils';
+import { resetHookState, silenceExpectedConsoleError } from './testUtils';
 import { useChangeEmail } from '@/hooks/useChangeEmail';
 
 describe('useChangeEmail', () => {
@@ -31,6 +31,7 @@ describe('useChangeEmail', () => {
   });
 
   it('handles cancellation and missing Google tokens', async () => {
+    const consoleError = silenceExpectedConsoleError();
     mockGoogleSignin.signIn.mockResolvedValueOnce({ type: 'cancelled' });
     const cancelled = renderHook(() => useChangeEmail());
     await act(async () => {
@@ -55,5 +56,7 @@ describe('useChangeEmail', () => {
         'Could not retrieve tokens from Google.'
       );
     });
+    expect(consoleError).toHaveBeenCalledTimes(3);
+    consoleError.mockRestore();
   });
 });

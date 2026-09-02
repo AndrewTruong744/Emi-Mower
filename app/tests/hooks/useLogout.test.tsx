@@ -3,7 +3,11 @@ import { act, renderHook } from '@testing-library/react-native';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { mockFirebaseAuth } from '../mocks/firebase';
 import { useBoundStore } from '@/store/useBoundStore';
-import { mockedCloseZenoh, resetHookState } from './testUtils';
+import {
+  mockedCloseZenoh,
+  resetHookState,
+  silenceExpectedConsoleError,
+} from './testUtils';
 import { useLogout } from '@/hooks/useLogout';
 import { queryClient } from '@/config/queryClient';
 
@@ -53,6 +57,7 @@ describe('useLogout', () => {
   });
 
   it('restores the authenticated lifecycle when Firebase sign-out fails', async () => {
+    const consoleError = silenceExpectedConsoleError();
     mockFirebaseAuth.signOut.mockRejectedValueOnce(new Error('sign-out failed'));
     useBoundStore.getState().setAuthStatus('authenticated');
 
@@ -64,6 +69,8 @@ describe('useLogout', () => {
       authStatus: 'authenticated',
       zenohEnabled: true,
     });
+    expect(consoleError).toHaveBeenCalledWith('Firebase Sign Out Error:', expect.any(Error));
+    consoleError.mockRestore();
   });
 
   it('waits for Zenoh teardown before clearing state for the next login', async () => {

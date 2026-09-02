@@ -1,0 +1,28 @@
+name: emi-mower-ros-test
+
+services:
+  ros-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: emi-mower-ros-test:jazzy
+    volumes:
+      # Keep the checkout on the host, as the backend's test containers do.
+      - ./ros_ws:/ws
+      # Keep expensive generated and compiled artefacts outside the checkout.
+      - ros-build:/ws/build
+      - ros-install:/ws/install
+      - ros-log:/ws/log
+      - cargo-registry:/root/.cargo/registry
+      - cargo-git:/root/.cargo/git
+      - control-target:/ws/src/emi_mower_control/target
+      - gateway-target:/ws/src/emi_mower_zenoh_gateway/target
+
+volumes:
+  ros-build:
+  ros-install:
+  ros-log:
+  cargo-registry:
+  cargo-git:
+  control-target:
+  gateway-target:

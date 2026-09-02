@@ -63,8 +63,6 @@ def _build_telemetry_models(
             right_motor_direction=record.right_motor_direction,
             cutting_motor_speed=record.cutting_motor_speed,
             slippage_detected=record.slippage_detected,
-            rgb_image_url=record.rgb_image_url,
-            lidar_image_url=record.lidar_image_url,
         )
 
         if record.imu_data is not None:

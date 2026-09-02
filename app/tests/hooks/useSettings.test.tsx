@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useBoundStore } from '@/store/useBoundStore';
 import { mockFirebaseUser } from '../mocks/firebase';
-import { createWrapper, mockedZenohQuery, resetHookState } from './testUtils';
+import {
+  createWrapper,
+  mockedZenohQuery,
+  resetHookState,
+} from './testUtils';
 import { useSettings } from '@/hooks/settings/useSettings';
 
 describe('useSettings', () => {
@@ -20,6 +24,7 @@ describe('useSettings', () => {
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     await act(async () => result.current.updateUsername('NewName'));
     await waitFor(() => expect(useBoundStore.getState().displayName).toBe('NewName'));
+    await waitFor(() => expect(result.current.isUpdatingUsername).toBe(false));
     expect(alertSpy).toHaveBeenCalledWith('Success', 'Username updated successfully');
     alertSpy.mockRestore();
   });
@@ -33,12 +38,15 @@ describe('useSettings', () => {
       message: 'No authenticated user found',
     });
 
-    useBoundStore
-      .getState()
-      .setUser({ user_id: 'user-1', email: 'user@example.com', displayName: 'Old' });
+    act(() => {
+      useBoundStore
+        .getState()
+        .setUser({ user_id: 'user-1', email: 'user@example.com', displayName: 'Old' });
+    });
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     mockedZenohQuery.mockRejectedValueOnce(new Error('username failed'));
     await act(async () => result.current.updateUsername('NewName'));
+    await waitFor(() => expect(result.current.isUpdatingUsername).toBe(false));
     expect(useBoundStore.getState().errorQueue).toContainEqual(
       expect.objectContaining({ title: 'Request failed', message: 'username failed' })
     );
@@ -54,12 +62,15 @@ describe('useSettings', () => {
       message: 'No authenticated user found',
     });
 
-    useBoundStore
-      .getState()
-      .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    act(() => {
+      useBoundStore
+        .getState()
+        .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    });
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     mockedZenohQuery.mockResolvedValueOnce({ new_email: 'new@example.com' });
     await act(async () => result.current.changeEmail());
+    await waitFor(() => expect(result.current.isUpdatingEmail).toBe(false));
     expect(mockFirebaseUser.updateEmail).toHaveBeenCalledWith('user@example.com');
     expect(useBoundStore.getState().email).toBe('new@example.com');
     expect(alertSpy).toHaveBeenCalledWith('Success', 'Email updated successfully');
@@ -67,13 +78,16 @@ describe('useSettings', () => {
   });
 
   it('reports an email response without a new address', async () => {
-    useBoundStore
-      .getState()
-      .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    act(() => {
+      useBoundStore
+        .getState()
+        .setUser({ user_id: 'user-1', email: 'old@example.com', displayName: 'User' });
+    });
     mockedZenohQuery.mockResolvedValueOnce({});
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
     await act(async () => result.current.changeEmail());
+    await waitFor(() => expect(result.current.isUpdatingEmail).toBe(false));
     expect(useBoundStore.getState().errorQueue[0]).toEqual(
       expect.objectContaining({
         title: 'Request failed',

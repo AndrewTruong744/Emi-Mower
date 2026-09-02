@@ -1,0 +1,36 @@
+[package]
+name = "emi-mower-stm32"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Embassy CAN motor controller firmware for the Emi Mower."
+publish = false
+
+[features]
+default = []
+firmware = [
+    "dep:cortex-m",
+    "dep:cortex-m-rt",
+    "dep:embassy-executor",
+    "dep:embassy-stm32",
+    "dep:embassy-time",
+    "dep:panic-halt",
+]
+
+[dependencies]
+cortex-m = { version = "0.7", optional = true, features = ["critical-section-single-core"] }
+cortex-m-rt = { version = "0.7", optional = true }
+embassy-executor = { version = "0.10", optional = true, features = ["platform-cortex-m", "executor-thread"] }
+embassy-stm32 = { version = "0.6", optional = true, features = ["stm32f446re", "memory-x", "time-driver-tim2"] }
+embassy-time = { version = "0.5", optional = true, features = ["tick-hz-1_000"] }
+panic-halt = { version = "1", optional = true }
+
+[[bin]]
+name = "emi-mower-stm32f446re"
+path = "src/bin/stm32f446re.rs"
+required-features = ["firmware"]
+
+[profile.release]
+debug = 2
+lto = true
+codegen-units = 1

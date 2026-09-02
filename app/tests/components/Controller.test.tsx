@@ -5,6 +5,15 @@ import { PaperProvider } from 'react-native-paper';
 import { createWrapper, resetHookState } from '../hooks/testUtils';
 import Controller from '@/app/(tabs)/controller';
 
+jest.mock('@/hooks/controller/useLivestream', () => ({
+  useLivestream: () => ({
+    connect: jest.fn(),
+    disconnect: jest.fn(),
+    isConnected: false,
+    isPending: false,
+  }),
+}));
+
 describe('Controller screen', () => {
   beforeEach(resetHookState);
 

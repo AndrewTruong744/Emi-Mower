@@ -1,0 +1,39 @@
+# A disposable ROS build/test environment. Source and build artefacts are
+# mounted by docker-compose.test.yml, so source changes do not rebuild this image.
+FROM ros:jazzy-ros-base-noble
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=jazzy
+ENV PATH=/root/.cargo/bin:${PATH}
+WORKDIR /ws
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        libclang-dev \
+        libudev-dev \
+        pkg-config \
+        python3-colcon-common-extensions \
+        python3-pip \
+        ros-jazzy-ament-cmake-pytest \
+        ros-jazzy-example-interfaces \
+        ros-jazzy-rmw-zenoh-cpp \
+        ros-jazzy-test-msgs \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /tmp/requirements.txt
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.88.0 \
+    && rustup component add rustfmt clippy \
+    && python3 -m pip install --no-cache-dir --break-system-packages \
+        cargo-ament-build \
+        colcon-cargo \
+        colcon-ros-cargo \
+        pytest \
+    && python3 -m pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
+
+COPY docker/run-tests.sh /usr/local/bin/run-ros-tests
+RUN chmod 0755 /usr/local/bin/run-ros-tests
+
+ENTRYPOINT ["/usr/local/bin/run-ros-tests"]

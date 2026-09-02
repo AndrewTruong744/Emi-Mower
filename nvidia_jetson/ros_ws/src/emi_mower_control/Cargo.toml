@@ -3,11 +3,7 @@ name = "emi_mower_control"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Zenoh-to-ROS teleoperation and STM32 UART bridge for Emi Mower."
-
-[[bin]]
-name = "teleop_gateway"
-path = "src/bin/teleop_gateway.rs"
+description = "ROS-to-STM32 CAN bridge and shared control contract for Emi Mower."
 
 [[bin]]
 name = "stm32_bridge"
@@ -18,14 +14,8 @@ name = "sim_command_sink"
 path = "src/bin/sim_command_sink.rs"
 
 [dependencies]
-# Keep the Rust binding on the same Zenoh wire-generation baseline as the
-# Python client and the backend router image.
-zenoh = "=1.9.0"
 anyhow = "1"
 geometry_msgs = "*"
 rclrs = "0.7"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serialport = "4"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+socketcan = "3.6"
 thiserror = "2"

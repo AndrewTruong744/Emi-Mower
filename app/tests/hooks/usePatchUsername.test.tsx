@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
-import { act, renderHook } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { createWrapper, mockedZenohQuery, resetHookState } from './testUtils';
 import { usePatchUsername } from '@/hooks/api/user/usePatchUsername';
 
@@ -17,6 +17,7 @@ describe('usePatchUsername', () => {
     await act(async () => {
       await result.current.mutateAsync({ userId: 'user-1', newUserName: 'NewName' });
     });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(mockedZenohQuery).toHaveBeenCalledWith('user/update_name', {
       id_token: 'firebase-token',

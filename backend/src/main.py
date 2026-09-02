@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 import zenoh
-from src.api import api_v1_router
+from src.api import health_router
 from src.config import (
     Base,
     close_http_client,
@@ -14,7 +14,6 @@ from src.config import (
     get_zenoh_config,
     init_http_client,
 )
-from src.exception_handlers import register_exception_handlers
 from src.services import initialize_backend_auth
 from src.zenoh import ZenohMessageHandler, ZenohQueryHandler
 from src.zenoh.register_handlers import register_handlers
@@ -105,6 +104,4 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-register_exception_handlers(app)
-
-app.include_router(api_v1_router, prefix="/api/v1", tags=["api"])
+app.include_router(health_router)

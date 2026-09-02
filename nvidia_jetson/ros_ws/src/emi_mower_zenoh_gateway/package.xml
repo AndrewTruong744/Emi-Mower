@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>emi_mower_zenoh_gateway</name>
+  <version>0.1.0</version>
+  <description>Native Zenoh gateway between the Emi Mower app contract and ROS 2.</description>
+  <maintainer email="andrewtruong40024@gmail.com">Andrew Truong</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cargo</buildtool_depend>
+  <depend>emi_mower_control</depend>
+  <depend>emi_mower_interfaces</depend>
+  <depend>geometry_msgs</depend>
+  <depend>rclrs</depend>
+
+  <export>
+    <build_type>ament_cargo</build_type>
+  </export>
+</package>

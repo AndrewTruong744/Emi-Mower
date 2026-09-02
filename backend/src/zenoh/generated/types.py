@@ -208,8 +208,6 @@ class TelemetryRecord(BaseModel):
     right_motor_direction: Literal[-1, 0, 1] = 0
     cutting_motor_speed: float = 0.0
     slippage_detected: bool = False
-    rgb_image_url: str | None = None
-    lidar_image_url: str | None = None
     imu_data: ImuTelemetry | None = None
 
 

@@ -17,3 +17,4 @@ asyncapi generate models typescript zenoh_asyncapi.yaml \
   --save-output ../app/src/generated/zenoh.ts
 
 node scripts/generate_zenoh_paths.mjs
+node scripts/generate_rust_zenoh_types.mjs

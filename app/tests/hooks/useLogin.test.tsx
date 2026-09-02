@@ -2,7 +2,11 @@ import { act, renderHook } from '@testing-library/react-native';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { useBoundStore } from '@/store/useBoundStore';
 import { useLogin } from '@/hooks/useLogin';
-import { mockedZenohQuery, resetHookState } from './testUtils';
+import {
+  mockedZenohQuery,
+  resetHookState,
+  silenceExpectedConsoleError,
+} from './testUtils';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { queryClient } from '@/config/queryClient';
 
@@ -32,6 +36,7 @@ describe('useLogin', () => {
   });
 
   it('reports login errors globally', async () => {
+    const consoleError = silenceExpectedConsoleError();
     mockGoogleSignin.signIn.mockRejectedValueOnce(new Error('Google offline'));
     const { result } = renderHook(() => useLogin());
     await act(async () => result.current.handleGoogleLogin());
@@ -43,5 +48,7 @@ describe('useLogin', () => {
 
     act(() => useBoundStore.getState().clearErrors());
     expect(useBoundStore.getState().errorQueue).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith('Login screen sign-in failure:', expect.any(Error));
+    consoleError.mockRestore();
   });
 });
