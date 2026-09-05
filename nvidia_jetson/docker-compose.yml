@@ -9,15 +9,21 @@ services:
         BUILD_PHYSICAL_DRIVERS: "0"
     image: emi-mower-ros:jazzy
     init: true
+    # Docker Compose reads .env for ${...} interpolation, while env_file also
+    # passes those values to ROS, Rust, and Python processes in this container.
+    env_file:
+      - .env
     environment:
-      MOWER_ID: ${MOWER_ID:-mower-01}
-      MOWER_LAUNCH: sim
+      MOWER_ID: ${MOWER_ID:?provision a mower or set MOWER_ID in nvidia_jetson/.env}
+      MOWER_LAUNCH: ${MOWER_LAUNCH:-sim}
       # backend/local-docker-compose.yml uses host networking. Docker Desktop
       # supplies this DNS name; extra_hosts adds the equivalent on Linux.
       ZENOH_ROUTER_ENDPOINT: ${ZENOH_ROUTER_ENDPOINT:-tls/host.docker.internal:7448}
       # Local backend certificates normally name localhost, not the Docker
       # gateway. Production must override this to true with a matching DNS SAN.
       ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-false}
+      STM32_CAN_INTERFACE: ${STM32_CAN_INTERFACE:-can0}
+      RPLIDAR_DEVICE: ${RPLIDAR_DEVICE:-/dev/rplidar}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:

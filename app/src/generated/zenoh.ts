@@ -130,6 +130,36 @@ export interface TelemetryRecord {
 
 export type TelemetryList = TelemetryRecord[];
 
+export interface CutoutUploadUrlRequest {
+  id_token: string;
+  mower_ids: string[];
+  content_type: 'image/png' | 'image/jpeg' | 'image/webp';
+}
+
+export interface CutoutUploadUrlResponse {
+  cutout_id: string;
+  upload_url: string;
+  expires_in: number;
+  object_key: string;
+  content_type: string;
+}
+
+export interface CutoutUploadNotification {
+  id_token: string;
+  cutout_id: string;
+  success: boolean;
+  failure_reason?: string;
+}
+
+export type MowerCutoutDownloadUrlRequest = Record<string, never>;
+
+export interface MowerCutoutDownloadUrlResponse {
+  cutout_id: string;
+  download_url: string;
+  expires_in: number;
+  content_type: string;
+}
+
 export interface ProblemDetails {
   type: string;
   title: string;

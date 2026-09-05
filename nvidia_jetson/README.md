@@ -18,8 +18,8 @@ cd backend
 docker compose -f local-docker-compose.yml up -d zenoh-mtls zenoh-app backend
 
 cd ../nvidia_jetson
-# certs/ must contain mower.crt, mower.key, and root_ca.pem.
-# For local development, root_ca.pem is backend/certs/ca/ca.crt.
+# .env must contain the mower UUID. Start from .env.example for simulation,
+# or have backend provisioning write it together with certs/.
 docker compose up --build
 ```
 
@@ -36,8 +36,6 @@ starts `real.launch.py`:
 
 ```bash
 cd nvidia_jetson
-MOWER_CERT_DIR=/opt/emi-mower/certs \
-ZENOH_ROUTER_ENDPOINT=tls/zenoh.example.internal:7448 \
 docker compose -f docker-compose.yml -f docker-compose.jetson.yml up --build -d
 ```
 
@@ -51,6 +49,20 @@ sudo ip link set can0 up type can bitrate 500000
 Do not
 put the certificate directory in the image or repository; Compose mounts it
 read-only at `/etc/mower/certs`.
+
+### Provision a mower
+
+Do not generate mower certificates on the Jetson. On the trusted backend or
+factory host, run `backend/src/scripts/provision_mower.py` (documented in
+`backend/README.md`). It creates the mower UUID and database record, installs
+the matching Zenoh mTLS ACL, issues `mower.crt`, `mower.key`, and
+`root_ca.pem`, and writes this directory's ignored `.env` file. The Jetson
+never receives the CA private key.
+
+For a simulation-only checkout, copy `.env.example` to `.env` and place a
+development certificate bundle in `certs/`. `docker-compose.yml` uses
+`env_file: .env`, so its Rust gateway and Python LiveKit node receive the
+same `MOWER_ID`.
 
 If the external router is temporarily down, `rmw_zenoh_cpp` cannot initialize a
 ROS context. The launch files respawn affected nodes every two seconds until it
@@ -84,9 +96,6 @@ cd ~/ros_ws/src/sllidar_ros2/scripts
 sudo chmod +x create_udev_rules.sh
 ./create_udev_rules.sh
 
-
-## Mower key (in mower)
-- For each mower you want to register, run the script "generate_mower_cert" and then setup the mower
 
 ## To run without Docker
 

@@ -15,7 +15,7 @@ publisher cannot publish data as another mower.
 
 The native Zenoh structs and route helpers in `src/generated/` are generated
 from `backend/zenoh_asyncapi.yaml`. Regenerate them from `backend/` with
-`./scripts/generate_types.sh`; do not edit those Rust files manually. ROS
+`backend/tools/generate_types.sh`; do not edit those Rust files manually. ROS
 messages remain in `emi_mower_interfaces` because they are a separate ROS IDL
 contract.
 

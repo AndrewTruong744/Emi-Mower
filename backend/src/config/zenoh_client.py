@@ -22,9 +22,9 @@ class ZenohAdminClient:
         http_client: httpx.AsyncClient | None = None,
     ):
         self.app_base_url = (app_base_url or settings.ZENOH_APP_REST_URL).rstrip("/")
-        self.mower_base_url = (
-            mower_base_url or settings.ZENOH_MTLS_REST_URL
-        ).rstrip("/")
+        self.mower_base_url = (mower_base_url or settings.ZENOH_MTLS_REST_URL).rstrip(
+            "/"
+        )
         self._http_client = http_client
 
     @property
@@ -42,9 +42,7 @@ class ZenohAdminClient:
                     headers={"Content-Type": "application/json"},
                 )
             else:
-                response = await self.client.put(
-                    f"{base_url}{path}", json=payload
-                )
+                response = await self.client.put(f"{base_url}{path}", json=payload)
             response.raise_for_status()
         except httpx.HTTPStatusError as err:
             logger.error("Zenoh REST PUT %s failed: %s", path, err.response.text)
@@ -71,7 +69,8 @@ class ZenohAdminClient:
     async def _apply_acl_triad(
         self,
         *,
-        subject_username: str,
+        subject_username: str | None = None,
+        subject_cert_common_name: str | None = None,
         rule_id: str,
         subject_id: str,
         policy_id: str,
@@ -79,6 +78,9 @@ class ZenohAdminClient:
         messages: list[str],
         base_url: str,
     ) -> None:
+        if (subject_username is None) == (subject_cert_common_name is None):
+            raise ValueError("configure exactly one Zenoh subject identity")
+
         await self._put(
             base_url,
             f"/@/config/access_control/rules/{rule_id}",
@@ -90,10 +92,15 @@ class ZenohAdminClient:
                 "key_exprs": key_exprs,
             },
         )
+        subject: dict[str, str | list[str]] = {"id": subject_id}
+        if subject_username is not None:
+            subject["usernames"] = [subject_username]
+        if subject_cert_common_name is not None:
+            subject["cert_common_names"] = [subject_cert_common_name]
         await self._put(
             base_url,
             f"/@/config/access_control/subjects/{subject_id}",
-            {"id": subject_id, "usernames": [subject_username]},
+            subject,
         )
         await self._put(
             base_url,
@@ -139,10 +146,12 @@ class ZenohAdminClient:
             base_url=self.app_base_url,
         )
 
-    async def configure_mower_device(self, mower_id: str) -> None:
-        """Configure a mower ACL without creating a preset credential."""
+    async def configure_mower_device(
+        self, mower_id: str, certificate_common_name: str | None = None
+    ) -> None:
+        """Authorize one mTLS mower certificate on only its own routes."""
         await self._apply_acl_triad(
-            subject_username=mower_id,
+            subject_cert_common_name=certificate_common_name or f"mower:{mower_id}",
             rule_id=f"rule_mower_{mower_id}",
             subject_id=f"subject_mower_{mower_id}",
             policy_id=f"policy_mower_{mower_id}",
@@ -159,8 +168,7 @@ class ZenohAdminClient:
         )
 
     async def delete_user_password(self, user_id: str) -> None:
-        """Remove one dynamically provisioned user credential."""
+        """Remove one runtime credential, never the startup dictionary file."""
         await self._delete(
-            self.app_base_url,
-            f"/@/config/transport/auth/usrpwd/dictionary/{user_id}"
+            self.app_base_url, f"/@/config/transport/auth/usrpwd/dictionary/{user_id}"
         )

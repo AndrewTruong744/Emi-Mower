@@ -56,9 +56,6 @@ class Settings:
         "ZENOH_FASTAPI_KEY", "certs/fastapi/server.key"
     )
 
-    # Cloudflare configuration
-    CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "your_account_id")
-    CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "your_api_token")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")
 
     # LiveKit configuration
@@ -66,16 +63,13 @@ class Settings:
     LIVEKIT_API_KEY: str = os.getenv("LIVEKIT_API_KEY", "")
     LIVEKIT_API_SECRET: str = os.getenv("LIVEKIT_API_SECRET", "")
 
-    @property
-    def CF_API_URL(self) -> str:
-        return os.getenv(
-            "CF_API_URL",
-            f"https://api.cloudflare.com/client/v4/accounts/{self.CLOUDFLARE_ACCOUNT_ID}/calls/apps",
-        )
-
-    @property
-    def CF_RTC_URL(self) -> str:
-        return f"https://rtc.live.cloudflare.com/v1/apps/{self.CLOUDFLARE_ACCOUNT_ID}"
-
+    # Google Cloud Storage uses Application Default Credentials (ADC): local
+    # gcloud credentials, a mounted ADC file, or a deployed workload identity.
+    GCP_PROJECT_ID: str = os.getenv(
+        "GCP_PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT", "emi-mower")
+    )
+    GCS_CUTOUT_BUCKET: str = os.getenv("GCS_CUTOUT_BUCKET", "emi-mower-cutouts-sandbox")
+    GCS_UPLOAD_URL_TTL_SECONDS: int = int(os.getenv("GCS_UPLOAD_URL_TTL_SECONDS", "900"))
+    GCS_DOWNLOAD_URL_TTL_SECONDS: int = int(os.getenv("GCS_DOWNLOAD_URL_TTL_SECONDS", "900"))
 
 settings = Settings()

@@ -35,6 +35,8 @@ async def test_configure_mower_device_can_serve_command_queries():
         await zenoh.configure_mower_device("mower-1")
 
     assert b'"declare_queryable"' in requests[0].content
+    assert b'"cert_common_names":["mower:mower-1"]' in requests[1].content
+    assert b'"usernames"' not in requests[1].content
 
 
 async def test_zenoh_admin_client_maps_http_failure_to_domain_error():
@@ -60,6 +62,21 @@ async def test_configure_user_app_without_mowers_uses_unassigned_deny_key():
 
     assert len(requests) == 3
     assert b"unassigned/user-1/deny" in requests[0].content
+
+
+async def test_delete_user_password_targets_only_one_runtime_dictionary_entry():
+    requests = []
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(204, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        zenoh = ZenohAdminClient("http://app", http_client=client)
+        await zenoh.delete_user_password("user-1")
+
+    assert requests[0].url.path == "/@/config/transport/auth/usrpwd/dictionary/user-1"
+    assert "dictionary_file" not in requests[0].url.path
 
 
 async def test_delete_user_password_accepts_not_found():

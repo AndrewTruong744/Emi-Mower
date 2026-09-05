@@ -49,7 +49,9 @@ class LiveKitNode(Node):
         super().__init__("livekit_node")
 
         self.declare_parameter("camera_topic", "/oak/rgb/image_raw")
-        self.declare_parameter("mower_id", "mower-01")
+        # The launch file normally passes this explicitly. Reading MOWER_ID as
+        # the default also keeps direct ROS launches aligned with Docker .env.
+        self.declare_parameter("mower_id", os.environ.get("MOWER_ID", "mower-01"))
         self.declare_parameter("video_fps", 15)
         self.declare_parameter("video_bitrate", 2_000_000)
 

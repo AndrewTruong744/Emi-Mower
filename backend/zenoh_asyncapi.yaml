@@ -99,6 +99,25 @@ channels:
         description: Mower that published this live telemetry batch.
     messages:
       telemetryList: {$ref: '#/components/messages/TelemetryList'}
+  cutoutUploadUrl:
+    address: user/cutouts/upload-url
+    messages:
+      cutoutUploadUrlRequest: {$ref: '#/components/messages/CutoutUploadUrlRequest'}
+      cutoutUploadUrlResponse: {$ref: '#/components/messages/CutoutUploadUrlResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  cutoutUploaded:
+    address: user/cutouts/uploaded
+    messages:
+      cutoutUploadNotification: {$ref: '#/components/messages/CutoutUploadNotification'}
+  mowerCutoutDownloadUrl:
+    address: mower/{mower_id}/cutout/download-url
+    parameters:
+      mower_id:
+        description: Mower retrieving its most recently assigned verified cutout.
+    messages:
+      mowerCutoutDownloadUrlRequest: {$ref: '#/components/messages/MowerCutoutDownloadUrlRequest'}
+      mowerCutoutDownloadUrlResponse: {$ref: '#/components/messages/MowerCutoutDownloadUrlResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
 operations:
   userLogin:
     action: receive
@@ -211,6 +230,34 @@ operations:
     summary: Receive a mower's live telemetry batch for buffering and fan-out
     messages:
       - {$ref: '#/channels/mowerTelemetry/messages/telemetryList'}
+  cutoutUploadUrl:
+    action: receive
+    channel: {$ref: '#/channels/cutoutUploadUrl'}
+    summary: Authorize a cutout upload and return a short-lived GCS signed PUT URL
+    messages:
+      - {$ref: '#/channels/cutoutUploadUrl/messages/cutoutUploadUrlRequest'}
+    reply:
+      channel: {$ref: '#/channels/cutoutUploadUrl'}
+      messages:
+        - {$ref: '#/channels/cutoutUploadUrl/messages/cutoutUploadUrlResponse'}
+        - {$ref: '#/channels/cutoutUploadUrl/messages/problemDetails'}
+  cutoutUploaded:
+    action: receive
+    channel: {$ref: '#/channels/cutoutUploaded'}
+    summary: Verify an app cutout upload after the signed PUT completes
+    messages:
+      - {$ref: '#/channels/cutoutUploaded/messages/cutoutUploadNotification'}
+  mowerCutoutDownloadUrl:
+    action: receive
+    channel: {$ref: '#/channels/mowerCutoutDownloadUrl'}
+    summary: Return a fresh signed GET URL for a mower's latest verified cutout
+    messages:
+      - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/mowerCutoutDownloadUrlRequest'}
+    reply:
+      channel: {$ref: '#/channels/mowerCutoutDownloadUrl'}
+      messages:
+        - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/mowerCutoutDownloadUrlResponse'}
+        - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/problemDetails'}
 components:
   messages:
     UserLoginRequest:
@@ -273,6 +320,21 @@ components:
     TelemetryList:
       name: TelemetryList
       payload: {$ref: '#/components/schemas/TelemetryList'}
+    CutoutUploadUrlRequest:
+      name: CutoutUploadUrlRequest
+      payload: {$ref: '#/components/schemas/CutoutUploadUrlRequest'}
+    CutoutUploadUrlResponse:
+      name: CutoutUploadUrlResponse
+      payload: {$ref: '#/components/schemas/CutoutUploadUrlResponse'}
+    CutoutUploadNotification:
+      name: CutoutUploadNotification
+      payload: {$ref: '#/components/schemas/CutoutUploadNotification'}
+    MowerCutoutDownloadUrlRequest:
+      name: MowerCutoutDownloadUrlRequest
+      payload: {$ref: '#/components/schemas/MowerCutoutDownloadUrlRequest'}
+    MowerCutoutDownloadUrlResponse:
+      name: MowerCutoutDownloadUrlResponse
+      payload: {$ref: '#/components/schemas/MowerCutoutDownloadUrlResponse'}
   schemas:
     UserLoginRequest:
       type: object
@@ -507,6 +569,52 @@ components:
     TelemetryList:
       type: array
       items: {$ref: '#/components/schemas/TelemetryRecord'}
+    CutoutUploadUrlRequest:
+      type: object
+      required: [id_token, mower_ids, content_type]
+      additionalProperties: false
+      properties:
+        id_token: {type: string, description: Firebase Identity Platform ID token.}
+        mower_ids:
+          type: array
+          minItems: 1
+          items: {type: string}
+          description: Owned mowers that should receive this cutout.
+        content_type:
+          type: string
+          enum: [image/png, image/jpeg, image/webp]
+    CutoutUploadUrlResponse:
+      type: object
+      required: [cutout_id, upload_url, expires_in, object_key, content_type]
+      additionalProperties: false
+      properties:
+        cutout_id: {type: string}
+        upload_url: {type: string, format: uri}
+        expires_in: {type: integer}
+        object_key: {type: string}
+        content_type: {type: string}
+    CutoutUploadNotification:
+      type: object
+      required: [id_token, cutout_id, success]
+      additionalProperties: false
+      properties:
+        id_token: {type: string, description: Firebase Identity Platform ID token.}
+        cutout_id: {type: string}
+        success: {type: boolean}
+        failure_reason: {type: string}
+    MowerCutoutDownloadUrlRequest:
+      type: object
+      additionalProperties: false
+      description: Empty request; mower identity is constrained by its Zenoh ACL and channel path.
+    MowerCutoutDownloadUrlResponse:
+      type: object
+      required: [cutout_id, download_url, expires_in, content_type]
+      additionalProperties: false
+      properties:
+        cutout_id: {type: string}
+        download_url: {type: string, format: uri}
+        expires_in: {type: integer}
+        content_type: {type: string}
     ProblemDetails:
       type: object
       required: [type, title, status, detail, instance, code, timestamp]

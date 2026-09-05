@@ -1,0 +1,6 @@
+services:
+  backend:
+    volumes:
+      - ${GOOGLE_ADC_FILE:?set GOOGLE_ADC_FILE to your ADC JSON path}:/gcp/application_default_credentials.json:ro
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /gcp/application_default_credentials.json

@@ -87,3 +87,24 @@ def mower_telemetry_path(mower_id: str) -> str:
         MOWER_TELEMETRY_ADDRESS
         .replace("{mower_id}", mower_id)
     )
+
+CUTOUT_UPLOAD_URL_ADDRESS = "user/cutouts/upload-url"
+
+
+def cutout_upload_url_path() -> str:
+    return CUTOUT_UPLOAD_URL_ADDRESS
+
+CUTOUT_UPLOADED_ADDRESS = "user/cutouts/uploaded"
+
+
+def cutout_uploaded_path() -> str:
+    return CUTOUT_UPLOADED_ADDRESS
+
+MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS = "mower/{mower_id}/cutout/download-url"
+
+
+def mower_cutout_download_url_path(mower_id: str) -> str:
+    return (
+        MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS
+        .replace("{mower_id}", mower_id)
+    )

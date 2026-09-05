@@ -133,6 +133,41 @@ openssl x509 -req -in router.csr \
   -extfile router.cnf -extensions req_ext
 ```
 
+### Mower client certificates and provisioning
+
+Run trusted provisioning from the backend host after its database and the
+Zenoh mTLS router are up. It creates an unassigned mower record with a random
+UUID, grants that certificate's `CN = mower:<uuid>` access to only that
+mower's routes, issues the mTLS bundle, and writes the Jetson Compose `.env`.
+The CA private key remains on this provisioning host; never copy it to a
+Jetson.
+
+For a local checkout, place the bundle in the Jetson's ignored `certs/`
+directory and use the matching relative Compose mount:
+
+```bash
+uv run python -m src.scripts.provision_mower \
+  --serial-number SN-0001 \
+  --nickname "Front yard mower" \
+  --output-dir ../nvidia_jetson/certs \
+  --jetson-env-file ../nvidia_jetson/.env \
+  --mower-cert-dir ./certs \
+  --router-endpoint tls/host.docker.internal:7448 \
+  --no-verify-name-on-connect
+```
+
+For a physical mower, use its protected certificate directory (for example
+`/opt/emi-mower/certs`) for both `--output-dir` and `--mower-cert-dir`, and
+write the generated `.env` onto that Jetson. Use the router's real TLS DNS
+name and leave verification enabled. Re-run with the same `--mower-id` and
+serial number to resume a failed provisioning attempt without creating a
+second mower record. `add_all_acls` remains the separate reconciliation tool
+for rebuilding router ACLs from database records.
+
+If the CA key is encrypted and provisioning is non-interactive, pass
+`--ca-key-passphrase-file /protected/path/ca-passphrase`. Keep that file out
+of the repository and out of the Jetson's `.env`.
+
 ## Migrations
 
 ```bash
@@ -165,7 +200,7 @@ contract tests fail when the telemetry schemas and a generated output drift.
 
 ```bash
 npm install --global @asyncapi/cli
-sh scripts/generate_types.sh
+sh tools/generate_types.sh
 ```
 
 Run the generation command from `backend/`.

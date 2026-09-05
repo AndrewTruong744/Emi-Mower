@@ -1,6 +1,6 @@
 //! Generated from `backend/zenoh_asyncapi.yaml`. Do not edit manually.
 //!
-//! Regenerate with `backend/scripts/generate_types.sh`.
+//! Regenerate with `backend/tools/generate_types.sh`.
 
 pub const USER_LOGIN_ADDRESS: &str = "user/login";
 
@@ -87,6 +87,30 @@ pub const MOWER_TELEMETRY_ADDRESS: &str = "mower/{mower_id}/telemetry";
 
 pub fn mower_telemetry_path(mower_id: &str) -> String {
     let mut path = MOWER_TELEMETRY_ADDRESS.to_owned();
+    path = path.replace("{mower_id}", mower_id);
+    path
+}
+
+pub const CUTOUT_UPLOAD_URL_ADDRESS: &str = "user/cutouts/upload-url";
+
+pub fn cutout_upload_url_path() -> String {
+    let path = CUTOUT_UPLOAD_URL_ADDRESS.to_owned();
+
+    path
+}
+
+pub const CUTOUT_UPLOADED_ADDRESS: &str = "user/cutouts/uploaded";
+
+pub fn cutout_uploaded_path() -> String {
+    let path = CUTOUT_UPLOADED_ADDRESS.to_owned();
+
+    path
+}
+
+pub const MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS: &str = "mower/{mower_id}/cutout/download-url";
+
+pub fn mower_cutout_download_url_path(mower_id: &str) -> String {
+    let mut path = MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS.to_owned();
     path = path.replace("{mower_id}", mower_id);
     path
 }

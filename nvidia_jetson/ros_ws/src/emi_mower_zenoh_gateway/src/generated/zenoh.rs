@@ -1,6 +1,6 @@
 //! Generated from `backend/zenoh_asyncapi.yaml`. Do not edit manually.
 //!
-//! Regenerate with `backend/scripts/generate_types.sh`. These are the native
+//! Regenerate with `backend/tools/generate_types.sh`. These are the native
 //! Zenoh payloads used by `emi_mower_zenoh_gateway`; ROS messages remain ROS IDL.
 
 use serde::{Deserialize, Serialize};

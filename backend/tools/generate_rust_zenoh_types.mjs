@@ -85,7 +85,7 @@ function rustSchema(name) {
   return rustStruct(name, block);
 }
 
-const output = `//! Generated from \`backend/zenoh_asyncapi.yaml\`. Do not edit manually.\n//!\n//! Regenerate with \`backend/scripts/generate_types.sh\`. These are the native\n//! Zenoh payloads used by \`emi_mower_zenoh_gateway\`; ROS messages remain ROS IDL.\n\nuse serde::{Deserialize, Serialize};\n\n${gatewaySchemas.map(rustSchema).join('\n\n')}\n`;
+const output = `//! Generated from \`backend/zenoh_asyncapi.yaml\`. Do not edit manually.\n//!\n//! Regenerate with \`backend/tools/generate_types.sh\`. These are the native\n//! Zenoh payloads used by \`emi_mower_zenoh_gateway\`; ROS messages remain ROS IDL.\n\nuse serde::{Deserialize, Serialize};\n\n${gatewaySchemas.map(rustSchema).join('\n\n')}\n`;
 
 mkdirSync(outputDirectory, { recursive: true });
 writeFileSync(outputPath, output);

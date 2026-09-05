@@ -1,4 +1,9 @@
 from src.services.auth import verify_zenoh_google_id_token
+from src.services.cutouts import (
+    get_mower_cutout_download_service,
+    record_cutout_upload_service,
+    request_cutout_upload_service,
+)
 from src.services.firebase_init import initialize_backend_auth
 from src.services.livekit import (
     get_livekit_consume_token_service,
@@ -24,6 +29,9 @@ from src.services.user import (
 
 __all__ = [
     "verify_zenoh_google_id_token",
+    "request_cutout_upload_service",
+    "record_cutout_upload_service",
+    "get_mower_cutout_download_service",
     "initialize_backend_auth",
     "livekit_consume_service",
     "livekit_upload_service",

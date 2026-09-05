@@ -9,6 +9,8 @@ export type ErrorCode =
   | 'zenoh.command_failed'
   | 'zenoh.subscription_failed'
   | 'control.command_failed'
+  | 'map.cutout_upload_failed'
+  | 'map.cutout_notification_failed'
   | 'livestream.connection_failed'
   | 'telemetry.delayed'
   | 'telemetry.invalid_payload';

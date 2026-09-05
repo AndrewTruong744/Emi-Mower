@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import firebase_admin
 from firebase_admin import credentials
@@ -14,10 +15,13 @@ def initialize_backend_auth():
         # If already initialized, fetch the existing default application instance
         return firebase_admin.get_app()
     except ValueError:
-        # Initialize a clean, default server instance
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        service_account_path = os.path.abspath(
-            os.path.join(current_dir, "..", "..", "service-account.json")
+        # ADC works with local gcloud credentials, service-account
+        # impersonation, and the workload identity attached to Cloud Run.
+        # The JSON-key path is retained only as an explicit fallback.
+        service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+        cred = (
+            credentials.Certificate(Path(service_account_path))
+            if service_account_path
+            else credentials.ApplicationDefault()
         )
-        cred = credentials.Certificate(service_account_path)
         return firebase_admin.initialize_app(credential=cred)

@@ -7,6 +7,11 @@
     timeout_ms: 10000
   },
   transport: {
+    auth: {
+      usrpwd: {
+        dictionary_file: "zenoh-router-users.txt"
+      }
+    },
     link: {
       tls: {
         root_ca_certificate: "certs/ca/ca.crt",

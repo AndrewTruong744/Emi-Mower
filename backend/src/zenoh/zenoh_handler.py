@@ -56,6 +56,7 @@ def _exception_problem(error: Exception, instance: str) -> ProblemDetails:
             "ValidationError": (400, "Invalid request", "invalid-request"),
             "UserNotFoundError": (404, "User not found", "user-not-found"),
             "MowerNotFoundError": (404, "Mower not found", "mower-not-found"),
+            "NotFoundError": (404, "Resource not found", "not-found"),
             "ForbiddenError": (403, "Forbidden", "forbidden"),
             "OwnershipError": (403, "Ownership check failed", "ownership-failed"),
             "RepositoryError": (500, "Repository failure", "repository-failure"),

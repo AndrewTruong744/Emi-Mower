@@ -2,6 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Map } from '@/components/map/Map';
 import { useBoundStore } from '@/store/useBoundStore';
 
@@ -16,10 +17,9 @@ describe('Map', () => {
   beforeEach(() => useBoundStore.getState().resetStore());
 
   it('creates a boundary, confirms a session, pauses it, and returns to drawing on cancellation', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const screen = render(
-      <PaperProvider>
-        <Map />
-      </PaperProvider>
+      <QueryClientProvider client={queryClient}><PaperProvider><Map /></PaperProvider></QueryClientProvider>
     );
 
     await waitFor(() =>
@@ -49,10 +49,9 @@ describe('Map', () => {
   });
 
   it('allows drawing only while satellite imagery is selected', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const screen = render(
-      <PaperProvider>
-        <Map />
-      </PaperProvider>
+      <QueryClientProvider client={queryClient}><PaperProvider><Map /></PaperProvider></QueryClientProvider>
     );
 
     const map = screen.getByTestId('mower-map');
@@ -70,10 +69,9 @@ describe('Map', () => {
   });
 
   it('preserves a drawing when the confirmation modal is canceled', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const screen = render(
-      <PaperProvider>
-        <Map />
-      </PaperProvider>
+      <QueryClientProvider client={queryClient}><PaperProvider><Map /></PaperProvider></QueryClientProvider>
     );
     const map = screen.getByTestId('mower-map');
 

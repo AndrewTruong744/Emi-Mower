@@ -59,7 +59,7 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
          && colcon build --merge-install --symlink-install; \
        else \
          colcon build --merge-install --symlink-install --packages-select \
-           emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit; \
+           emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit emi_mower_bringup; \
        fi \
     && find /ws/src -type d -name target -prune -exec rm -rf {} +
 
@@ -67,4 +67,4 @@ COPY docker/ros-entrypoint.sh /usr/local/bin/ros-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/ros-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/ros-entrypoint.sh"]
-CMD ["bash", "-lc", "if [ \"${MOWER_LAUNCH:-sim}\" = real ]; then ros2 launch emi_mower_bringup real.launch.py mower_id:=${MOWER_ID:-mower-01}; else ros2 launch /ws/src/emi_mower_bringup/launch/sim.launch.py mower_id:=${MOWER_ID:-mower-01}; fi"]
+CMD ["bash", "-lc", ": \"${MOWER_ID:?set MOWER_ID in the provisioned container environment}\"; if [ \"${MOWER_LAUNCH:-sim}\" = real ]; then ros2 launch emi_mower_bringup real.launch.py mower_id:=${MOWER_ID}; else ros2 launch /ws/src/emi_mower_bringup/launch/sim.launch.py mower_id:=${MOWER_ID}; fi"]

@@ -81,13 +81,13 @@ def test_initialize_backend_auth_supports_disabled_existing_and_first_start(
     monkeypatch.setattr(
         firebase_module.firebase_admin, "get_app", Mock(side_effect=ValueError())
     )
-    certificate = Mock(return_value="certificate")
+    application_default = Mock(return_value="adc")
     initialize = Mock(return_value="initialized")
-    monkeypatch.setattr(firebase_module.credentials, "Certificate", certificate)
+    monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", application_default)
     monkeypatch.setattr(firebase_module.firebase_admin, "initialize_app", initialize)
     assert firebase_module.initialize_backend_auth() == "initialized"
-    certificate.assert_called_once()
-    initialize.assert_called_once_with(credential="certificate")
+    application_default.assert_called_once()
+    initialize.assert_called_once_with(credential="adc")
 
 
 def test_jwt_generation_handles_string_bytes_and_failures(monkeypatch):

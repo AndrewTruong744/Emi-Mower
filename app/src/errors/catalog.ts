@@ -43,6 +43,18 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorDefinition> = {
     priority: 'critical',
     retryable: true,
   },
+  'map.cutout_upload_failed': {
+    title: 'Boundary upload failed',
+    presentation: 'toast',
+    priority: 'normal',
+    retryable: true,
+  },
+  'map.cutout_notification_failed': {
+    title: 'Boundary verification delayed',
+    presentation: 'toast',
+    priority: 'normal',
+    retryable: true,
+  },
   'livestream.connection_failed': {
     title: 'Livestream unavailable',
     presentation: 'toast',

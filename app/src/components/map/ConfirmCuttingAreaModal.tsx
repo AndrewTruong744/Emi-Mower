@@ -4,7 +4,7 @@ import { Button, Modal, Portal, Text } from 'react-native-paper';
 interface ConfirmCuttingAreaModalProps {
   visible: boolean;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: () => unknown;
 }
 
 export function ConfirmCuttingAreaModal({ visible, onCancel, onConfirm }: ConfirmCuttingAreaModalProps) {
@@ -19,7 +19,7 @@ export function ConfirmCuttingAreaModal({ visible, onCancel, onConfirm }: Confir
         </Text>
         <View style={styles.actions}>
           <Button onPress={onCancel}>Cancel</Button>
-          <Button mode="contained" onPress={onConfirm} testID="confirm-cutting-area">
+          <Button mode="contained" onPress={() => void onConfirm()} testID="confirm-cutting-area">
             Confirm area
           </Button>
         </View>

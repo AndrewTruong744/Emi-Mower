@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from src.config.database import Base
+import src.models  # noqa: F401 - registers all ORM tables with Base.metadata
 
 # Import settings and metadata
 from src.config.settings import settings

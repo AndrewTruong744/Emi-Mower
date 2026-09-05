@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Snackbar } from 'react-native-paper';
 import { useMap } from '@/hooks/map/useMap';
 import { BoundaryControls } from './BoundaryControls';
 import { ConfirmCuttingAreaModal } from './ConfirmCuttingAreaModal';
+import { CutoutUploadModal } from './CutoutUploadModal';
 import { MapCanvas } from './MapCanvas';
 import { MapStyleSelector } from './MapStyleSelector';
 import { MapSessionControls } from './MapSessionControls';
@@ -21,6 +23,8 @@ export function Map() {
     isConfirmModalVisible,
     isSessionActive,
     isSessionPaused,
+    isUploadingCutout,
+    cutoutUploadError,
     mowerMarkers,
     setSessionPaused,
     undoBoundaryPoint,
@@ -60,6 +64,10 @@ export function Map() {
         onCancel={dismissConfirmModal}
         onConfirm={confirmCuttingArea}
       />
+      <CutoutUploadModal visible={isUploadingCutout} />
+      <Snackbar visible={Boolean(cutoutUploadError)} onDismiss={() => undefined} duration={4000}>
+        Boundary upload failed. Please try again.
+      </Snackbar>
     </View>
   );
 }

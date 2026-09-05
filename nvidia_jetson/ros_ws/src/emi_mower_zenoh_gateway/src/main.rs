@@ -19,7 +19,8 @@ const MAX_RETRY: Duration = Duration::from_secs(30);
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mower_id = env::var("MOWER_ID").unwrap_or_else(|_| "mower-01".to_owned());
+    let mower_id =
+        env::var("MOWER_ID").context("set MOWER_ID in the provisioned Jetson environment")?;
     let max_linear_mps = env_number("MAX_LINEAR_MPS", 1.0)?;
     let max_angular_radps = env_number("MAX_ANGULAR_RADPS", 1.0)?;
     if !max_linear_mps.is_finite()

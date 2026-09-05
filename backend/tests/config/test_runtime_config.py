@@ -53,14 +53,6 @@ def test_settings_builds_database_and_valkey_urls():
     assert config.VALKEY_URL == "redis://:cache-password@cache.example.test:16379/4"
 
 
-def test_settings_builds_cloudflare_urls_from_account_id():
-    config = Settings()
-    config.CLOUDFLARE_ACCOUNT_ID = "account-123"
-
-    assert config.CF_API_URL.endswith("/accounts/account-123/calls/apps")
-    assert config.CF_RTC_URL.endswith("/apps/account-123")
-
-
 def test_config_package_exports_public_dependencies():
     assert "get_db" in config_exports
     assert "get_valkey_client" in config_exports

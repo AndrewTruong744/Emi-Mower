@@ -10,6 +10,10 @@ const rustOutputPath = resolve(
   scriptDirectory,
   '../../nvidia_jetson/ros_ws/src/emi_mower_zenoh_gateway/src/generated/zenoh_paths.rs'
 );
+const rosPythonOutputPath = resolve(
+  scriptDirectory,
+  '../../nvidia_jetson/ros_ws/src/emi_mower_bringup/emi_mower_bringup/zenoh_paths.py'
+);
 const document = readFileSync(asyncApiPath, 'utf8');
 
 const channels = document.match(/^channels:\n([\s\S]*?)^operations:/m)?.[1];
@@ -99,7 +103,7 @@ ${channelDefinitions.map(pythonPathFunction).join('\n\n')}
 `;
 const rustOutput = `//! Generated from \`backend/zenoh_asyncapi.yaml\`. Do not edit manually.
 //!
-//! Regenerate with \`backend/scripts/generate_types.sh\`.
+//! Regenerate with \`backend/tools/generate_types.sh\`.
 
 ${channelDefinitions.map(rustPathFunction).join('\n\n')}
 `;
@@ -107,3 +111,9 @@ ${channelDefinitions.map(rustPathFunction).join('\n\n')}
 writeFileSync(appOutputPath, appOutput);
 writeFileSync(backendOutputPath, backendOutput);
 writeFileSync(rustOutputPath, rustOutput);
+writeFileSync(
+  rosPythonOutputPath,
+  `\"\"\"Generated from backend/zenoh_asyncapi.yaml. Do not edit manually.\"\"\"\n\n${channelDefinitions
+    .map(pythonPathFunction)
+    .join('\n\n')}\n`
+);

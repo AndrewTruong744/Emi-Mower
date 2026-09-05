@@ -68,6 +68,8 @@ services:
       VALKEY_PORT: ${VALKEY_PORT:-6379}
       ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
       ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-emi-mower}
+      GCS_CUTOUT_BUCKET: ${GCS_CUTOUT_BUCKET:-emi-mower-cutouts-sandbox}
     command:
       - sh
       - -c

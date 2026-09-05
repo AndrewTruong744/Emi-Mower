@@ -52,7 +52,7 @@ class ValidationError(BaseAppException):
 
 
 class ExternalServiceError(BaseAppException):
-    """Raised when an external service call fails (e.g., Zenoh REST API, Cloudflare)."""
+    """Raised when an external service call fails (e.g., the Zenoh REST API)."""
 
     pass
 
@@ -67,5 +67,4 @@ class AuthenticationError(BaseAppException):
     """Raised when user token verification or GCP Identity authentication fails."""
 
     pass
-
 

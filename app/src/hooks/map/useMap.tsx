@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Image } from 'react-native';
+import { useUploadCutout } from '@/hooks/api/mower/useUploadCutout';
 import { useBoundaryDrawing } from './useBoundaryDrawing';
 import { useLandscapeMap } from './useLandscapeMap';
 import { useBoundStore } from '@/store/useBoundStore';
@@ -12,6 +13,7 @@ export function useMap() {
   const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
   const { addPoint, clear, points, undo } = useBoundaryDrawing();
   const mowerDetails = useBoundStore((state) => state.mowerDetails);
+  const mowers = useBoundStore((state) => state.mowers);
   const mowerPositions = useBoundStore((state) => state.mowerPositions);
   const isSessionActive = useBoundStore((state) => state.isSessionActive);
   const isSessionPaused = useBoundStore((state) => state.isSessionPaused);
@@ -19,14 +21,21 @@ export function useMap() {
   const startMowingSession = useBoundStore((state) => state.startMowingSession);
   const setSessionPaused = useBoundStore((state) => state.setSessionPaused);
   const cancelMowingSession = useBoundStore((state) => state.cancelMowingSession);
+  const uploadCutout = useUploadCutout();
 
   useLandscapeMap();
-  const confirmCuttingArea = useCallback(() => {
+  const confirmCuttingArea = useCallback(async () => {
     if (points.length < 3) return;
+    if (mowers.length > 0) {
+      await uploadCutout.mutateAsync({
+        imageUri: LOCAL_CUTTING_AREA_IMAGE_URI,
+        mowerIds: mowers,
+      });
+    }
     startMowingSession(points, LOCAL_CUTTING_AREA_IMAGE_URI);
     setConfirmModalVisible(false);
     clear();
-  }, [clear, points, startMowingSession]);
+  }, [clear, mowers, points, startMowingSession, uploadCutout]);
 
   const acceptBoundary = useCallback(() => {
     if (points.length >= 3) setConfirmModalVisible(true);
@@ -73,6 +82,8 @@ export function useMap() {
     isConfirmModalVisible,
     isSessionActive,
     isSessionPaused,
+    isUploadingCutout: uploadCutout.isPending,
+    cutoutUploadError: uploadCutout.error,
     mowerMarkers,
     setConfirmModalVisible,
     setSessionPaused,

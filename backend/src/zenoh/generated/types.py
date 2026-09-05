@@ -1,6 +1,6 @@
 """Generated from ``backend/zenoh_asyncapi.yaml``.
 
-Do not edit manually. Regenerate with ``backend/scripts/generate_types.sh``.
+Do not edit manually. Regenerate with ``backend/tools/generate_types.sh``.
 """
 
 from datetime import datetime
@@ -215,6 +215,46 @@ class TelemetryList(RootModel[list[TelemetryRecord]]):
     """Generated from ``components.schemas.TelemetryList``."""
 
 
+class CutoutUploadUrlRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    mower_ids: list[str]
+    content_type: Literal["image/png", "image/jpeg", "image/webp"]
+
+
+class CutoutUploadUrlResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cutout_id: str
+    upload_url: str
+    expires_in: int
+    object_key: str
+    content_type: str
+
+
+class CutoutUploadNotification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_token: str
+    cutout_id: str
+    success: bool
+    failure_reason: str | None = None
+
+
+class MowerCutoutDownloadUrlRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class MowerCutoutDownloadUrlResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cutout_id: str
+    download_url: str
+    expires_in: int
+    content_type: str
+
+
 class ProblemDetails(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -248,6 +288,11 @@ WireMessage = (
     | MowerCommandResponse
     | TelemetryHistoryRequest
     | TelemetryHistoryResponse
+    | CutoutUploadUrlRequest
+    | CutoutUploadUrlResponse
+    | CutoutUploadNotification
+    | MowerCutoutDownloadUrlRequest
+    | MowerCutoutDownloadUrlResponse
     | ProblemDetails
     | dict[str, Any]
 )

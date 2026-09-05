@@ -11,6 +11,10 @@ jest.mock('expo-router', () => {
   };
 });
 
+jest.mock('@/hooks/api/mower/useUploadCutout', () => ({
+  useUploadCutout: () => ({ error: null, isPending: false, mutateAsync: async () => undefined }),
+}));
+
 describe('useMap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -57,7 +61,7 @@ describe('useMap', () => {
 
     act(() => result.current.acceptBoundary());
 
-    act(() => result.current.confirmCuttingArea());
+    await act(async () => { await result.current.confirmCuttingArea(); });
     expect(result.current).toMatchObject({ isSessionActive: true, isSessionPaused: false });
     expect(useBoundStore.getState().areaImageUri).toMatch(/cutting-area-preview/);
 

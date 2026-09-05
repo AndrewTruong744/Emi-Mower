@@ -3,8 +3,9 @@ set -euo pipefail
 
 : "${ZENOH_ROUTER_ENDPOINT:=tls/host.docker.internal:7448}"
 : "${ZENOH_VERIFY_NAME_ON_CONNECT:=true}"
+: "${MOWER_ID:?MOWER_ID must be set by the provisioned Jetson .env file}"
 
-export ZENOH_ROUTER_ENDPOINT ZENOH_VERIFY_NAME_ON_CONNECT
+export MOWER_ID ZENOH_ROUTER_ENDPOINT ZENOH_VERIFY_NAME_ON_CONNECT
 mkdir -p /run/emi-mower
 envsubst < /opt/emi-mower/zenoh_client.json5.in > /run/emi-mower/zenoh_client.json5
 export ZENOH_SESSION_CONFIG_URI=/run/emi-mower/zenoh_client.json5

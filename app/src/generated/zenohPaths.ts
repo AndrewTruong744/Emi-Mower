@@ -87,3 +87,24 @@ export function mowerTelemetryPath(mowerId: string): string {
       .replace('{mower_id}', mowerId)
   );
 }
+
+export const CUTOUT_UPLOAD_URL_ADDRESS = "user/cutouts/upload-url" as const;
+
+export function cutoutUploadUrlPath(): string {
+  return CUTOUT_UPLOAD_URL_ADDRESS;
+}
+
+export const CUTOUT_UPLOADED_ADDRESS = "user/cutouts/uploaded" as const;
+
+export function cutoutUploadedPath(): string {
+  return CUTOUT_UPLOADED_ADDRESS;
+}
+
+export const MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS = "mower/{mower_id}/cutout/download-url" as const;
+
+export function mowerCutoutDownloadUrlPath(mowerId: string): string {
+  return (
+    MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS
+      .replace('{mower_id}', mowerId)
+  );
+}

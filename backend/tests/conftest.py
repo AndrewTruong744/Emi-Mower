@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 INTEGRATION_MARKERS = {"repository", "api", "zenoh_integration"}
-TABLES = "mower_imu_data, mower_telemetry, yard_coordinates, yards, mowers, users"
+TABLES = "cutout_mower_assignments, cutouts, mower_imu_data, mower_telemetry, yard_coordinates, yards, mowers, users"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

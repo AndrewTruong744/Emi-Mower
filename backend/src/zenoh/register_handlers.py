@@ -2,10 +2,13 @@
 
 from src.zenoh.generated import (
     AddMowerToUserRequest,
+    CutoutUploadNotification,
+    CutoutUploadUrlRequest,
     LiveKitConsumeRequest,
     LiveKitUploadRequest,
     TelemetryHistoryRequest,
     TelemetryList,
+    MowerCutoutDownloadUrlRequest,
     UpdateMowerNameRequest,
     UpdateUserEmailRequest,
     UpdateUserNameRequest,
@@ -13,18 +16,24 @@ from src.zenoh.generated import (
 )
 from src.zenoh.listeners import (
     ADD_MOWER_TO_USER_KEY_EXPR,
+    CUTOUT_UPLOADED_KEY_EXPR,
+    CUTOUT_UPLOAD_URL_KEY_EXPR,
     LIVEKIT_CONSUME_KEY_EXPR,
     LIVEKIT_UPLOAD_KEY_EXPR,
     LOGIN_KEY_EXPR,
     MOWER_TELEMETRY_HISTORY_KEY_EXPR,
     MOWER_TELEMETRY_KEY_EXPR,
+    MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR,
     UPDATE_MOWER_NAME_KEY_EXPR,
     UPDATE_USER_EMAIL_KEY_EXPR,
     UPDATE_USER_NAME_KEY_EXPR,
     add_mower_to_user,
+    cutout_uploaded,
+    cutout_upload_url,
     livekit_consume,
     livekit_upload,
     mower_telemetry,
+    mower_cutout_download_url,
     mower_telemetry_history,
     update_mower_name,
     update_user_email,
@@ -82,8 +91,24 @@ def register_handlers(
         request_model=LiveKitUploadRequest,
         include_query_key=True,
     )
+    query_handler.declare(
+        CUTOUT_UPLOAD_URL_KEY_EXPR,
+        cutout_upload_url,
+        request_model=CutoutUploadUrlRequest,
+    )
+    query_handler.declare(
+        MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR,
+        mower_cutout_download_url,
+        request_model=MowerCutoutDownloadUrlRequest,
+        include_query_key=True,
+    )
     message_handler.declare(
         MOWER_TELEMETRY_KEY_EXPR,
         mower_telemetry,
         message_model=TelemetryList,
+    )
+    message_handler.declare(
+        CUTOUT_UPLOADED_KEY_EXPR,
+        cutout_uploaded,
+        message_model=CutoutUploadNotification,
     )
