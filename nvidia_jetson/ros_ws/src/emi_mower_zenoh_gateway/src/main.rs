@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 use emi_mower_interfaces::msg::TelemetryBatch;
 use emi_mower_zenoh_gateway::generated::zenoh_paths::{mower_joystick_path, mower_telemetry_path};
+use emi_mower_zenoh_gateway::renewal::renew_certificate_if_needed;
 use emi_mower_zenoh_gateway::{
     joystick_to_velocity, parse_joystick_payload, telemetry_payload, validate_mower_id,
     RosImuTelemetry, RosTelemetryRecord, TELEMETRY_TOPIC, TELEOP_TOPIC,
@@ -31,6 +32,11 @@ async fn main() -> Result<()> {
         anyhow::bail!("MAX_LINEAR_MPS and MAX_ANGULAR_RADPS must be finite positive values");
     }
     validate_mower_id(&mower_id)?;
+    match renew_certificate_if_needed(&mower_id).await {
+        Ok(true) => eprintln!("renewed mower operational certificate; opening main mTLS session"),
+        Ok(false) => {}
+        Err(error) => eprintln!("certificate renewal was unavailable: {error}"),
+    }
     let joystick_key = mower_joystick_path(&mower_id);
     let telemetry_key = mower_telemetry_path(&mower_id);
     let (telemetry_tx, telemetry_rx) = mpsc::channel(8);

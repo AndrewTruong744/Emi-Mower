@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from src.zenoh.register_handlers import register_handlers
+from src.zenoh.register_handlers import register_bootstrap_handlers, register_handlers
 
 
 def test_register_handlers_declares_queries_and_telemetry_subscriber():
@@ -26,3 +26,19 @@ def test_register_handlers_declares_queries_and_telemetry_subscriber():
     assert message_handler.declare.call_count == 2
     message_paths = [call.args[0] for call in message_handler.declare.call_args_list]
     assert message_paths == ["mower/*/telemetry", "user/cutouts/uploaded"]
+
+
+def test_register_bootstrap_handlers_declares_only_renewal_queries():
+    query_handler = Mock()
+
+    register_bootstrap_handlers(query_handler)
+
+    assert query_handler.declare.call_count == 2
+    assert [call.args[0] for call in query_handler.declare.call_args_list] == [
+        "bootstrap/mower/*/certificate/renew/challenge",
+        "bootstrap/mower/*/certificate/renew/complete",
+    ]
+    assert all(
+        call.kwargs["include_query_key"]
+        for call in query_handler.declare.call_args_list
+    )

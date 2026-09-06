@@ -108,3 +108,21 @@ export function mowerCutoutDownloadUrlPath(mowerId: string): string {
       .replace('{mower_id}', mowerId)
   );
 }
+
+export const MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS = "bootstrap/mower/{mower_id}/certificate/renew/challenge" as const;
+
+export function mowerCertificateRenewChallengePath(mowerId: string): string {
+  return (
+    MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS
+      .replace('{mower_id}', mowerId)
+  );
+}
+
+export const MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS = "bootstrap/mower/{mower_id}/certificate/renew/complete" as const;
+
+export function mowerCertificateRenewCompletePath(mowerId: string): string {
+  return (
+    MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS
+      .replace('{mower_id}', mowerId)
+  );
+}

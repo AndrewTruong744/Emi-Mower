@@ -23,6 +23,7 @@ def test_write_jetson_env_contains_only_runtime_configuration(tmp_path):
         mower_cert_dir="/opt/emi-mower/certs",
         router_endpoint="tls/zenoh.example.internal:7448",
         verify_name_on_connect=True,
+        mower_launch="real",
     )
 
     assert env_file.read_text() == (
@@ -30,8 +31,11 @@ def test_write_jetson_env_contains_only_runtime_configuration(tmp_path):
         "# Credentials are mounted separately from MOWER_CERT_DIR.\n"
         f"MOWER_ID={mower_id}\n"
         "MOWER_CERT_DIR=/opt/emi-mower/certs\n"
+        "MOWER_CREDENTIAL_DIR=/opt/emi-mower/certs\n"
         "ZENOH_ROUTER_ENDPOINT=tls/zenoh.example.internal:7448\n"
+        "ZENOH_BOOTSTRAP_ENDPOINT=tls/host.docker.internal:7449\n"
         "ZENOH_VERIFY_NAME_ON_CONNECT=true\n"
+        "ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT=true\n"
         "MOWER_LAUNCH=real\n"
         "STM32_CAN_INTERFACE=can0\n"
         "RPLIDAR_DEVICE=/dev/rplidar\n"
@@ -80,9 +84,11 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
         mower_cert_dir="/opt/emi-mower/certs",
         router_endpoint="tls/zenoh.example.internal:7448",
         verify_name_on_connect=True,
+        mower_launch="sim",
         ca_cert=ca_cert,
         ca_key=ca_key,
         ca_key_passphrase_file=None,
+        device_root_public_key=None,
     )
 
     result = await provision_mower.provision_mower(args)
@@ -111,5 +117,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
         mower_cert_dir="/opt/emi-mower/certs",
         router_endpoint="tls/zenoh.example.internal:7448",
         verify_name_on_connect=True,
+        mower_launch="sim",
     )
     close.assert_awaited_once()

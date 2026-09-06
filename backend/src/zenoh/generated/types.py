@@ -296,3 +296,31 @@ WireMessage = (
     | ProblemDetails
     | dict[str, Any]
 )
+
+# Bootstrap renewal schemas generated from zenoh_asyncapi.yaml.
+
+class MowerCertificateRenewChallengeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class MowerCertificateRenewChallengeResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nonce: str
+    expires_in: int
+
+
+class MowerCertificateRenewCompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nonce: str
+    csr_pem: str
+    tpm_signature: str
+
+
+class MowerCertificateRenewCompleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    certificate_pem: str
+    ca_chain_pem: str
+    expires_at: datetime

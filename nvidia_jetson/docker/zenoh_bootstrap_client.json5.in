@@ -1,0 +1,13 @@
+{
+  mode: "client",
+  connect: { endpoints: ["${ZENOH_BOOTSTRAP_ENDPOINT}"] },
+  transport: {
+    link: {
+      tls: {
+        root_ca_certificate: "/etc/mower/certs/root_ca.pem",
+        enable_mtls: false,
+        verify_name_on_connect: ${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT}
+      }
+    }
+  }
+}

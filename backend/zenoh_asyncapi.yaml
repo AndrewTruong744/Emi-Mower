@@ -118,6 +118,24 @@ channels:
       mowerCutoutDownloadUrlRequest: {$ref: '#/components/messages/MowerCutoutDownloadUrlRequest'}
       mowerCutoutDownloadUrlResponse: {$ref: '#/components/messages/MowerCutoutDownloadUrlResponse'}
       problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  mowerCertificateRenewChallenge:
+    address: bootstrap/mower/{mower_id}/certificate/renew/challenge
+    parameters:
+      mower_id:
+        description: Mower whose registered TPM device-root key will answer the challenge.
+    messages:
+      mowerCertificateRenewChallengeRequest: {$ref: '#/components/messages/MowerCertificateRenewChallengeRequest'}
+      mowerCertificateRenewChallengeResponse: {$ref: '#/components/messages/MowerCertificateRenewChallengeResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  mowerCertificateRenewComplete:
+    address: bootstrap/mower/{mower_id}/certificate/renew/complete
+    parameters:
+      mower_id:
+        description: Mower completing a TPM-signed operational certificate renewal.
+    messages:
+      mowerCertificateRenewCompleteRequest: {$ref: '#/components/messages/MowerCertificateRenewCompleteRequest'}
+      mowerCertificateRenewCompleteResponse: {$ref: '#/components/messages/MowerCertificateRenewCompleteResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
 operations:
   userLogin:
     action: receive
@@ -258,6 +276,28 @@ operations:
       messages:
         - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/mowerCutoutDownloadUrlResponse'}
         - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/problemDetails'}
+  mowerCertificateRenewChallenge:
+    action: receive
+    channel: {$ref: '#/channels/mowerCertificateRenewChallenge'}
+    summary: Issue a one-time TPM renewal challenge for a mower
+    messages:
+      - {$ref: '#/channels/mowerCertificateRenewChallenge/messages/mowerCertificateRenewChallengeRequest'}
+    reply:
+      channel: {$ref: '#/channels/mowerCertificateRenewChallenge'}
+      messages:
+        - {$ref: '#/channels/mowerCertificateRenewChallenge/messages/mowerCertificateRenewChallengeResponse'}
+        - {$ref: '#/channels/mowerCertificateRenewChallenge/messages/problemDetails'}
+  mowerCertificateRenewComplete:
+    action: receive
+    channel: {$ref: '#/channels/mowerCertificateRenewComplete'}
+    summary: Verify TPM proof and issue a replacement operational mower certificate
+    messages:
+      - {$ref: '#/channels/mowerCertificateRenewComplete/messages/mowerCertificateRenewCompleteRequest'}
+    reply:
+      channel: {$ref: '#/channels/mowerCertificateRenewComplete'}
+      messages:
+        - {$ref: '#/channels/mowerCertificateRenewComplete/messages/mowerCertificateRenewCompleteResponse'}
+        - {$ref: '#/channels/mowerCertificateRenewComplete/messages/problemDetails'}
 components:
   messages:
     UserLoginRequest:
@@ -335,6 +375,18 @@ components:
     MowerCutoutDownloadUrlResponse:
       name: MowerCutoutDownloadUrlResponse
       payload: {$ref: '#/components/schemas/MowerCutoutDownloadUrlResponse'}
+    MowerCertificateRenewChallengeRequest:
+      name: MowerCertificateRenewChallengeRequest
+      payload: {$ref: '#/components/schemas/MowerCertificateRenewChallengeRequest'}
+    MowerCertificateRenewChallengeResponse:
+      name: MowerCertificateRenewChallengeResponse
+      payload: {$ref: '#/components/schemas/MowerCertificateRenewChallengeResponse'}
+    MowerCertificateRenewCompleteRequest:
+      name: MowerCertificateRenewCompleteRequest
+      payload: {$ref: '#/components/schemas/MowerCertificateRenewCompleteRequest'}
+    MowerCertificateRenewCompleteResponse:
+      name: MowerCertificateRenewCompleteResponse
+      payload: {$ref: '#/components/schemas/MowerCertificateRenewCompleteResponse'}
   schemas:
     UserLoginRequest:
       type: object
@@ -615,6 +667,33 @@ components:
         download_url: {type: string, format: uri}
         expires_in: {type: integer}
         content_type: {type: string}
+    MowerCertificateRenewChallengeRequest:
+      type: object
+      additionalProperties: false
+      description: Empty request. The mower identity is taken from the scoped bootstrap path.
+    MowerCertificateRenewChallengeResponse:
+      type: object
+      required: [nonce, expires_in]
+      additionalProperties: false
+      properties:
+        nonce: {type: string, description: Base64url one-time challenge.}
+        expires_in: {type: integer, example: 300}
+    MowerCertificateRenewCompleteRequest:
+      type: object
+      required: [nonce, csr_pem, tpm_signature]
+      additionalProperties: false
+      properties:
+        nonce: {type: string}
+        csr_pem: {type: string}
+        tpm_signature: {type: string, description: Base64 DER ECDSA signature over the canonical renewal message.}
+    MowerCertificateRenewCompleteResponse:
+      type: object
+      required: [certificate_pem, ca_chain_pem, expires_at]
+      additionalProperties: false
+      properties:
+        certificate_pem: {type: string}
+        ca_chain_pem: {type: string}
+        expires_at: {type: string, format: date-time}
     ProblemDetails:
       type: object
       required: [type, title, status, detail, instance, code, timestamp]

@@ -13,7 +13,16 @@ const document = readFileSync(asyncApiPath, 'utf8');
 
 // These are the native Zenoh payloads consumed or produced by the gateway.
 // ROS messages are intentionally not generated here: they are owned by ROS IDL.
-const gatewaySchemas = ['JoystickCommand', 'ImuTelemetry', 'TelemetryRecord', 'TelemetryList'];
+const gatewaySchemas = [
+  'JoystickCommand',
+  'ImuTelemetry',
+  'TelemetryRecord',
+  'TelemetryList',
+  'MowerCertificateRenewChallengeRequest',
+  'MowerCertificateRenewChallengeResponse',
+  'MowerCertificateRenewCompleteRequest',
+  'MowerCertificateRenewCompleteResponse',
+];
 
 function schemaBlock(name) {
   const schemas = document.split('  schemas:\n')[1];

@@ -50,6 +50,14 @@ services:
     depends_on:
       - zenoh-mtls
 
+  zenoh-bootstrap:
+    image: eclipse/zenoh:1.9.0
+    command: ["-c", "/workspace/zenoh-router-bootstrap.json5"]
+    network_mode: host
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+
   backend:
     image: python:3.12-slim
     working_dir: /workspace
@@ -68,6 +76,9 @@ services:
       VALKEY_PORT: ${VALKEY_PORT:-6379}
       ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
       ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
+      ZENOH_BOOTSTRAP_ENDPOINT: ${ZENOH_BOOTSTRAP_ENDPOINT:-tls/127.0.0.1:7449}
+      ZENOH_BOOTSTRAP_VERIFY_NAME: ${ZENOH_BOOTSTRAP_VERIFY_NAME:-false}
+      MOWER_CA_KEY_PASSPHRASE_FILE: ${MOWER_CA_KEY_PASSPHRASE_FILE:-}
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-emi-mower}
       GCS_CUTOUT_BUCKET: ${GCS_CUTOUT_BUCKET:-emi-mower-cutouts-sandbox}
     command:
@@ -86,6 +97,8 @@ services:
       zenoh-mtls:
         condition: service_started
       zenoh-app:
+        condition: service_started
+      zenoh-bootstrap:
         condition: service_started
     healthcheck:
       test:

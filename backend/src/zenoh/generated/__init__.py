@@ -69,3 +69,18 @@ __all__ = [
     "UserLoginRequest",
     "UserLoginResponse",
 ]
+
+# Bootstrap renewal exports generated from zenoh_asyncapi.yaml.
+from src.zenoh.generated.types import (
+    MowerCertificateRenewChallengeRequest,
+    MowerCertificateRenewChallengeResponse,
+    MowerCertificateRenewCompleteRequest,
+    MowerCertificateRenewCompleteResponse,
+)
+
+__all__ += [
+    "MowerCertificateRenewChallengeRequest",
+    "MowerCertificateRenewChallengeResponse",
+    "MowerCertificateRenewCompleteRequest",
+    "MowerCertificateRenewCompleteResponse",
+]

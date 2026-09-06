@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +37,32 @@ class MowerModel(Base):
         back_populates="mower",
         cascade="all, delete-orphan",
     )
+    device_identities: Mapped[list["MowerDeviceIdentityModel"]] = relationship(
+        back_populates="mower", cascade="all, delete-orphan"
+    )
+
+
+class MowerDeviceIdentityModel(Base):
+    """Registered TPM device-root key; its private half stays on the mower."""
+
+    __tablename__ = "mower_device_identities"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    mower_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mowers.id", ondelete="CASCADE"), index=True
+    )
+    public_key_pem: Mapped[str] = mapped_column(Text, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    algorithm: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    mower: Mapped["MowerModel"] = relationship(back_populates="device_identities")
 
 
 class MowerTelemetryModel(Base):

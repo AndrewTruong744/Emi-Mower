@@ -1,6 +1,7 @@
 ## Setup
 
 ### Nvidia jetson setup
+
 - install NVIDIA Jetpack iso
 - use balena etcher to transfer image to usb
 
@@ -18,8 +19,9 @@ cd backend
 docker compose -f local-docker-compose.yml up -d zenoh-mtls zenoh-app backend
 
 cd ../nvidia_jetson
-# .env must contain the mower UUID. Start from .env.example for simulation,
-# or have backend provisioning write it together with certs/.
+# .env must contain the mower UUID. Start from .env.example for a one-off
+# simulation, or use the backend master provisioner below for isolated,
+# multi-mower swtpm simulations.
 docker compose up --build
 ```
 
@@ -30,11 +32,13 @@ well as Docker Desktop. Set `ZENOH_ROUTER_ENDPOINT` if the router differs.
 because the existing local router certificate names `localhost`; use a router
 certificate with the production DNS name and set it to `true` in deployment.
 
-For a physical Jetson, use the override. It builds the OAK-D and SLLidar
-drivers, exposes USB and lidar devices, shares the host CAN interface, and
-starts `real.launch.py`:
+For a physical Jetson, initialize the OAK-D and SLLidar submodules before the
+first image build. The override then builds those drivers, exposes USB and
+lidar devices, shares the host CAN interface, and starts `real.launch.py`:
 
 ```bash
+git submodule update --init --recursive
+
 cd nvidia_jetson
 docker compose -f docker-compose.yml -f docker-compose.jetson.yml up --build -d
 ```
@@ -46,23 +50,65 @@ Configure the host CAN interface before starting Compose, for example:
 sudo ip link set can0 up type can bitrate 500000
 ```
 
-Do not
-put the certificate directory in the image or repository; Compose mounts it
-read-only at `/etc/mower/certs`.
+Do not put the certificate directory in the image or repository. Compose
+mounts mower-specific persistent storage at `/etc/mower/certs`. It is writable
+only so the gateway can atomically install a renewed operational certificate;
+the CA key is never mounted there.
 
 ### Provision a mower
 
 Do not generate mower certificates on the Jetson. On the trusted backend or
 factory host, run `backend/src/scripts/provision_mower.py` (documented in
-`backend/README.md`). It creates the mower UUID and database record, installs
+[`docs/backend/development.md`](../docs/backend/development.md)). It creates the mower UUID and database record, installs
 the matching Zenoh mTLS ACL, issues `mower.crt`, `mower.key`, and
 `root_ca.pem`, and writes this directory's ignored `.env` file. The Jetson
 never receives the CA private key.
 
-For a simulation-only checkout, copy `.env.example` to `.env` and place a
-development certificate bundle in `certs/`. `docker-compose.yml` uses
-`env_file: .env`, so its Rust gateway and Python LiveKit node receive the
-same `MOWER_ID`.
+For a simulation-only checkout, the recommended entry point is the backend
+master provisioner:
+
+```bash
+cd backend
+docker compose -f local-docker-compose.yml up -d postgres valkey zenoh-mtls zenoh-bootstrap backend
+./tools/initialize_simulated_mower.sh --serial-number SIM-0001 --nickname "Mower one"
+./tools/initialize_simulated_mower.sh --serial-number SIM-0002 --nickname "Mower two"
+```
+
+Each mower receives its own UUID-named directory at
+`nvidia_jetson/.sim/mowers/<uuid>/`, containing an ignored `mower.env`,
+operational certificate bundle, and swtpm persistent state. The Compose project
+is named `mower-<first-8-uuid-characters>`, so the two ROS/swtpm pairs can run
+together. The device-root private key is created and retained by swtpm; only
+`device-root-public.pem` is sent to the backend during provisioning.
+
+When the backend CA key is encrypted, configure its backend-only passphrase
+file before running this command; see the corresponding section in
+[`docs/backend/development.md`](../docs/backend/development.md). The passphrase and CA key never belong in this directory,
+the mower environment file, or a container image.
+
+For a one-off legacy simulation, copy `.env.example` to `.env` and place a
+development certificate bundle in `certs/`. `docker-compose.yml` uses the
+selected `MOWER_ENV_FILE` (default `.env`), so Rust and Python processes share
+the same `MOWER_ID`. For a non-default mower file, pass it to Compose as well
+so volume interpolation uses the same values:
+
+```bash
+docker compose --env-file .sim/mowers/<uuid>/mower.env \
+  -f docker-compose.yml -f docker-compose.sim-tpm.yml up -d
+```
+
+### Certificate renewal
+
+The operational mower certificate lasts 90 days. At gateway startup, a missing,
+expired, or certificate expiring within 30 days triggers a two-query renewal
+over the dedicated TLS-only Zenoh bootstrap endpoint (default
+`tls/host.docker.internal:7449`). The first query obtains a one-time nonce;
+the second sends a replacement CSR plus a TPM signature. After receiving the
+certificate, the gateway updates `/etc/mower/certs` and connects normally to
+the mTLS router. It verifies the replacement leaf certificate against the
+already-mounted CA and never trusts a bootstrap response to replace that CA.
+The bootstrap endpoint is not a substitute for the mTLS router and carries no
+mower command or telemetry routes.
 
 If the external router is temporarily down, `rmw_zenoh_cpp` cannot initialize a
 ROS context. The launch files respawn affected nodes every two seconds until it
@@ -73,6 +119,7 @@ AsyncAPI telemetry route. The LiveKit node separately retries its token
 session.
 
 ### OAKD S2 and Slamtex Lidar S2 installation
+
 - The DepthAI and SLLIDAR ROS 2 drivers are Git submodules. From the repository
   root, import them before building the workspace:
   ```bash
@@ -83,19 +130,20 @@ session.
   `ros_ws/src/sllidar_ros2`.
 
 ### OAKD S2 setup
+
 - cd ~/ros_ws
 - rosdep install --from-paths src --ignore-src -r -y
 - colcon build --symlink-install
 - source install/setup.bash
 
 ## Slamtec Lidar S2
+
 cd ~/ros_ws
 colcon build --symlink-install
 source install/setup.bash
 cd ~/ros_ws/src/sllidar_ros2/scripts
 sudo chmod +x create_udev_rules.sh
 ./create_udev_rules.sh
-
 
 ## To run without Docker
 
@@ -106,9 +154,12 @@ ros2 launch emi_mower_bringup sim.launch.py mower_id:=mower-01
 ros2 launch emi_mower_bringup real.launch.py mower_id:=mower-01
 ```
 
-The launch file starts the OAK-D S2 RGB stream on `/oak/rgb/image_raw`, the
-RPLIDAR S2, and the LiveKit upload node. Pass a different `mower_id` for each
-mower so the node requests its token on `mower/{mower_id}/livekit/upload`.
+`real.launch.py` starts the OAK-D S2 RGB stream on `/oak/rgb/image_raw`, the
+RPLIDAR S2, and the LiveKit upload node. `sim.launch.py` intentionally starts
+only the Zenoh gateway, boundary-cutout node, and simulated command sink; it
+does not access cameras, lidar, CAN, or LiveKit. Pass a different `mower_id`
+for each mower so the physical LiveKit node requests its token on
+`mower/{mower_id}/livekit/upload`.
 
 The ROS graph and Python LiveKit node use the same Zenoh 1.9 session
 configuration. `rmw_zenoh_cpp` reads `ZENOH_SESSION_CONFIG_URI`; Zenoh-Python

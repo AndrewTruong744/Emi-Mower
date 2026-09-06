@@ -114,3 +114,21 @@ pub fn mower_cutout_download_url_path(mower_id: &str) -> String {
     path = path.replace("{mower_id}", mower_id);
     path
 }
+
+pub const MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS: &str =
+    "bootstrap/mower/{mower_id}/certificate/renew/challenge";
+
+pub fn mower_certificate_renew_challenge_path(mower_id: &str) -> String {
+    let mut path = MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS.to_owned();
+    path = path.replace("{mower_id}", mower_id);
+    path
+}
+
+pub const MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS: &str =
+    "bootstrap/mower/{mower_id}/certificate/renew/complete";
+
+pub fn mower_certificate_renew_complete_path(mower_id: &str) -> String {
+    let mut path = MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS.to_owned();
+    path = path.replace("{mower_id}", mower_id);
+    path
+}

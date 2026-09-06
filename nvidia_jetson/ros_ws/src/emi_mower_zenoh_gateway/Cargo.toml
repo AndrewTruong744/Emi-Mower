@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 emi_mower_control = { path = "../emi_mower_control" }
 emi_mower_interfaces = "*"
@@ -18,5 +19,6 @@ geometry_msgs = "*"
 rclrs = "0.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 zenoh = "=1.9.0"

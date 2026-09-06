@@ -1,0 +1,34 @@
+// Isolated TLS-only bootstrap plane. It deliberately exposes no normal mower
+// routes: the renewal handler authenticates each request with the mower TPM
+// signature and a one-time nonce.
+{
+  mode: "router",
+  listen: { endpoints: ["tls/0.0.0.0:7449"] },
+  transport: {
+    link: {
+      tls: {
+        root_ca_certificate: "certs/ca/ca.crt",
+        listen_certificate: "certs/zenoh_mtls/router.crt",
+        listen_private_key: "certs/zenoh_mtls/router.key",
+        enable_mtls: false
+      }
+    }
+  },
+  access_control: {
+    enabled: true,
+    default_permission: "deny",
+    rules: [{
+      id: "bootstrap_renewal_only",
+      permission: "allow",
+      flows: ["ingress", "egress"],
+      messages: ["query", "reply", "declare_queryable"],
+      key_exprs: ["bootstrap/mower/*/certificate/renew/**"]
+    }],
+    subjects: [{ id: "bootstrap_guest" }],
+    policies: [{
+      id: "bootstrap_guest_policy",
+      subjects: ["bootstrap_guest"],
+      rules: ["bootstrap_renewal_only"]
+    }]
+  }
+}

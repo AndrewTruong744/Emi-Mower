@@ -1,6 +1,7 @@
 FROM ros:jazzy-ros-base-noble
 
 ARG BUILD_PHYSICAL_DRIVERS=0
+ENV BUILD_PHYSICAL_DRIVERS=${BUILD_PHYSICAL_DRIVERS}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=jazzy
 ENV PATH=/root/.cargo/bin:${PATH}
@@ -23,6 +24,7 @@ RUN apt-get update \
         ros-jazzy-rmw-zenoh-cpp \
         ros-jazzy-test-msgs \
         ros-dev-tools \
+        tpm2-tools \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /tmp/requirements.txt
@@ -37,6 +39,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages \
 
 COPY ros_ws/src /ws/src
 COPY docker/zenoh_client.json5.in /opt/emi-mower/zenoh_client.json5.in
+COPY docker/zenoh_bootstrap_client.json5.in /opt/emi-mower/zenoh_bootstrap_client.json5.in
 
 RUN rosdep init 2>/dev/null || true
 RUN rosdep update \
@@ -64,7 +67,8 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
     && find /ws/src -type d -name target -prune -exec rm -rf {} +
 
 COPY docker/ros-entrypoint.sh /usr/local/bin/ros-entrypoint.sh
-RUN chmod 0755 /usr/local/bin/ros-entrypoint.sh
+COPY docker/tpm-init.sh /usr/local/bin/tpm-init.sh
+RUN chmod 0755 /usr/local/bin/ros-entrypoint.sh /usr/local/bin/tpm-init.sh
 
 ENTRYPOINT ["/usr/local/bin/ros-entrypoint.sh"]
 CMD ["bash", "-lc", ": \"${MOWER_ID:?set MOWER_ID in the provisioned container environment}\"; if [ \"${MOWER_LAUNCH:-sim}\" = real ]; then ros2 launch emi_mower_bringup real.launch.py mower_id:=${MOWER_ID}; else ros2 launch /ws/src/emi_mower_bringup/launch/sim.launch.py mower_id:=${MOWER_ID}; fi"]

@@ -51,3 +51,30 @@ pub struct TelemetryRecord {
 }
 
 pub type TelemetryList = Vec<TelemetryRecord>;
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MowerCertificateRenewChallengeRequest {}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MowerCertificateRenewChallengeResponse {
+    pub nonce: String,
+    pub expires_in: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MowerCertificateRenewCompleteRequest {
+    pub nonce: String,
+    pub csr_pem: String,
+    pub tpm_signature: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MowerCertificateRenewCompleteResponse {
+    pub certificate_pem: String,
+    pub ca_chain_pem: String,
+    pub expires_at: String,
+}

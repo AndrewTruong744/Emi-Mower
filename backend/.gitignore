@@ -138,6 +138,7 @@ cython_debug/
 .env.production
 .env.staging
 .env.*.local
+.secrets/
 .flaskenv
 
 # IDE / Editors

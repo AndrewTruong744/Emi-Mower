@@ -9,6 +9,7 @@ use anyhow::{bail, Result};
 use chrono::{DateTime, SecondsFormat, Utc};
 
 pub mod generated;
+pub mod renewal;
 
 use generated::zenoh::{ImuTelemetry, TelemetryRecord};
 

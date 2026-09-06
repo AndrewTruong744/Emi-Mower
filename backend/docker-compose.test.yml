@@ -36,6 +36,13 @@ services:
     ports:
       - "18002:8002"
 
+  zenoh-bootstrap:
+    image: eclipse/zenoh:1.9.0
+    command: ["-c", "/workspace/zenoh-router-bootstrap.json5"]
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+
   zenoh-app:
     image: eclipse/zenoh:1.9.0
     working_dir: /workspace
@@ -65,6 +72,8 @@ services:
       ZENOH_MTLS_VERIFY_NAME: "false"
       ZENOH_APP_REST_URL: http://zenoh-app:8001
       ZENOH_MTLS_REST_URL: http://zenoh-mtls:8002
+      ZENOH_BOOTSTRAP_ENDPOINT: tls/zenoh-bootstrap:7449
+      ZENOH_BOOTSTRAP_VERIFY_NAME: "false"
       JWT_SECRET: integration-test-secret
       FIREBASE_DISABLED: "true"
     command:
@@ -81,6 +90,8 @@ services:
       zenoh-mtls:
         condition: service_started
       zenoh-app:
+        condition: service_started
+      zenoh-bootstrap:
         condition: service_started
     ports:
       - "18000:8000"

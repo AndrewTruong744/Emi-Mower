@@ -11,6 +11,10 @@ from src.repositories.find_user_by_email import find_user_by_email
 from src.repositories.find_user_by_mower import find_user_by_mower
 from src.repositories.get_all_mowers_and_users import get_all_mowers_and_users
 from src.repositories.get_mower_data import get_mower_data
+from src.repositories.mower_device_identities import (
+    get_active_mower_device_identity,
+    register_mower_device_identity,
+)
 from src.repositories.get_mowers_of_user import get_mowers_of_user
 from src.repositories.get_telemetry_history import get_telemetry_history
 from src.repositories.get_user_data import get_user_data
@@ -39,6 +43,7 @@ __all__ = [
     "find_user_by_mower",
     "find_user_by_email",
     "get_mower_data",
+    "get_active_mower_device_identity",
     "get_all_mowers_and_users",
     "get_mowers_of_user",
     "get_user_data",
@@ -52,4 +57,5 @@ __all__ = [
     "add_telemetry_to_cache",
     "push_cached_telemetry_to_db",
     "get_telemetry_history",
+    "register_mower_device_identity",
 ]

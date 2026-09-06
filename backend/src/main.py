@@ -12,11 +12,12 @@ from src.config import (
     close_valkey_pool,
     engine,
     get_zenoh_config,
+    get_zenoh_bootstrap_config,
     init_http_client,
 )
 from src.services import initialize_backend_auth
 from src.zenoh import ZenohMessageHandler, ZenohQueryHandler
-from src.zenoh.register_handlers import register_handlers
+from src.zenoh.register_handlers import register_bootstrap_handlers, register_handlers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +74,18 @@ async def lifespan(app: FastAPI):
         logger.error(f"Zenoh failed to connect on server startup: {e}")
         logger.warning("Application running without active Zenoh connection.")
 
+    logger.info("Starting Zenoh bootstrap renewal connection...")
+    try:
+        bootstrap_session = zenoh.open(get_zenoh_bootstrap_config())
+        app.state.zenoh_bootstrap_session = bootstrap_session
+        app.state.zenoh_bootstrap_query_handler = ZenohQueryHandler(
+            bootstrap_session, asyncio.get_running_loop()
+        )
+        register_bootstrap_handlers(app.state.zenoh_bootstrap_query_handler)
+        logger.info("Zenoh bootstrap renewal connection started successfully.")
+    except Exception as e:
+        logger.error(f"Bootstrap Zenoh failed to connect on server startup: {e}")
+
     yield
 
     # Shutdown: Clean up connections
@@ -87,6 +100,13 @@ async def lifespan(app: FastAPI):
             logger.info("Zenoh session cleanly closed.")
         except Exception as e:
             logger.error(f"Error closing Zenoh session: {e}")
+
+    if (
+        hasattr(app.state, "zenoh_bootstrap_session")
+        and app.state.zenoh_bootstrap_session is not None
+    ):
+        app.state.zenoh_bootstrap_query_handler.close()
+        app.state.zenoh_bootstrap_session.close()
 
     logger.info("Closing Valkey connection pool...")
     await close_valkey_pool()

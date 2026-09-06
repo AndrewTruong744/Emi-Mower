@@ -14,6 +14,8 @@ from pydantic import ValidationError
 from src.zenoh.generated import (
     EmergencyStopCommand,
     ImuTelemetry,
+    MowerCertificateRenewChallengeRequest,
+    MowerCertificateRenewCompleteRequest,
     MowerCommandResponse,
     SetModeCommand,
     TelemetryList,
@@ -87,6 +89,24 @@ def test_rust_gateway_routes_and_joystick_type_are_generated_from_asyncapi():
     rust_paths = RUST_PATHS_PATH.read_text()
     assert 'MOWER_JOYSTICK_ADDRESS: &str = "mower/{mower_id}/joystick"' in rust_paths
     assert 'MOWER_TELEMETRY_ADDRESS: &str = "mower/{mower_id}/telemetry"' in rust_paths
+
+
+def test_certificate_renewal_contract_is_generated_for_backend_and_gateway():
+    assert MowerCertificateRenewChallengeRequest().model_dump() == {}
+    assert MowerCertificateRenewCompleteRequest.model_fields.keys() == {
+        "nonce",
+        "csr_pem",
+        "tpm_signature",
+    }
+    source = RUST_TYPES_PATH.read_text()
+    paths = RUST_PATHS_PATH.read_text()
+    app_types = APP_TYPES_PATH.read_text()
+    assert "pub struct MowerCertificateRenewCompleteRequest" in source
+    assert "export interface MowerCertificateRenewCompleteRequest" in app_types
+    assert (
+        'MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS: &str =\n'
+        '    "bootstrap/mower/{mower_id}/certificate/renew/challenge"'
+    ) in paths
 
 
 def test_telemetry_channel_references_the_shared_telemetry_list_message():

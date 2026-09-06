@@ -1,0 +1,39 @@
+services:
+  swtpm:
+    build:
+      context: .
+      dockerfile: Dockerfile.swtpm
+    volumes:
+      - ${SWTPM_STATE_DIR:?set SWTPM_STATE_DIR in the mower env file}:/var/lib/swtpm
+
+  tpm-init:
+    image: emi-mower-ros:jazzy
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_PHYSICAL_DRIVERS: "0"
+    # The shared ROS entrypoint validates MOWER_ID before dispatching to the
+    # TPM initializer, so this one-shot service needs the same mower-specific
+    # environment as the long-running ROS service.
+    env_file:
+      - ${MOWER_ENV_FILE:-.env}
+    environment:
+      TPM2TOOLS_TCTI: swtpm:host=swtpm,port=2321
+      TPM_STATE_DIR: /var/lib/emi-mower/tpm
+    volumes:
+      - ${SWTPM_STATE_DIR:?set SWTPM_STATE_DIR in the mower env file}:/var/lib/emi-mower/tpm
+    command: ["/usr/local/bin/tpm-init.sh"]
+    depends_on:
+      - swtpm
+
+  ros:
+    environment:
+      TPM2TOOLS_TCTI: swtpm:host=swtpm,port=2321
+      TPM_STATE_DIR: /var/lib/emi-mower/tpm
+      TPM_DEVICE_ROOT_HANDLE: "0x81000001"
+    volumes:
+      - ${SWTPM_STATE_DIR:?set SWTPM_STATE_DIR in the mower env file}:/var/lib/emi-mower/tpm:ro
+    depends_on:
+      tpm-init:
+        condition: service_completed_successfully

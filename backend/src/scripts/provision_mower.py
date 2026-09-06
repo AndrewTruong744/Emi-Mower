@@ -12,6 +12,7 @@ from src.config.database import AsyncSessionLocal
 from src.config.http_client import close_http_client
 from src.config.zenoh_client import ZenohAdminClient
 from src.repositories.create_mower import create_mower
+from src.repositories.mower_device_identities import register_mower_device_identity
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = BACKEND_ROOT.parent
@@ -36,6 +37,7 @@ def write_jetson_env(
     mower_cert_dir: str,
     router_endpoint: str,
     verify_name_on_connect: bool,
+    mower_launch: str = "real",
 ) -> None:
     """Write the non-secret Compose environment for exactly one mower."""
     env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -46,10 +48,14 @@ def write_jetson_env(
                 "# Credentials are mounted separately from MOWER_CERT_DIR.",
                 f"MOWER_ID={mower_id}",
                 f"MOWER_CERT_DIR={mower_cert_dir}",
+                f"MOWER_CREDENTIAL_DIR={mower_cert_dir}",
                 f"ZENOH_ROUTER_ENDPOINT={router_endpoint}",
+                "ZENOH_BOOTSTRAP_ENDPOINT=tls/host.docker.internal:7449",
                 "ZENOH_VERIFY_NAME_ON_CONNECT="
                 f"{'true' if verify_name_on_connect else 'false'}",
-                "MOWER_LAUNCH=real",
+                "ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT="
+                f"{'true' if verify_name_on_connect else 'false'}",
+                f"MOWER_LAUNCH={mower_launch}",
                 "STM32_CAN_INTERFACE=can0",
                 "RPLIDAR_DEVICE=/dev/rplidar",
                 "",
@@ -94,6 +100,12 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
         and not args.ca_key_passphrase_file.is_file()
     ):
         raise RuntimeError("the CA key passphrase file must exist when provided")
+    device_root_public_key = getattr(args, "device_root_public_key", None)
+    if (
+        device_root_public_key is not None
+        and not device_root_public_key.is_file()
+    ):
+        raise RuntimeError("the mower TPM public key file must exist when provided")
     if not CERTIFICATE_SCRIPT.is_file():
         raise RuntimeError(f"certificate issuer not found: {CERTIFICATE_SCRIPT}")
 
@@ -104,6 +116,12 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
             nickname=args.nickname,
             db=db,
         )
+        if device_root_public_key is not None:
+            await register_mower_device_identity(
+                mower_id,
+                device_root_public_key.read_text(),
+                db,
+            )
     logger.info("Mower record ready: %s (%s)", mower.id, mower.serial_number)
 
     try:
@@ -123,6 +141,7 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
             mower_cert_dir=args.mower_cert_dir,
             router_endpoint=args.router_endpoint,
             verify_name_on_connect=args.verify_name_on_connect,
+            mower_launch=getattr(args, "mower_launch", "real"),
         )
     finally:
         await close_http_client()
@@ -152,13 +171,23 @@ def parse_args() -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument("--mower-launch", choices=("real", "sim"), default="real")
     parser.add_argument(
         "--ca-cert", type=Path, default=BACKEND_ROOT / "certs" / "ca" / "ca.crt"
     )
     parser.add_argument(
         "--ca-key", type=Path, default=BACKEND_ROOT / "certs" / "ca" / "ca.key"
     )
-    parser.add_argument("--ca-key-passphrase-file", type=Path)
+    parser.add_argument(
+        "--ca-key-passphrase-file",
+        type=Path,
+        default=(os.getenv("MOWER_CA_KEY_PASSPHRASE_FILE") or None),
+    )
+    parser.add_argument(
+        "--device-root-public-key",
+        type=Path,
+        help="PEM public key exported from the mower TPM during initialization",
+    )
     return parser.parse_args()
 
 

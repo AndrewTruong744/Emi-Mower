@@ -1,0 +1,10 @@
+FROM ubuntu:noble
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends swtpm \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/swtpm-entrypoint.sh /usr/local/bin/swtpm-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/swtpm-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/swtpm-entrypoint.sh"]

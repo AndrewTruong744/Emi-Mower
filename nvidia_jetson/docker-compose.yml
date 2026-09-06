@@ -1,5 +1,3 @@
-name: emi-mower-ros
-
 services:
   ros:
     build:
@@ -9,10 +7,13 @@ services:
         BUILD_PHYSICAL_DRIVERS: "0"
     image: emi-mower-ros:jazzy
     init: true
+    # rmw_zenoh_cpp allocates POSIX shared-memory segments for the ROS context.
+    # Docker's 64 MiB default is insufficient for the gateway and simulator.
+    shm_size: 256mb
     # Docker Compose reads .env for ${...} interpolation, while env_file also
     # passes those values to ROS, Rust, and Python processes in this container.
     env_file:
-      - .env
+      - ${MOWER_ENV_FILE:-.env}
     environment:
       MOWER_ID: ${MOWER_ID:?provision a mower or set MOWER_ID in nvidia_jetson/.env}
       MOWER_LAUNCH: ${MOWER_LAUNCH:-sim}
@@ -22,14 +23,18 @@ services:
       # Local backend certificates normally name localhost, not the Docker
       # gateway. Production must override this to true with a matching DNS SAN.
       ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-false}
+      ZENOH_BOOTSTRAP_ENDPOINT: ${ZENOH_BOOTSTRAP_ENDPOINT:-tls/host.docker.internal:7449}
+      ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT: ${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT:-false}
       STM32_CAN_INTERFACE: ${STM32_CAN_INTERFACE:-can0}
       RPLIDAR_DEVICE: ${RPLIDAR_DEVICE:-/dev/rplidar}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:
       # Place mower.crt, mower.key, and root_ca.pem in this directory. It is
-      # mounted read-only and is intentionally excluded from the build context.
-      - ${MOWER_CERT_DIR:-./certs}:/etc/mower/certs:ro
+      # writable only so the gateway can atomically install a renewed
+      # operational certificate. This directory is intentionally excluded from
+      # the build context and must be mower-specific persistent storage.
+      - ${MOWER_CREDENTIAL_DIR:-./certs}:/etc/mower/certs:rw
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'ros2 launch|zenoh_gateway' >/dev/null"]
       interval: 10s

@@ -170,3 +170,23 @@ export interface ProblemDetails {
   timestamp: string;
   [key: string]: unknown;
 }
+
+// Bootstrap renewal types generated from zenoh_asyncapi.yaml.
+export type MowerCertificateRenewChallengeRequest = Record<string, never>;
+
+export interface MowerCertificateRenewChallengeResponse {
+  nonce: string;
+  expires_in: number;
+}
+
+export interface MowerCertificateRenewCompleteRequest {
+  nonce: string;
+  csr_pem: string;
+  tpm_signature: string;
+}
+
+export interface MowerCertificateRenewCompleteResponse {
+  certificate_pem: string;
+  ca_chain_pem: string;
+  expires_at: string;
+}

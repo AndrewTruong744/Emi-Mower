@@ -51,3 +51,22 @@ def get_zenoh_config() -> zenoh.Config:
         config.insert_json5("transport/link/tls/verify_name_on_connect", "false")
 
     return config
+
+
+def get_zenoh_bootstrap_config() -> zenoh.Config:
+    """Connect to the isolated renewal router with server-authenticated TLS only."""
+    config = zenoh.Config()
+    config.insert_json5("mode", '"client"')
+    config.insert_json5(
+        "connect/endpoints", f'[{settings.ZENOH_BOOTSTRAP_ENDPOINT!r}]'
+    )
+    ca_cert = Path(settings.ZENOH_CA_CERT)
+    if not ca_cert.exists():
+        raise FileNotFoundError(f"Zenoh CA certificate not found: {ca_cert}")
+    config.insert_json5(
+        "transport/link/tls/root_ca_certificate", f'"{ca_cert.as_posix()}"'
+    )
+    config.insert_json5("transport/link/tls/enable_mtls", "false")
+    if not settings.ZENOH_BOOTSTRAP_VERIFY_NAME:
+        config.insert_json5("transport/link/tls/verify_name_on_connect", "false")
+    return config

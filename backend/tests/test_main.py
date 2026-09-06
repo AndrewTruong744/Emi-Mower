@@ -11,6 +11,8 @@ def _clear_zenoh_state(app: FastAPI) -> None:
         "zenoh_session",
         "zenoh_query_handler",
         "zenoh_message_handler",
+        "zenoh_bootstrap_session",
+        "zenoh_bootstrap_query_handler",
     ):
         if hasattr(app.state, name):
             delattr(app.state, name)
@@ -31,16 +33,28 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
     valkey.ping = AsyncMock()
     valkey.close = AsyncMock()
     query_handler = Mock()
+    bootstrap_query_handler = Mock()
     message_handler = Mock()
     session = Mock()
+    bootstrap_session = Mock()
     monkeypatch.setattr(main, "engine", Engine())
     monkeypatch.setattr(main, "init_http_client", Mock())
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
     monkeypatch.setattr(main, "get_zenoh_config", Mock(return_value="config"))
-    monkeypatch.setattr(main.zenoh, "open", Mock(return_value=session))
-    monkeypatch.setattr(main, "ZenohQueryHandler", Mock(return_value=query_handler))
+    monkeypatch.setattr(
+        main, "get_zenoh_bootstrap_config", Mock(return_value="bootstrap-config")
+    )
+    monkeypatch.setattr(
+        main.zenoh, "open", Mock(side_effect=[session, bootstrap_session])
+    )
+    monkeypatch.setattr(
+        main,
+        "ZenohQueryHandler",
+        Mock(side_effect=[query_handler, bootstrap_query_handler]),
+    )
     monkeypatch.setattr(main, "ZenohMessageHandler", Mock(return_value=message_handler))
     monkeypatch.setattr(main, "register_handlers", Mock())
+    monkeypatch.setattr(main, "register_bootstrap_handlers", Mock())
     monkeypatch.setattr(main, "close_valkey_pool", AsyncMock())
     monkeypatch.setattr(main, "close_http_client", AsyncMock())
 
@@ -51,10 +65,13 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
         valkey.ping.assert_awaited_once()
         valkey.close.assert_awaited_once()
         main.register_handlers.assert_called_once_with(query_handler, message_handler)
+        main.register_bootstrap_handlers.assert_called_once_with(bootstrap_query_handler)
 
     query_handler.close.assert_called_once()
     message_handler.close.assert_called_once()
     session.close.assert_called_once()
+    bootstrap_query_handler.close.assert_called_once()
+    bootstrap_session.close.assert_called_once()
     main.close_valkey_pool.assert_awaited_once()
     main.close_http_client.assert_awaited_once()
 
@@ -76,6 +93,9 @@ async def test_lifespan_survives_dependency_startup_failures(monkeypatch):
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
     monkeypatch.setattr(
         main, "get_zenoh_config", Mock(side_effect=FileNotFoundError("cert"))
+    )
+    monkeypatch.setattr(
+        main, "get_zenoh_bootstrap_config", Mock(side_effect=FileNotFoundError("cert"))
     )
     monkeypatch.setattr(main, "close_valkey_pool", AsyncMock())
     monkeypatch.setattr(main, "close_http_client", AsyncMock())

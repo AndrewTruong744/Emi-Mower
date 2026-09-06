@@ -48,12 +48,21 @@ class Settings:
     ZENOH_MTLS_REST_URL: str = os.getenv(
         "ZENOH_MTLS_REST_URL", "http://127.0.0.1:8002"
     )
+    ZENOH_BOOTSTRAP_ENDPOINT: str = os.getenv(
+        "ZENOH_BOOTSTRAP_ENDPOINT", "tls/127.0.0.1:7449"
+    )
+    ZENOH_BOOTSTRAP_VERIFY_NAME: bool = os.getenv(
+        "ZENOH_BOOTSTRAP_VERIFY_NAME", "true"
+    ).lower() in {"1", "true", "yes", "on"}
     ZENOH_CA_CERT: str = os.getenv("ZENOH_CA_CERT", "certs/ca/ca.crt")
     ZENOH_FASTAPI_CERT: str = os.getenv(
         "ZENOH_FASTAPI_CERT", "certs/fastapi/server.crt"
     )
     ZENOH_FASTAPI_KEY: str = os.getenv(
         "ZENOH_FASTAPI_KEY", "certs/fastapi/server.key"
+    )
+    MOWER_CA_KEY_PASSPHRASE_FILE: str | None = os.getenv(
+        "MOWER_CA_KEY_PASSPHRASE_FILE"
     )
 
     JWT_SECRET: str = os.getenv("JWT_SECRET", "default_jwt_secret_key_change_me")

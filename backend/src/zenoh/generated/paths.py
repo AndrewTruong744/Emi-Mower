@@ -108,3 +108,21 @@ def mower_cutout_download_url_path(mower_id: str) -> str:
         MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS
         .replace("{mower_id}", mower_id)
     )
+
+MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS = "bootstrap/mower/{mower_id}/certificate/renew/challenge"
+
+
+def mower_certificate_renew_challenge_path(mower_id: str) -> str:
+    return (
+        MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS
+        .replace("{mower_id}", mower_id)
+    )
+
+MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS = "bootstrap/mower/{mower_id}/certificate/renew/complete"
+
+
+def mower_certificate_renew_complete_path(mower_id: str) -> str:
+    return (
+        MOWER_CERTIFICATE_RENEW_COMPLETE_ADDRESS
+        .replace("{mower_id}", mower_id)
+    )
