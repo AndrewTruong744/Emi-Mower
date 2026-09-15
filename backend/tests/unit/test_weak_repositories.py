@@ -241,34 +241,38 @@ async def test_add_mower_to_user_rejects_unknown_user_and_db_failures():
     broken.rollback.assert_awaited_once()
 
 
-@pytest.mark.parametrize("cached", ["owner-1", "dne", "none", ""])
-async def test_ownership_cache_hits_return_owner_or_none(monkeypatch, cached):
-    client = successful_cache(get=cached)
+async def test_ownership_reads_the_shared_mower_data_cache(monkeypatch):
+    mower_id = str(uuid4())
+    client = successful_cache(
+        get=MowerDataCache(
+            id=mower_id, serial_number="serial", nickname="One", owner_id="owner-1"
+        ).model_dump_json()
+    )
     monkeypatch.setattr(
         check_owner_module, "get_valkey_client", lambda: cache_context(client)
     )
 
-    result = await check_owner_module.check_mower_ownership(" mower-1 ", Mock())
-
-    assert result == (cached if cached == "owner-1" else None)
+    assert await check_owner_module.check_mower_ownership(mower_id, Mock()) == "owner-1"
     client.expire.assert_awaited_once()
 
 
-async def test_ownership_cache_miss_queries_and_caches(monkeypatch):
+async def test_ownership_cache_miss_queries_and_caches_full_mower_data(monkeypatch):
     mower_id = uuid4()
-    db = db_with(SimpleNamespace(fetchone=lambda: ("owner-1",)))
+    mower = SimpleNamespace(
+        id=mower_id, serial_number="serial", nickname="One", owner_id="owner-1"
+    )
+    db = db_with(SimpleNamespace(scalar_one_or_none=lambda: mower))
     client = successful_cache()
     monkeypatch.setattr(
         check_owner_module, "get_valkey_client", lambda: cache_context(client)
     )
 
     assert (
-        await check_owner_module.check_mower_ownership(str(mower_id), db) == "owner-1"
+        await check_owner_module.check_mower_ownership(str(mower_id), db)
+        == "owner-1"
     )
     client.setex.assert_awaited_once()
-
-    invalid = await check_owner_module.check_mower_ownership("not-a-uuid", db)
-    assert invalid is None
+    assert await check_owner_module.check_mower_ownership("not-a-uuid", db) is None
 
 
 async def test_ownership_cache_and_database_failures(monkeypatch):
@@ -278,66 +282,13 @@ async def test_ownership_cache_and_database_failures(monkeypatch):
     monkeypatch.setattr(
         check_owner_module, "get_valkey_client", lambda: cache_context(broken_cache)
     )
-    db = db_with(SimpleNamespace(fetchone=lambda: None))
+    db = db_with(SimpleNamespace(scalar_one_or_none=lambda: None))
     assert await check_owner_module.check_mower_ownership(mower_id, db) is None
 
     broken_db = Mock()
     broken_db.execute = AsyncMock(side_effect=RuntimeError("database down"))
     with pytest.raises(RepositoryError):
-        await check_owner_module.check_mower_ownership(mower_id, broken_db)
-
-
-async def test_find_user_by_mower_handles_cache_hit_uuid_and_database_failure(
-    monkeypatch,
-):
-    mower_id = uuid4()
-    client = successful_cache(get="owner-1")
-    monkeypatch.setattr(
-        find_mower_module, "get_valkey_client", lambda: cache_context(client)
-    )
-    assert (
-        await find_mower_module.find_user_by_mower(str(mower_id), Mock()) == "owner-1"
-    )
-
-    miss_client = successful_cache()
-    monkeypatch.setattr(
-        find_mower_module, "get_valkey_client", lambda: cache_context(miss_client)
-    )
-    db = db_with(SimpleNamespace(fetchone=lambda: (None,)))
-    assert await find_mower_module.find_user_by_mower(mower_id, db) is None
-
-    broken_db = Mock()
-    broken_db.execute = AsyncMock(side_effect=RuntimeError("database down"))
-    with pytest.raises(RepositoryError):
         await find_mower_module.find_user_by_mower(mower_id, broken_db)
-
-
-@pytest.mark.parametrize("cached", ["dne", "none", ""])
-async def test_find_user_by_mower_treats_empty_owner_markers_as_unassigned(
-    monkeypatch, cached
-):
-    client = successful_cache(get=cached)
-    monkeypatch.setattr(
-        find_mower_module, "get_valkey_client", lambda: cache_context(client)
-    )
-
-    assert await find_mower_module.find_user_by_mower(str(uuid4()), Mock()) is None
-
-
-async def test_find_user_by_mower_handles_invalid_ids_and_cache_write_errors(
-    monkeypatch,
-):
-    assert await find_mower_module.find_user_by_mower("not-a-uuid", Mock()) is None
-
-    mower_id = uuid4()
-    client = successful_cache()
-    client.setex.side_effect = RuntimeError("cache down")
-    monkeypatch.setattr(
-        find_mower_module, "get_valkey_client", lambda: cache_context(client)
-    )
-    db = db_with(SimpleNamespace(fetchone=lambda: ("owner-1",)))
-
-    assert await find_mower_module.find_user_by_mower(str(mower_id), db) == "owner-1"
 
 
 async def test_get_mowers_of_user_cache_hit_and_cache_miss(monkeypatch):
@@ -415,7 +366,10 @@ async def test_get_all_mowers_and_users_builds_relationships_and_survives_cache_
         scalars=lambda: SimpleNamespace(all=lambda: ["user-1"])
     )
     mower_result = SimpleNamespace(
-        all=lambda: [(UUID(int=1), "user-1"), (UUID(int=2), None)]
+        all=lambda: [
+            (UUID(int=1), "user-1", "serial-1", "One"),
+            (UUID(int=2), None, "serial-2", "Two"),
+        ]
     )
     db = db_with(user_result, mower_result)
     cache = successful_cache()
@@ -439,14 +393,14 @@ async def test_get_all_mowers_and_users_wraps_database_errors():
         await get_all_module.get_all_mowers_and_users(db)
 
 
-async def test_get_mower_data_uses_cache_and_statuses(monkeypatch):
+async def test_get_mower_data_uses_cache_without_status_projection(monkeypatch):
     mower_id = str(UUID(int=1))
     data_json = MowerDataCache(
         id=mower_id, serial_number="serial", nickname="One", owner_id="user-1"
     ).model_dump_json()
     client = successful_cache(
         get=UserMowersCache([mower_id]).model_dump_json(),
-        pipeline_results=[data_json, "online"],
+        pipeline_results=[data_json],
     )
     client.pipeline.side_effect = [
         client.pipeline.return_value,
@@ -458,11 +412,10 @@ async def test_get_mower_data_uses_cache_and_statuses(monkeypatch):
 
     result = await mower_data_module.get_mower_data("user-1", Mock())
 
-    assert result[0]["status"] == "online"
     assert result[0]["id"] == mower_id
 
 
-async def test_get_mower_data_falls_back_to_db_and_returns_offline_on_cache_write_error(
+async def test_get_mower_data_falls_back_to_db_on_cache_write_error(
     monkeypatch,
 ):
     mower = SimpleNamespace(
@@ -479,7 +432,7 @@ async def test_get_mower_data_falls_back_to_db_and_returns_offline_on_cache_writ
 
     result = await mower_data_module.get_mower_data("user-1", db)
 
-    assert result[0]["status"] == "offline"
+    assert result[0]["id"] == str(mower.id)
 
 
 async def test_get_mower_data_wraps_database_errors(monkeypatch):

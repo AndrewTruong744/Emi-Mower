@@ -4,6 +4,7 @@ import {
   Encoding,
   open,
   ReplyError,
+  SampleKind,
   type Session,
 } from '@eclipse-zenoh/zenoh-ts';
 import { reportAppError } from '@/errors/reporter';
@@ -229,6 +230,40 @@ export async function zenohSubscribe(
       handler: (sample) => {
         if (operation.isActive()) {
           onPayload(sample.payload().toString());
+        }
+      },
+    });
+
+    const cleanup = trackSubscriber(subscriber, onClose);
+    try {
+      operation.assertActive();
+    } catch (error) {
+      await cleanup();
+      throw error;
+    }
+  } catch (error) {
+    if (isOperationCancelled(error) || !operation.isActive()) {
+      throw new OperationCancelled('Zenoh operation cancelled');
+    }
+    reportAppError('zenoh.subscription_failed', error);
+    throw error;
+  }
+}
+
+/** Subscribe to payload-less Zenoh liveliness tokens with their current history. */
+export async function zenohSubscribeLiveliness(
+  keyExpr: string,
+  onChange: (keyExpr: string, connected: boolean) => void,
+  onClose?: () => void
+): Promise<void> {
+  const operation = createZenohOperation();
+  try {
+    const session = await operation.waitFor(connectZenoh());
+    const subscriber = await session.liveliness().declareSubscriber(keyExpr, {
+      history: true,
+      handler: (sample) => {
+        if (operation.isActive()) {
+          onChange(sample.keyexpr().toString(), sample.kind() === SampleKind.PUT);
         }
       },
     });

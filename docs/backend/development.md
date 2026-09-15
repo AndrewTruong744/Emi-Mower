@@ -14,9 +14,13 @@ uv sync
 cp .env.example .env
 ```
 
-Fill the ignored `.env` with database settings, `JWT_SECRET`, service URLs, and
-any required Firebase, GCS, or LiveKit configuration. Never commit an `.env`,
-Google service credential, Zenoh password, mower private key, or CA private key.
+`src/config/settings.py` is the backend's authoritative environment schema and
+the sole place backend code reads environment variables. Copy the template,
+then set `JWT_SECRET` and only the local overrides you need; blank optional
+values defer to the local-safe defaults in `Settings`. Startup rejects a
+missing JWT secret and a partially configured LiveKit integration. Never
+commit an `.env`, Google service credential, Zenoh password, mower private key,
+or CA private key.
 
 PostgreSQL, Valkey, and Zenoh are normally provided through Docker Compose; no
 host installation is needed for the Compose workflow.

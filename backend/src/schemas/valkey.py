@@ -17,8 +17,6 @@ VALKEY_CACHE_TTL_SECONDS = 86_400
 USER_MOWERS_KEY = "user:{user_id}:mowers"
 USER_DATA_KEY = "user:{user_id}:data"
 MOWER_DATA_KEY = "mower:{mower_id}:data"
-MOWER_STATUS_KEY = "mower:{mower_id}:status"
-MOWER_OWNER_KEY = "mower:{mower_id}:owner"
 ZENOH_TOKEN_EXPIRY_KEY = "user:zenoh_tokens"
 
 # The telemetry worker uses a Valkey LIST at this key and temporarily renames
@@ -47,18 +45,6 @@ def mower_data_key(mower_id: str) -> str:
     return MOWER_DATA_KEY.format(mower_id=mower_id)
 
 
-def mower_status_key(mower_id: str) -> str:
-    """Return the key containing a mower's plain-text status."""
-
-    return MOWER_STATUS_KEY.format(mower_id=mower_id)
-
-
-def mower_owner_key(mower_id: str) -> str:
-    """Return the key containing a mower owner ID or the ``dne`` marker."""
-
-    return MOWER_OWNER_KEY.format(mower_id=mower_id)
-
-
 def mower_telemetry_key(mower_id: str) -> str:
     """Return the telemetry LIST key used by the upload worker."""
 
@@ -85,24 +71,9 @@ class UserDataCache(BaseModel):
 
 
 class MowerDataCache(BaseModel):
-    """JSON value for ``mower:{mower_id}:data``.
-
-    ``status`` is deliberately not included: repository code stores it under
-    the separate ``mower:{mower_id}:status`` key and combines it on reads.
-    """
+    """JSON value for ``mower:{mower_id}:data``, including its owner."""
 
     id: str
     serial_number: str
     nickname: str
     owner_id: str | None = None
-
-
-class MowerOwnerCache(RootModel[str]):
-    """Plain-string value for ``mower:{mower_id}:owner``.
-
-    A missing owner is represented by the literal ``"dne"`` marker.
-    """
-
-
-class MowerStatusCache(RootModel[str]):
-    """Plain-string value for ``mower:{mower_id}:status``."""

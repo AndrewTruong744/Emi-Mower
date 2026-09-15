@@ -20,6 +20,8 @@ async def test_configure_user_app_writes_password_and_acl_triad():
     assert requests[0].url.path.endswith("/dictionary/user-1")
     assert b"user/**" in requests[1].content
     assert b"mower/mower-1/**" in requests[1].content
+    assert b'"declare_liveliness_subscriber"' in requests[1].content
+    assert b'"liveliness_token"' in requests[1].content
     assert b"declare_queryable" not in requests[1].content
 
 
@@ -35,6 +37,7 @@ async def test_configure_mower_device_can_serve_command_queries():
         await zenoh.configure_mower_device("mower-1")
 
     assert b'"declare_queryable"' in requests[0].content
+    assert b'"liveliness_token"' in requests[0].content
     assert b'"cert_common_names":["mower:mower-1"]' in requests[1].content
     assert b'"usernames"' not in requests[1].content
 

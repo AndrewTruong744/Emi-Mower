@@ -20,11 +20,11 @@ services:
       # backend/local-docker-compose.yml uses host networking. Docker Desktop
       # supplies this DNS name; extra_hosts adds the equivalent on Linux.
       ZENOH_ROUTER_ENDPOINT: ${ZENOH_ROUTER_ENDPOINT:-tls/host.docker.internal:7448}
-      # Local backend certificates normally name localhost, not the Docker
-      # gateway. Production must override this to true with a matching DNS SAN.
-      ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-false}
+      # The local router certificate includes this Docker hostname as a SAN.
+      # Production must use its deployment DNS name with a matching SAN.
+      ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-true}
       ZENOH_BOOTSTRAP_ENDPOINT: ${ZENOH_BOOTSTRAP_ENDPOINT:-tls/host.docker.internal:7449}
-      ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT: ${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT:-false}
+      ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT: ${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT:-true}
       STM32_CAN_INTERFACE: ${STM32_CAN_INTERFACE:-can0}
       RPLIDAR_DEVICE: ${RPLIDAR_DEVICE:-/dev/rplidar}
     extra_hosts:

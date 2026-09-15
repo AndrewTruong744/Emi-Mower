@@ -99,6 +99,13 @@ channels:
         description: Mower that published this live telemetry batch.
     messages:
       telemetryList: {$ref: '#/components/messages/TelemetryList'}
+  mowerLiveliness:
+    address: mower/{mower_id}/liveliness
+    parameters:
+      mower_id:
+        description: Mower whose connected Zenoh gateway declares this token.
+    messages:
+      mowerLiveliness: {$ref: '#/components/messages/MowerLiveliness'}
   cutoutUploadUrl:
     address: user/cutouts/upload-url
     messages:
@@ -109,15 +116,13 @@ channels:
     address: user/cutouts/uploaded
     messages:
       cutoutUploadNotification: {$ref: '#/components/messages/CutoutUploadNotification'}
-  mowerCutoutDownloadUrl:
-    address: mower/{mower_id}/cutout/download-url
+  mowerCutoutDelivery:
+    address: mower/{mower_id}/cutout/delivery
     parameters:
       mower_id:
-        description: Mower retrieving its most recently assigned verified cutout.
+        description: Mower receiving a freshly verified cutout download URL.
     messages:
-      mowerCutoutDownloadUrlRequest: {$ref: '#/components/messages/MowerCutoutDownloadUrlRequest'}
-      mowerCutoutDownloadUrlResponse: {$ref: '#/components/messages/MowerCutoutDownloadUrlResponse'}
-      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+      mowerCutoutDelivery: {$ref: '#/components/messages/MowerCutoutDelivery'}
   mowerCertificateRenewChallenge:
     address: bootstrap/mower/{mower_id}/certificate/renew/challenge
     parameters:
@@ -248,6 +253,12 @@ operations:
     summary: Receive a mower's live telemetry batch for buffering and fan-out
     messages:
       - {$ref: '#/channels/mowerTelemetry/messages/telemetryList'}
+  mowerLiveliness:
+    action: send
+    channel: {$ref: '#/channels/mowerLiveliness'}
+    summary: Declare a live Zenoh gateway session for a mower
+    messages:
+      - {$ref: '#/channels/mowerLiveliness/messages/mowerLiveliness'}
   cutoutUploadUrl:
     action: receive
     channel: {$ref: '#/channels/cutoutUploadUrl'}
@@ -265,17 +276,12 @@ operations:
     summary: Verify an app cutout upload after the signed PUT completes
     messages:
       - {$ref: '#/channels/cutoutUploaded/messages/cutoutUploadNotification'}
-  mowerCutoutDownloadUrl:
-    action: receive
-    channel: {$ref: '#/channels/mowerCutoutDownloadUrl'}
-    summary: Return a fresh signed GET URL for a mower's latest verified cutout
+  mowerCutoutDelivery:
+    action: send
+    channel: {$ref: '#/channels/mowerCutoutDelivery'}
+    summary: Deliver a freshly verified cutout URL to an owned mower
     messages:
-      - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/mowerCutoutDownloadUrlRequest'}
-    reply:
-      channel: {$ref: '#/channels/mowerCutoutDownloadUrl'}
-      messages:
-        - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/mowerCutoutDownloadUrlResponse'}
-        - {$ref: '#/channels/mowerCutoutDownloadUrl/messages/problemDetails'}
+      - {$ref: '#/channels/mowerCutoutDelivery/messages/mowerCutoutDelivery'}
   mowerCertificateRenewChallenge:
     action: receive
     channel: {$ref: '#/channels/mowerCertificateRenewChallenge'}
@@ -360,6 +366,9 @@ components:
     TelemetryList:
       name: TelemetryList
       payload: {$ref: '#/components/schemas/TelemetryList'}
+    MowerLiveliness:
+      name: MowerLiveliness
+      payload: {$ref: '#/components/schemas/MowerLiveliness'}
     CutoutUploadUrlRequest:
       name: CutoutUploadUrlRequest
       payload: {$ref: '#/components/schemas/CutoutUploadUrlRequest'}
@@ -369,12 +378,9 @@ components:
     CutoutUploadNotification:
       name: CutoutUploadNotification
       payload: {$ref: '#/components/schemas/CutoutUploadNotification'}
-    MowerCutoutDownloadUrlRequest:
-      name: MowerCutoutDownloadUrlRequest
-      payload: {$ref: '#/components/schemas/MowerCutoutDownloadUrlRequest'}
-    MowerCutoutDownloadUrlResponse:
-      name: MowerCutoutDownloadUrlResponse
-      payload: {$ref: '#/components/schemas/MowerCutoutDownloadUrlResponse'}
+    MowerCutoutDelivery:
+      name: MowerCutoutDelivery
+      payload: {$ref: '#/components/schemas/MowerCutoutDelivery'}
     MowerCertificateRenewChallengeRequest:
       name: MowerCertificateRenewChallengeRequest
       payload: {$ref: '#/components/schemas/MowerCertificateRenewChallengeRequest'}
@@ -621,6 +627,13 @@ components:
     TelemetryList:
       type: array
       items: {$ref: '#/components/schemas/TelemetryRecord'}
+    MowerLiveliness:
+      type: object
+      additionalProperties: false
+      description: >-
+        A payload-less Zenoh liveliness token. Its declaration means the
+        mower gateway has an active authenticated Zenoh session; deletion
+        means that session ended. It is not a mower health or safety signal.
     CutoutUploadUrlRequest:
       type: object
       required: [id_token, mower_ids, content_type]
@@ -647,18 +660,22 @@ components:
         content_type: {type: string}
     CutoutUploadNotification:
       type: object
-      required: [id_token, cutout_id, success]
+      required: [id_token, cutout_id, object_key, mower_ids, content_type, success]
       additionalProperties: false
       properties:
         id_token: {type: string, description: Firebase Identity Platform ID token.}
         cutout_id: {type: string}
+        object_key: {type: string}
+        mower_ids:
+          type: array
+          minItems: 1
+          items: {type: string}
+        content_type:
+          type: string
+          enum: [image/png, image/jpeg, image/webp]
         success: {type: boolean}
         failure_reason: {type: string}
-    MowerCutoutDownloadUrlRequest:
-      type: object
-      additionalProperties: false
-      description: Empty request; mower identity is constrained by its Zenoh ACL and channel path.
-    MowerCutoutDownloadUrlResponse:
+    MowerCutoutDelivery:
       type: object
       required: [cutout_id, download_url, expires_in, content_type]
       additionalProperties: false

@@ -8,9 +8,11 @@ import pytest
 from src.scripts import provision_mower
 
 
-def test_provisioner_uses_the_colocated_certificate_issuer():
-    issuer_path = provision_mower.BACKEND_ROOT / "tools" / "issue_mower_certificate.sh"
-    assert provision_mower.CERTIFICATE_SCRIPT == issuer_path
+def test_provisioner_uses_a_mower_scoped_certificate_subject():
+    mower_id = uuid.UUID("0a35e3e0-ff31-4b58-bc88-31f6e288fdb2")
+    assert provision_mower.mower_certificate_common_name(mower_id) == (
+        f"mower:{mower_id}"
+    )
 
 
 def test_write_jetson_env_contains_only_runtime_configuration(tmp_path):
@@ -48,13 +50,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     monkeypatch, tmp_path
 ):
     mower_id = uuid.UUID("0a35e3e0-ff31-4b58-bc88-31f6e288fdb2")
-    ca_cert = tmp_path / "ca.crt"
-    ca_key = tmp_path / "ca.key"
-    certificate_script = tmp_path / "issue_mower_certificate.sh"
-    ca_cert.write_text("test certificate")
-    ca_key.write_text("test key")
-    certificate_script.write_text("#!/usr/bin/env bash\n")
-
     db = object()
 
     @asynccontextmanager
@@ -69,7 +64,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     write_env = Mock()
     close = AsyncMock()
     monkeypatch.setattr(provision_mower, "AsyncSessionLocal", fake_session)
-    monkeypatch.setattr(provision_mower, "CERTIFICATE_SCRIPT", certificate_script)
     monkeypatch.setattr(provision_mower, "create_mower", create)
     monkeypatch.setattr(provision_mower, "ZenohAdminClient", Mock(return_value=client))
     monkeypatch.setattr(provision_mower, "issue_certificate", issue)
@@ -85,9 +79,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
         router_endpoint="tls/zenoh.example.internal:7448",
         verify_name_on_connect=True,
         mower_launch="sim",
-        ca_cert=ca_cert,
-        ca_key=ca_key,
-        ca_key_passphrase_file=None,
         device_root_public_key=None,
     )
 
@@ -107,9 +98,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     issue.assert_called_once_with(
         mower_id=mower_id,
         output_dir=args.output_dir,
-        ca_cert=ca_cert,
-        ca_key=ca_key,
-        ca_key_passphrase_file=None,
     )
     write_env.assert_called_once_with(
         args.jetson_env_file,

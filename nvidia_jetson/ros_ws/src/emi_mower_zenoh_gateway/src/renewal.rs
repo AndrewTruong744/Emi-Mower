@@ -5,8 +5,10 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
+use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 use zenoh::config::Config;
 
 use crate::generated::zenoh_paths::{
@@ -15,10 +17,14 @@ use crate::generated::zenoh_paths::{
 
 const RENEW_WITHIN_SECONDS: u64 = 30 * 24 * 60 * 60;
 
+fn active_credentials_directory() -> &'static Path {
+    Path::new("/etc/mower/certs/current")
+}
+
 pub async fn renew_certificate_if_needed(mower_id: &str) -> Result<bool> {
-    let certificate_path = Path::new("/etc/mower/certs/mower.crt");
+    let certificate_path = active_credentials_directory().join("mower.crt");
     if certificate_path.exists()
-        && certificate_valid_beyond(certificate_path, RENEW_WITHIN_SECONDS)?
+        && certificate_valid_beyond(&certificate_path, RENEW_WITHIN_SECONDS)?
     {
         return Ok(false);
     }
@@ -119,19 +125,45 @@ fn sign_renewal_message(mower_id: &str, nonce: &str, csr: &str) -> Result<String
 
 fn install_credentials(new_key_path: &str, certificate: &str) -> Result<()> {
     let directory = Path::new("/etc/mower/certs");
-    fs::write(directory.join("mower.crt.new"), certificate)?;
+    let current = active_credentials_directory();
+    let root_ca = current.join("root_ca.pem");
+    if !root_ca.is_file() {
+        bail!(
+            "the installed root CA is missing from {}",
+            root_ca.display()
+        );
+    }
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("read system time for credential version")?
+        .as_secs();
+    let version = format!("{timestamp}-{}", std::process::id());
+    let staged = directory.join(format!(".new-{version}"));
+    let versions = directory.join("versions");
+    fs::create_dir_all(&staged)?;
+    fs::write(staged.join("mower.crt"), certificate)?;
+    fs::copy(&root_ca, staged.join("root_ca.pem"))?;
     let status = Command::new("openssl")
         .args(["verify", "-CAfile"])
-        .arg(directory.join("root_ca.pem"))
-        .arg(directory.join("mower.crt.new"))
+        .arg(staged.join("root_ca.pem"))
+        .arg(staged.join("mower.crt"))
         .status()
         .context("verify renewed mower certificate against the installed CA")?;
     if !status.success() {
         bail!("renewal response certificate is not signed by the installed CA");
     }
-    fs::rename(new_key_path, directory.join("mower.key.new"))?;
-    fs::rename(directory.join("mower.key.new"), directory.join("mower.key"))?;
-    fs::rename(directory.join("mower.crt.new"), directory.join("mower.crt"))?;
+    fs::rename(new_key_path, staged.join("mower.key"))?;
+    fs::create_dir_all(&versions)?;
+    let version_dir = versions.join(&version);
+    fs::rename(staged, &version_dir)?;
+    activate_credentials_version(directory, &version)?;
+    Ok(())
+}
+
+fn activate_credentials_version(directory: &Path, version: &str) -> Result<()> {
+    let next = directory.join(format!(".current-{version}"));
+    symlink(format!("versions/{version}"), &next)?;
+    fs::rename(next, directory.join("current"))?;
     Ok(())
 }
 
@@ -155,4 +187,26 @@ async fn query_json(
     Ok(serde_json::from_slice(
         sample.payload().to_bytes().as_ref(),
     )?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::activate_credentials_version;
+    use std::fs;
+
+    #[test]
+    fn credential_activation_switches_the_current_symlink() {
+        let directory =
+            std::env::temp_dir().join(format!("emi-mower-renewal-test-{}", std::process::id()));
+        fs::create_dir_all(directory.join("versions/first")).unwrap();
+        activate_credentials_version(&directory, "first").unwrap();
+        fs::create_dir_all(directory.join("versions/second")).unwrap();
+        activate_credentials_version(&directory, "second").unwrap();
+
+        assert_eq!(
+            fs::read_link(directory.join("current")).unwrap(),
+            std::path::Path::new("versions/second")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

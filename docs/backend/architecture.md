@@ -40,19 +40,6 @@ backend/
 └── zenoh-router-*.json5  Router-plane configuration
 ```
 
-## Layering rules
-
-`listeners` translate generated Zenoh payloads to services. `services` enforce
-identity, ownership, and workflow rules. `repositories` own SQLAlchemy and
-Valkey reads/writes. `models` define tables; `schemas` define external/cache
-payload models. `config` creates long-lived clients and settings, while `main`
-owns startup/shutdown and registers Zenoh declarations.
-
-Keep native Zenoh route strings and payload types in generated bindings. Do not
-move SQL/Valkey calls into listeners or components that only coordinate
-transport. Mower command handling stays in the gateway/STM32 path, not the
-backend, preserving the STM32 as final motion-safety authority.
-
 ## Runtime sequence
 
 At startup FastAPI initializes shared HTTP/Firebase resources, confirms storage

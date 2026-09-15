@@ -32,10 +32,9 @@ def generate_launch_description():
                 respawn_delay=2.0,
             ),
             Node(
-                package="emi_mower_bringup",
-                executable="boundary_cutout_node.py",
+                package="emi_mower_boundary",
+                executable="boundary_cutout_node",
                 name="boundary_cutout_node",
-                parameters=[{"mower_id": mower_id}],
                 respawn=True,
                 respawn_delay=2.0,
             ),

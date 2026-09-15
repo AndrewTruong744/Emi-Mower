@@ -68,10 +68,10 @@ async def test_auth_verification_rejects_empty_missing_and_invalid_tokens(monkey
 def test_initialize_backend_auth_supports_disabled_existing_and_first_start(
     monkeypatch,
 ):
-    monkeypatch.setenv("FIREBASE_DISABLED", "true")
+    monkeypatch.setattr(firebase_module.settings, "FIREBASE_DISABLED", True)
     assert firebase_module.initialize_backend_auth() is None
 
-    monkeypatch.delenv("FIREBASE_DISABLED")
+    monkeypatch.setattr(firebase_module.settings, "FIREBASE_DISABLED", False)
     existing = object()
     monkeypatch.setattr(
         firebase_module.firebase_admin, "get_app", Mock(return_value=existing)
@@ -83,7 +83,9 @@ def test_initialize_backend_auth_supports_disabled_existing_and_first_start(
     )
     application_default = Mock(return_value="adc")
     initialize = Mock(return_value="initialized")
-    monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", application_default)
+    monkeypatch.setattr(
+        firebase_module.credentials, "ApplicationDefault", application_default
+    )
     monkeypatch.setattr(firebase_module.firebase_admin, "initialize_app", initialize)
     assert firebase_module.initialize_backend_auth() == "initialized"
     application_default.assert_called_once()

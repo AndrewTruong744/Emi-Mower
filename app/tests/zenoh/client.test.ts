@@ -1,10 +1,11 @@
 import { jest, describe, expect, it, beforeEach } from '@jest/globals';
-import { Config, Encoding, ReplyError, open } from '@eclipse-zenoh/zenoh-ts';
+import { Config, Encoding, ReplyError, SampleKind, open } from '@eclipse-zenoh/zenoh-ts';
 import {
   closeZenoh,
   connectZenoh,
   zenohPut,
   zenohSubscribe,
+  zenohSubscribeLiveliness,
   zenohQuery,
 } from '@/config/zenohClient';
 import { OperationCancelled } from '@/errors/operationCancelled';
@@ -137,6 +138,31 @@ describe('Zenoh client', () => {
     useBoundStore.getState().disableZenoh();
     handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
     expect(onPayload).toHaveBeenCalledTimes(1);
+
+    await closeZenoh();
+    expect(undeclare).toHaveBeenCalledTimes(1);
+  });
+
+  it('declares historical liveliness subscriptions and maps token changes', async () => {
+    const undeclare = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const declareSubscriber = jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare });
+    const session = {
+      liveliness: () => ({ declareSubscriber }),
+      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+    };
+    mockedOpen.mockResolvedValue(session);
+    const onChange = jest.fn();
+
+    await zenohSubscribeLiveliness('mower/*/liveliness', onChange);
+    expect(declareSubscriber).toHaveBeenCalledWith('mower/*/liveliness', {
+      history: true,
+      handler: expect.any(Function),
+    });
+    const handler = declareSubscriber.mock.calls[0][1].handler;
+    handler({ keyexpr: () => ({ toString: () => 'mower/mower-1/liveliness' }), kind: () => SampleKind.PUT });
+    handler({ keyexpr: () => ({ toString: () => 'mower/mower-1/liveliness' }), kind: () => SampleKind.DELETE });
+    expect(onChange).toHaveBeenNthCalledWith(1, 'mower/mower-1/liveliness', true);
+    expect(onChange).toHaveBeenNthCalledWith(2, 'mower/mower-1/liveliness', false);
 
     await closeZenoh();
     expect(undeclare).toHaveBeenCalledTimes(1);

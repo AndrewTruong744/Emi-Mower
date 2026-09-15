@@ -34,10 +34,11 @@ Telemetry and cutout-upload completion use this pattern.
 | `mower/{mower_id}/telemetry/{telemetry_type}/old`        | Query/reply                    | Verifies Firebase identity and ownership, then returns a cursor-paginated historical metric page.                                  |
 | `mower/{mower_id}/livekit/consume`                       | Query/reply                    | Issues a room-scoped, subscribe-only LiveKit token; router ACL scope authorizes the mower path.                                    |
 | `mower/{mower_id}/livekit/upload`                        | Query/reply                    | Issues a room-scoped, publish-only LiveKit token for that mower.                                                                   |
-| `user/cutouts/upload-url`                                | Query/reply                    | Verifies identity and mower ownership, records a pending cutout, and returns a signed GCS PUT URL.                                 |
-| `mower/{mower_id}/cutout/download-url`                   | Query/reply                    | Returns a signed GET URL for the mower's latest verified cutout.                                                                   |
+| `user/cutouts/upload-url`                                | Query/reply                    | Verifies identity and mower ownership, then returns a signed GCS PUT URL and opaque object key.                                    |
+| `mower/{mower_id}/cutout/delivery`                       | One-way publication            | After GCS verification, publishes that mower's short-lived signed GET URL.                                                         |
 | `mower/{mower_id}/telemetry`                             | One-way publication            | Validates a telemetry list and buffers it in Valkey for the telemetry worker.                                                      |
-| `user/cutouts/uploaded`                                  | One-way publication            | Verifies the signed GCS upload and marks the cutout ready or failed.                                                               |
+| `mower/{mower_id}/liveliness`                            | Zenoh liveliness token          | Declared directly by the connected mower gateway; the app observes it directly as Zenoh connection state.                        |
+| `user/cutouts/uploaded`                                  | One-way publication            | Revalidates identity, object key, content type, and recipients; verifies the GCS object, then delivers it to each selected mower. |
 | `bootstrap/mower/{mower_id}/certificate/renew/challenge` | Query/reply on bootstrap plane | Issues a short-lived renewal nonce for a registered mower TPM identity.                                                            |
 | `bootstrap/mower/{mower_id}/certificate/renew/complete`  | Query/reply on bootstrap plane | Verifies TPM proof and CSR, then issues a replacement operational certificate.                                                     |
 
@@ -46,6 +47,11 @@ used by the app and mower gateway. The backend does not declare handlers for
 them; it provisions ACL scope and participates in the router mesh so the
 gateway can own command handling. The STM32 remains the final motor-safety
 authority.
+
+The backend does not declare or cache the liveliness token. ACL provisioning
+allows a mower certificate to declare only its own token and an app user to
+observe tokens only below its owned mower paths. Token presence means the
+gateway's Zenoh session is active, not that the mower is safe or healthy.
 
 ## Path handling rules
 

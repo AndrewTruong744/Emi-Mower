@@ -34,7 +34,7 @@ fn can_frame_round_trips_and_rejects_corruption() {
     assert_eq!(Stm32CommandFrame::decode(&encoded).unwrap(), frame);
 
     let mut corrupted = encoded;
-    corrupted[9] ^= 0x01;
+    corrupted[3] ^= 0x01;
     assert!(matches!(
         Stm32CommandFrame::decode(&corrupted),
         Err(ControlError::InvalidFrame)

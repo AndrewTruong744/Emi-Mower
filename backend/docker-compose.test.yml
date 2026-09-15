@@ -3,6 +3,28 @@ name: emi-mower-test
 # Disposable integration-test stack.  It deliberately has no volumes and uses
 # bridge networking, so it cannot share or erase a developer's local data.
 services:
+  step-ca:
+    build:
+      context: .
+      dockerfile: Dockerfile.step-ca
+    environment:
+      STEP_CA_NAME: Emi Mower Integration Test
+      STEP_CA_DNS_NAMES: localhost,step-ca
+      STEP_CA_ADDRESS: ":9000"
+      STEP_CA_URL: https://step-ca:9000
+      ZENOH_ROUTER_SANS: zenoh-mtls,zenoh-bootstrap
+    volumes:
+      - step-ca-data:/home/step
+      - backend-identity:/credentials/backend
+      - zenoh-mtls-identity:/credentials/zenoh-mtls
+      - zenoh-app-identity:/credentials/zenoh-app
+      - step-ca-issuer:/credentials/issuer
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /home/step/credentials-ready && step ca health --ca-url https://step-ca:9000 >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   postgres:
     image: postgres:18-alpine
     environment:
@@ -32,9 +54,13 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-mtls-identity:/run/emi-mower/identity:ro
     command: ["-c", "/workspace/zenoh-router-mtls.test.json5"]
     ports:
       - "18002:8002"
+    depends_on:
+      step-ca:
+        condition: service_healthy
 
   zenoh-bootstrap:
     image: eclipse/zenoh:1.9.0
@@ -42,15 +68,23 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-mtls-identity:/run/emi-mower/identity:ro
+    depends_on:
+      step-ca:
+        condition: service_healthy
 
   zenoh-app:
     image: eclipse/zenoh:1.9.0
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-app-identity:/run/emi-mower/identity:ro
     command: ["-c", "/workspace/zenoh-router-app.test.json5"]
     depends_on:
-      - zenoh-mtls
+      step-ca:
+        condition: service_healthy
+      zenoh-mtls:
+        condition: service_started
     ports:
       - "17447:7447"
       - "10000:10000"
@@ -69,11 +103,10 @@ services:
       VALKEY_HOST: valkey
       VALKEY_PORT: "6379"
       ZENOH_MTLS_ENDPOINT: tls/zenoh-mtls:7448
-      ZENOH_MTLS_VERIFY_NAME: "false"
       ZENOH_APP_REST_URL: http://zenoh-app:8001
       ZENOH_MTLS_REST_URL: http://zenoh-mtls:8002
       ZENOH_BOOTSTRAP_ENDPOINT: tls/zenoh-bootstrap:7449
-      ZENOH_BOOTSTRAP_VERIFY_NAME: "false"
+      STEP_CA_URL: https://step-ca:9000
       JWT_SECRET: integration-test-secret
       FIREBASE_DISABLED: "true"
     command:
@@ -83,6 +116,8 @@ services:
         uv run alembic upgrade head &&
         uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
     depends_on:
+      step-ca:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       valkey:
@@ -93,6 +128,9 @@ services:
         condition: service_started
       zenoh-bootstrap:
         condition: service_started
+    volumes:
+      - backend-identity:/run/emi-mower/identity:ro
+      - step-ca-issuer:/run/emi-mower/issuer:ro
     ports:
       - "18000:8000"
     healthcheck:
@@ -100,3 +138,10 @@ services:
       interval: 3s
       timeout: 4s
       retries: 30
+
+volumes:
+  step-ca-data:
+  step-ca-issuer:
+  backend-identity:
+  zenoh-mtls-identity:
+  zenoh-app-identity:

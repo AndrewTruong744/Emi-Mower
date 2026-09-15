@@ -4,11 +4,8 @@ import asyncio
 import base64
 import hashlib
 import secrets
-import subprocess
-import tempfile
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -17,14 +14,12 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import settings
 from src.config.valkey_client import get_valkey_client
 from src.config.zenoh_client import ZenohAdminClient
 from src.exceptions import AuthenticationError, ValidationError
 from src.repositories.mower_device_identities import get_active_mower_device_identity
+from src.services.step_ca import StepCaIssuer
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
-ISSUER = BACKEND_ROOT / "tools" / "issue_mower_certificate.sh"
 NONCE_TTL_SECONDS = 300
 
 
@@ -107,29 +102,10 @@ def _verify_tpm_signature(
 
 
 def _issue_from_csr(mower_id: str, csr_pem: str) -> tuple[str, str, datetime]:
-    with tempfile.TemporaryDirectory(prefix="emi-mower-renew-") as directory:
-        output = Path(directory) / "credentials"
-        csr = Path(directory) / "renewal.csr"
-        csr.write_text(csr_pem)
-        command = [
-            "bash",
-            str(ISSUER),
-            "--mower-id",
-            mower_id,
-            "--output-dir",
-            str(output),
-            "--csr",
-            str(csr),
-        ]
-        if settings.MOWER_CA_KEY_PASSPHRASE_FILE:
-            command.extend(
-                ("--ca-key-passphrase-file", settings.MOWER_CA_KEY_PASSPHRASE_FILE)
-            )
-        subprocess.run(command, check=True, capture_output=True, text=True)
-        certificate_pem = (output / "mower.crt").read_text()
-        ca_chain_pem = (output / "root_ca.pem").read_text()
-        certificate = x509.load_pem_x509_certificate(certificate_pem.encode("utf-8"))
-        return certificate_pem, ca_chain_pem, certificate.not_valid_after_utc
+    del mower_id  # The caller validates the CSR CN before this signing boundary.
+    certificate_pem, ca_chain_pem = StepCaIssuer().sign_csr(csr_pem)
+    certificate = x509.load_pem_x509_certificate(certificate_pem.encode("utf-8"))
+    return certificate_pem, ca_chain_pem, certificate.not_valid_after_utc
 
 
 async def complete_certificate_renewal(

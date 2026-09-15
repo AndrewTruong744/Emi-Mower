@@ -1,19 +1,10 @@
-# Certificates and the `certs/` folder
+# Certificates
 
-The backend's `certs/` directory contains local development trust material and
-certificate-request configuration. It is an operational boundary, not a place
-to store customer credentials or distribute the CA private key.
-
-| Directory           | Contents and role                                                                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `certs/ca/`         | The trust anchor (`ca.crt`), local CA serial state, and the CA private key (`ca.key`, ignored by Git). The private key stays on a trusted backend provisioning host. |
-| `certs/fastapi/`    | FastAPI's mTLS client certificate, key, CSR, and `server.cnf`. The backend uses this identity to connect to the normal mTLS Zenoh router.                            |
-| `certs/zenoh_app/`  | The app router's certificate, key, CSR, and `router.cnf`. It authenticates the router-to-router mTLS link to the private router.                                     |
-| `certs/zenoh_mtls/` | The private router's certificate, key, CSR, and `router.cnf`. The same server identity is used by the TLS-only bootstrap router.                                     |
-
-Private keys match the `*.key` Git ignore rule. A repository checkout must not
-contain a real production CA key, Firebase credential, router administrator
-secret, or mower private key.
+The backend repository holds no CA or service-certificate directory. The local
+step-ca container keeps the active local CA in its persistent Docker volume
+and writes each service identity into a separate credential volume. A
+repository checkout must not contain a real production CA key, Firebase
+credential, router administrator secret, or mower private key.
 
 ## Trust and connection roles
 
@@ -27,18 +18,34 @@ mower certificate that may have expired.
 Mower operational bundles are generated outside this directory into a protected
 Jetson credential directory. A bundle contains `mower.crt`, `mower.key`, and
 `root_ca.pem`; its certificate common name is `mower:{uuid}` and it has a
-90-day lifetime. The CA private key must never be copied into a Jetson, image,
-container, or `.env` file.
+90-day lifetime. The CA private key must never be copied into a Jetson,
+application image, ordinary backend/router container, `.env` file, or the
+repository. The dedicated local step-ca workload is the sole exception: its
+persistent volume holds the active local root and intermediate keys. This is a
+local-development trust root; use a separate offline root and online
+intermediate before adopting the design in a long-lived production VPC.
 
 ## Issuance and renewal
 
-The `*.cnf` files control certificate subject/SAN extensions. Update them when
-the development DNS name or IP changes, then reissue the matching server or
-router certificate with the CA on the trusted host. Every hostname a Zenoh
-client uses must appear in the server certificate SAN.
+The active local Step CA flow issues service leaf certificates from
+`tools/refresh_service_certificates.sh`. Its `ZENOH_ROUTER_SANS` input defines
+the mTLS router certificate SANs, which also serve the bootstrap router. Every
+hostname or literal IP a Zenoh client uses must appear in that server
+certificate's SAN. The local stack supplies `localhost`, `127.0.0.1`, and
+`host.docker.internal`; production must supply only its deployment endpoint
+names/IPs.
 
-`tools/issue_mower_certificate.sh` issues a mower client certificate from a
-validated mower UUID. It protects output with `umask 077`, reuses only a
-matching existing bundle, and accepts a mower-generated CSR during renewal so
-the mower's private key is never exported. See
+The provisioner generates a mower-owned private key and CSR for initial
+enrollment, then submits that CSR to step-ca. During renewal the mower itself
+generates the CSR, so its replacement private key is never exported. See
 [mower initialization](mower-initialization.md) for the full identity lifecycle.
+
+## Target automated signer
+
+`local-docker-compose.yml` starts step-ca before the backend and routers. Its
+idempotent bootstrap script creates a fresh local root only when its persistent
+volume has no CA state, then refreshes the backend and router leaf identities
+into separate credential volumes. The backend remains the mower-renewal policy
+gate: it validates the TPM proof and CSR before requesting a certificate from
+step-ca. FastAPI, Zenoh routers, and Jetsons receive only their own leaf
+private keys and the public trust chain.

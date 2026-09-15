@@ -142,7 +142,15 @@ class ZenohAdminClient:
             subject_id=f"subject_{user_id}",
             policy_id=f"policy_{user_id}",
             key_exprs=key_exprs,
-            messages=["put", "declare_subscriber", "query", "reply", "delete"],
+            messages=[
+                "put",
+                "declare_subscriber",
+                "declare_liveliness_subscriber",
+                "liveliness_token",
+                "query",
+                "reply",
+                "delete",
+            ],
             base_url=self.app_base_url,
         )
 
@@ -159,6 +167,7 @@ class ZenohAdminClient:
             messages=[
                 "put",
                 "declare_subscriber",
+                "liveliness_token",
                 "declare_queryable",
                 "query",
                 "reply",

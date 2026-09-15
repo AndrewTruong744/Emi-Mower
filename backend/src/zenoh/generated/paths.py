@@ -88,6 +88,15 @@ def mower_telemetry_path(mower_id: str) -> str:
         .replace("{mower_id}", mower_id)
     )
 
+MOWER_LIVELINESS_ADDRESS = "mower/{mower_id}/liveliness"
+
+
+def mower_liveliness_path(mower_id: str) -> str:
+    return (
+        MOWER_LIVELINESS_ADDRESS
+        .replace("{mower_id}", mower_id)
+    )
+
 CUTOUT_UPLOAD_URL_ADDRESS = "user/cutouts/upload-url"
 
 
@@ -100,12 +109,12 @@ CUTOUT_UPLOADED_ADDRESS = "user/cutouts/uploaded"
 def cutout_uploaded_path() -> str:
     return CUTOUT_UPLOADED_ADDRESS
 
-MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS = "mower/{mower_id}/cutout/download-url"
+MOWER_CUTOUT_DELIVERY_ADDRESS = "mower/{mower_id}/cutout/delivery"
 
 
-def mower_cutout_download_url_path(mower_id: str) -> str:
+def mower_cutout_delivery_path(mower_id: str) -> str:
     return (
-        MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS
+        MOWER_CUTOUT_DELIVERY_ADDRESS
         .replace("{mower_id}", mower_id)
     )
 

@@ -15,12 +15,16 @@ These values are JSON strings and use the common cache TTL of 86,400 seconds
 | `user:{user_id}:mowers`   | JSON list of mower IDs          | Avoids re-reading a user's mower list.                    |
 | `user:{user_id}:data`     | JSON user data                  | Caches ID, email, name, and creation time.                |
 | `mower:{mower_id}:data`   | JSON mower data                 | Caches ID, serial number, nickname, and owner ID.         |
-| `mower:{mower_id}:status` | Plain status string             | Keeps status separately from mower data.                  |
-| `mower:{mower_id}:owner`  | Plain owner ID or literal `dne` | Caches ownership lookup, including a known unowned mower. |
 
 Write paths must invalidate or refresh every affected cache key. For example,
 the fake-mower seed script invalidates the user mower list and each seeded
-mower's data, owner, and status keys.
+mower's data key. Ownership lookups reuse and refresh `mower:{mower_id}:data`;
+there is no owner-only cache entry.
+
+Mower connectivity is not cached in Valkey. The gateway declares a Zenoh
+liveliness token on `mower/{mower_id}/liveliness`, and the authenticated app
+observes it directly. A token only proves an active Zenoh gateway session—it
+does not indicate mower health, motor state, or telemetry freshness.
 
 ## Telemetry buffer keys
 

@@ -13,13 +13,12 @@
        is available only in images built with BUILD_PHYSICAL_DRIVERS=1. -->
   <exec_depend condition="$BUILD_PHYSICAL_DRIVERS == 1">depthai_ros_driver</exec_depend>
   <exec_depend>emi_mower_control</exec_depend>
+  <exec_depend>emi_mower_boundary</exec_depend>
   <exec_depend>emi_mower_zenoh_gateway</exec_depend>
   <exec_depend>emi_mower_livekit</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>rmw_zenoh_cpp</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
   <exec_depend condition="$BUILD_PHYSICAL_DRIVERS == 1">sllidar_ros2</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
 

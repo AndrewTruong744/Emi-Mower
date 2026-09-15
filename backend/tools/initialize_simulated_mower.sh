@@ -37,7 +37,9 @@ cat > "$env_file" <<EOF
 MOWER_ID=${mower_id}
 MOWER_CREDENTIAL_DIR=${credential_dir}
 ZENOH_ROUTER_ENDPOINT=tls/host.docker.internal:7448
-ZENOH_VERIFY_NAME_ON_CONNECT=false
+ZENOH_VERIFY_NAME_ON_CONNECT=true
+ZENOH_BOOTSTRAP_ENDPOINT=tls/host.docker.internal:7449
+ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT=true
 MOWER_LAUNCH=sim
 SWTPM_STATE_DIR=${tpm_state_dir}
 TPM_TRANSPORT=swtpm
@@ -68,7 +70,6 @@ uv run python -m src.scripts.provision_mower \
   --jetson-env-file "$env_file" \
   --mower-cert-dir "$credential_dir" \
   --router-endpoint tls/host.docker.internal:7448 \
-  --no-verify-name-on-connect \
   --mower-launch sim \
   --device-root-public-key "$tpm_state_dir/device-root-public.pem"
 

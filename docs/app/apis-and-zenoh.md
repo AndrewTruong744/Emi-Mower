@@ -13,6 +13,7 @@ from [`zenohClient.ts`](../../app/src/config/zenohClient.ts):
 - `zenohQuery` for request/reply operations;
 - `zenohPut` for one-way publications; and
 - `zenohSubscribe` for live telemetry.
+- `zenohSubscribeLiveliness` for payload-less mower gateway connection tokens.
 
 All mower-specific paths must retain their `{mower_id}` scope. Access is
 ultimately enforced by the authenticated Zenoh session's ACL, not by UI checks.
@@ -28,14 +29,20 @@ ultimately enforced by the authenticated Zenoh session's ACL, not by UI checks.
 | `mower/{mower_id}/command`                        | Query     | Sends one state-changing command with a command ID and waits for acceptance or rejection. |
 | `mower/{mower_id}/telemetry/{telemetry_type}/old` | Query     | Fetches cursor-paginated telemetry history for charts.                                    |
 | `mower/{mower_id}/telemetry`                      | Subscribe | Receives live telemetry; the app subscribes with `*` and keeps only its owned mowers.     |
+| `mower/{mower_id}/liveliness`                      | Subscribe | Observes gateway-session token declarations/deletions and displays Zenoh `connected`/`disconnected` state. |
 | `mower/{mower_id}/livekit/consume`                | Query     | Requests short-lived viewer credentials for a mower's LiveKit room.                       |
 | `user/cutouts/upload-url`                         | Query     | Requests a short-lived signed upload URL for a cutting-area image.                        |
-| `user/cutouts/uploaded`                           | Put       | Tells the backend whether that signed upload succeeded so it can verify or discard it.    |
+| `user/cutouts/uploaded`                           | Put       | Supplies upload status plus the opaque object key and recipients so the backend can verify and deliver it. |
 
 Generated helpers also expose routes for assigning and renaming mowers,
-cutout download, LiveKit publishing, and mower certificate renewal. They are
+cutout delivery, LiveKit publishing, and mower certificate renewal. They are
 not currently invoked by the mobile app. Certificate-renewal bootstrap routes
 are mower infrastructure routes, not app routes.
+
+Liveliness is direct Zenoh connection state, not a FastAPI response or a
+Valkey value. It reports only whether the mower gateway still has its
+authenticated Zenoh session; use telemetry and future safety signals for mower
+health or task decisions.
 
 ## Other external APIs
 

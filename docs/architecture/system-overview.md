@@ -22,8 +22,11 @@ and backend services persist and expose it to the app.
 
 ## Boundaries that must remain explicit
 
-- The backend/factory host issues each mower's identity and mTLS credentials;
-  the CA private key never goes to a Jetson.
+- The backend/factory host authorizes each mower's identity and mTLS
+  credentials; the CA private key never goes to a Jetson. The local dedicated
+  step-ca service owns the local CA state in persistent storage; application
+  containers receive only their own leaf credentials. Production should use an
+  offline root and an online intermediate signer.
 - `MOWER_ID` scopes routes and credentials to one mower.
 - The Jetson may make commands safe when ROS input goes stale, but the STM32 is
   the final safety authority for motor output.

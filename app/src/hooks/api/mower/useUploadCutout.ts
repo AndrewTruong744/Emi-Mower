@@ -36,6 +36,12 @@ export function useUploadCutout() {
         mower_ids: recipients,
         content_type: resolvedContentType,
       });
+      const completion = {
+        cutoutId: upload.cutout_id,
+        objectKey: upload.object_key,
+        mowerIds: recipients,
+        contentType: resolvedContentType,
+      } as const;
       try {
         const image = await fetch(imageUri);
         if (!image.ok) throw new Error(`Could not read cutout image (${image.status})`);
@@ -47,13 +53,13 @@ export function useUploadCutout() {
         if (!uploadResponse.ok) throw new Error(`Cutout upload failed (${uploadResponse.status})`);
       } catch (error) {
         await notification.mutateAsync({
-          cutoutId: upload.cutout_id,
+          ...completion,
           success: false,
           failureReason: error instanceof Error ? error.message : 'Upload failed',
         }).catch(() => undefined);
         throw error;
       }
-      await notification.mutateAsync({ cutoutId: upload.cutout_id, success: true });
+      await notification.mutateAsync({ ...completion, success: true });
       return upload;
     },
     retry: false,

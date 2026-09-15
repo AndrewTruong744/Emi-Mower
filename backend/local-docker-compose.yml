@@ -1,4 +1,27 @@
 services:
+  step-ca:
+    build:
+      context: .
+      dockerfile: Dockerfile.step-ca
+    network_mode: host
+    environment:
+      STEP_CA_NAME: Emi Mower Local Development
+      STEP_CA_DNS_NAMES: localhost,step-ca
+      STEP_CA_ADDRESS: ":9000"
+      STEP_CA_URL: https://localhost:9000
+      ZENOH_ROUTER_SANS: localhost,127.0.0.1,host.docker.internal
+    volumes:
+      - step-ca-data:/home/step
+      - backend-identity:/credentials/backend
+      - zenoh-mtls-identity:/credentials/zenoh-mtls
+      - zenoh-app-identity:/credentials/zenoh-app
+      - step-ca-issuer:/credentials/issuer
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /home/step/credentials-ready && step ca health --ca-url https://localhost:9000 >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   postgres:
     image: postgres:18-alpine
     environment:
@@ -37,6 +60,10 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-mtls-identity:/run/emi-mower/identity:ro
+    depends_on:
+      step-ca:
+        condition: service_healthy
 
   zenoh-app:
     build:
@@ -47,8 +74,12 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-app-identity:/run/emi-mower/identity:ro
     depends_on:
-      - zenoh-mtls
+      step-ca:
+        condition: service_healthy
+      zenoh-mtls:
+        condition: service_started
 
   zenoh-bootstrap:
     image: eclipse/zenoh:1.9.0
@@ -57,14 +88,22 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
+      - zenoh-mtls-identity:/run/emi-mower/identity:ro
+    depends_on:
+      step-ca:
+        condition: service_healthy
 
   backend:
-    image: python:3.12-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.local
     working_dir: /workspace
     network_mode: host
     volumes:
       - ./:/workspace
       - uv-cache:/root/.cache/uv
+      - backend-identity:/run/emi-mower/identity:ro
+      - step-ca-issuer:/run/emi-mower/issuer:ro
     environment:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
@@ -77,8 +116,7 @@ services:
       ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
       ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
       ZENOH_BOOTSTRAP_ENDPOINT: ${ZENOH_BOOTSTRAP_ENDPOINT:-tls/127.0.0.1:7449}
-      ZENOH_BOOTSTRAP_VERIFY_NAME: ${ZENOH_BOOTSTRAP_VERIFY_NAME:-false}
-      MOWER_CA_KEY_PASSPHRASE_FILE: ${MOWER_CA_KEY_PASSPHRASE_FILE:-}
+      STEP_CA_URL: https://localhost:9000
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-emi-mower}
       GCS_CUTOUT_BUCKET: ${GCS_CUTOUT_BUCKET:-emi-mower-cutouts-sandbox}
     command:
@@ -90,6 +128,8 @@ services:
         uv run alembic upgrade head &&
         uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
     depends_on:
+      step-ca:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       valkey:
@@ -188,3 +228,8 @@ volumes:
   postgres-data:
   valkey-data:
   uv-cache:
+  step-ca-data:
+  step-ca-issuer:
+  backend-identity:
+  zenoh-mtls-identity:
+  zenoh-app-identity:

@@ -6,6 +6,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/CutoutDownload.msg"
   "msg/MowerState.msg"
   "msg/TelemetryRecord.msg"
   "msg/TelemetryBatch.msg"

@@ -1,11 +1,11 @@
-"""Pure download helper shared by the ROS boundary-cutout node and its tests."""
+"""Atomic persistence for the boundary package's signed downloads."""
 
 from pathlib import Path
 from urllib.request import urlopen
 
 
 def download_cutout(url: str, destination: Path) -> None:
-    """Download atomically so consumers never observe a partial boundary image."""
+    """Download atomically so analysis never observes a partial image."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(f"{destination.suffix}.part")
     with urlopen(url, timeout=30) as response, temporary.open("wb") as output:

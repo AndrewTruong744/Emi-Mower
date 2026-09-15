@@ -47,9 +47,6 @@ def get_zenoh_config() -> zenoh.Config:
         f'"{fastapi_key.as_posix()}"',
     )
     config.insert_json5("transport/link/tls/enable_mtls", "true")
-    if not settings.ZENOH_MTLS_VERIFY_NAME:
-        config.insert_json5("transport/link/tls/verify_name_on_connect", "false")
-
     return config
 
 

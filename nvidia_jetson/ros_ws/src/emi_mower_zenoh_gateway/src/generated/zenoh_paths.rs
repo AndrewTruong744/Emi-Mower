@@ -5,25 +5,19 @@
 pub const USER_LOGIN_ADDRESS: &str = "user/login";
 
 pub fn user_login_path() -> String {
-    let path = USER_LOGIN_ADDRESS.to_owned();
-
-    path
+    USER_LOGIN_ADDRESS.to_owned()
 }
 
 pub const ADD_MOWER_TO_USER_ADDRESS: &str = "user/add_mower";
 
 pub fn add_mower_to_user_path() -> String {
-    let path = ADD_MOWER_TO_USER_ADDRESS.to_owned();
-
-    path
+    ADD_MOWER_TO_USER_ADDRESS.to_owned()
 }
 
 pub const UPDATE_USER_NAME_ADDRESS: &str = "user/update_name";
 
 pub fn update_user_name_path() -> String {
-    let path = UPDATE_USER_NAME_ADDRESS.to_owned();
-
-    path
+    UPDATE_USER_NAME_ADDRESS.to_owned()
 }
 
 pub const UPDATE_MOWER_NAME_ADDRESS: &str = "mower/{mower_id}/update_name";
@@ -37,9 +31,7 @@ pub fn update_mower_name_path(mower_id: &str) -> String {
 pub const UPDATE_USER_EMAIL_ADDRESS: &str = "user/update_email";
 
 pub fn update_user_email_path() -> String {
-    let path = UPDATE_USER_EMAIL_ADDRESS.to_owned();
-
-    path
+    UPDATE_USER_EMAIL_ADDRESS.to_owned()
 }
 
 pub const LIVEKIT_CONSUME_ADDRESS: &str = "mower/{mower_id}/livekit/consume";
@@ -91,26 +83,30 @@ pub fn mower_telemetry_path(mower_id: &str) -> String {
     path
 }
 
+pub const MOWER_LIVELINESS_ADDRESS: &str = "mower/{mower_id}/liveliness";
+
+pub fn mower_liveliness_path(mower_id: &str) -> String {
+    let mut path = MOWER_LIVELINESS_ADDRESS.to_owned();
+    path = path.replace("{mower_id}", mower_id);
+    path
+}
+
 pub const CUTOUT_UPLOAD_URL_ADDRESS: &str = "user/cutouts/upload-url";
 
 pub fn cutout_upload_url_path() -> String {
-    let path = CUTOUT_UPLOAD_URL_ADDRESS.to_owned();
-
-    path
+    CUTOUT_UPLOAD_URL_ADDRESS.to_owned()
 }
 
 pub const CUTOUT_UPLOADED_ADDRESS: &str = "user/cutouts/uploaded";
 
 pub fn cutout_uploaded_path() -> String {
-    let path = CUTOUT_UPLOADED_ADDRESS.to_owned();
-
-    path
+    CUTOUT_UPLOADED_ADDRESS.to_owned()
 }
 
-pub const MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS: &str = "mower/{mower_id}/cutout/download-url";
+pub const MOWER_CUTOUT_DELIVERY_ADDRESS: &str = "mower/{mower_id}/cutout/delivery";
 
-pub fn mower_cutout_download_url_path(mower_id: &str) -> String {
-    let mut path = MOWER_CUTOUT_DOWNLOAD_URL_ADDRESS.to_owned();
+pub fn mower_cutout_delivery_path(mower_id: &str) -> String {
+    let mut path = MOWER_CUTOUT_DELIVERY_ADDRESS.to_owned();
     path = path.replace("{mower_id}", mower_id);
     path
 }

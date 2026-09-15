@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.zenoh.generated import (
+    CutoutUploadNotification,
     EmergencyStopCommand,
     ImuTelemetry,
     MowerCertificateRenewChallengeRequest,
@@ -25,6 +26,7 @@ from src.zenoh.generated import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ASYNCAPI_PATH = REPOSITORY_ROOT / "backend" / "zenoh_asyncapi.yaml"
 APP_TYPES_PATH = REPOSITORY_ROOT / "app" / "src" / "generated" / "zenoh.ts"
+APP_PATHS_PATH = APP_TYPES_PATH.with_name("zenohPaths.ts")
 RUST_TYPES_PATH = (
     REPOSITORY_ROOT
     / "nvidia_jetson"
@@ -81,14 +83,35 @@ def test_telemetry_models_match_the_asyncapi_schema_in_all_consumers():
     assert TelemetryList.model_fields["root"].annotation == list[TelemetryRecord]
     app_types = APP_TYPES_PATH.read_text()
     assert "export type TelemetryList = TelemetryRecord[];" in app_types
-    assert "pub type TelemetryList = Vec<TelemetryRecord>;" in RUST_TYPES_PATH.read_text()
+    assert (
+        "pub type TelemetryList = Vec<TelemetryRecord>;" in RUST_TYPES_PATH.read_text()
+    )
 
 
 def test_rust_gateway_routes_and_joystick_type_are_generated_from_asyncapi():
-    assert _schema_properties("JoystickCommand") == _rust_struct_properties("JoystickCommand")
+    assert _schema_properties("JoystickCommand") == _rust_struct_properties(
+        "JoystickCommand"
+    )
     rust_paths = RUST_PATHS_PATH.read_text()
     assert 'MOWER_JOYSTICK_ADDRESS: &str = "mower/{mower_id}/joystick"' in rust_paths
     assert 'MOWER_TELEMETRY_ADDRESS: &str = "mower/{mower_id}/telemetry"' in rust_paths
+
+
+def test_cutout_delivery_contract_is_generated_for_the_gateway():
+    assert _schema_properties("MowerCutoutDelivery") == _rust_struct_properties(
+        "MowerCutoutDelivery"
+    )
+
+
+def test_cutout_notification_contract_is_generated_for_backend_and_app():
+    fields = _schema_properties("CutoutUploadNotification")
+    assert fields == set(CutoutUploadNotification.model_fields)
+    assert fields == _typescript_interface_properties("CutoutUploadNotification")
+    rust_paths = RUST_PATHS_PATH.read_text()
+    assert (
+        'MOWER_CUTOUT_DELIVERY_ADDRESS: &str = "mower/{mower_id}/cutout/delivery"'
+        in rust_paths
+    )
 
 
 def test_certificate_renewal_contract_is_generated_for_backend_and_gateway():
@@ -104,7 +127,7 @@ def test_certificate_renewal_contract_is_generated_for_backend_and_gateway():
     assert "pub struct MowerCertificateRenewCompleteRequest" in source
     assert "export interface MowerCertificateRenewCompleteRequest" in app_types
     assert (
-        'MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS: &str =\n'
+        "MOWER_CERTIFICATE_RENEW_CHALLENGE_ADDRESS: &str =\n"
         '    "bootstrap/mower/{mower_id}/certificate/renew/challenge"'
     ) in paths
 
@@ -116,14 +139,45 @@ def test_telemetry_channel_references_the_shared_telemetry_list_message():
     assert "telemetryList: {$ref: '#/components/messages/TelemetryList'}" in channel
 
 
+def test_liveliness_route_is_generated_for_the_app_and_gateway():
+    document = ASYNCAPI_PATH.read_text()
+    channel = document.split("  mowerLiveliness:\n", 1)[1].split(
+        "  cutoutUploadUrl:\n", 1
+    )[0]
+    assert "address: mower/{mower_id}/liveliness" in channel
+    assert "mowerLiveliness: {$ref: '#/components/messages/MowerLiveliness'}" in channel
+
+    app_paths = APP_PATHS_PATH.read_text()
+    rust_paths = RUST_PATHS_PATH.read_text()
+    assert 'MOWER_LIVELINESS_ADDRESS = "mower/{mower_id}/liveliness"' in app_paths
+    assert (
+        'MOWER_LIVELINESS_ADDRESS: &str = "mower/{mower_id}/liveliness"'
+        in rust_paths
+    )
+
+
 def test_mower_command_contract_is_typed_and_has_an_acceptance_reply():
     document = ASYNCAPI_PATH.read_text()
-    channel = document.split("  mowerCommand:\n", 1)[1].split("  mowerTelemetryHistory:\n", 1)[0]
+    channel = document.split("  mowerCommand:\n", 1)[1].split(
+        "  mowerTelemetryHistory:\n", 1
+    )[0]
     assert "address: mower/{mower_id}/command" in channel
-    assert "mowerCommandRequest: {$ref: '#/components/messages/MowerCommandRequest'}" in channel
-    assert EmergencyStopCommand(command_id="command-1", type="emergency_stop").type == "emergency_stop"
-    assert SetModeCommand(command_id="command-2", type="set_mode", mode="auto").mode == "auto"
-    assert MowerCommandResponse(command_id="command-3", status="accepted").status == "accepted"
+    assert (
+        "mowerCommandRequest: {$ref: '#/components/messages/MowerCommandRequest'}"
+        in channel
+    )
+    assert (
+        EmergencyStopCommand(command_id="command-1", type="emergency_stop").type
+        == "emergency_stop"
+    )
+    assert (
+        SetModeCommand(command_id="command-2", type="set_mode", mode="auto").mode
+        == "auto"
+    )
+    assert (
+        MowerCommandResponse(command_id="command-3", status="accepted").status
+        == "accepted"
+    )
 
 
 def test_generated_telemetry_model_applies_asyncapi_defaults_and_direction_bounds():

@@ -238,15 +238,13 @@ class CutoutUploadNotification(BaseModel):
 
     id_token: str
     cutout_id: str
+    object_key: str
+    mower_ids: list[str]
+    content_type: Literal["image/png", "image/jpeg", "image/webp"]
     success: bool
     failure_reason: str | None = None
 
-
-class MowerCutoutDownloadUrlRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class MowerCutoutDownloadUrlResponse(BaseModel):
+class MowerCutoutDelivery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     cutout_id: str
@@ -291,8 +289,7 @@ WireMessage = (
     | CutoutUploadUrlRequest
     | CutoutUploadUrlResponse
     | CutoutUploadNotification
-    | MowerCutoutDownloadUrlRequest
-    | MowerCutoutDownloadUrlResponse
+    | MowerCutoutDelivery
     | ProblemDetails
     | dict[str, Any]
 )

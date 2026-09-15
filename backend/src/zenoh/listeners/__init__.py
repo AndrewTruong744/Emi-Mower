@@ -18,10 +18,6 @@ from src.zenoh.listeners.mower_telemetry import (
     MOWER_TELEMETRY_KEY_EXPR,
     mower_telemetry,
 )
-from src.zenoh.listeners.mower_cutout_download_url import (
-    MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR,
-    mower_cutout_download_url,
-)
 from src.zenoh.listeners.mower_telemetry_history import (
     MOWER_TELEMETRY_HISTORY_KEY_EXPR,
     mower_telemetry_history,
@@ -55,8 +51,6 @@ __all__ = [
     "livekit_upload",
     "MOWER_TELEMETRY_KEY_EXPR",
     "mower_telemetry",
-    "MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR",
-    "mower_cutout_download_url",
     "MOWER_TELEMETRY_HISTORY_KEY_EXPR",
     "mower_telemetry_history",
     "UPDATE_USER_NAME_KEY_EXPR",

@@ -8,7 +8,7 @@ from src.config.valkey_client import get_valkey_client
 from src.exceptions import MowerNotFoundError, RepositoryError, UserNotFoundError
 from src.models.mower import MowerModel
 from src.models.user import UserModel
-from src.schemas.valkey import mower_data_key, mower_owner_key, user_mowers_key
+from src.schemas.valkey import mower_data_key, user_mowers_key
 
 logger = logging.getLogger("repositories.add_mower_to_user")
 
@@ -18,8 +18,8 @@ async def add_mower_to_user(
 ) -> None:
     """
     Updates the owner of a mower in PostgreSQL using provided AsyncSession.
-    Also invalidates the cached mower owner key, mower details, and the
-    mower list for both the new owner and the old owner (if changed).
+    Also invalidates cached mower details and the mower list for both the new
+    owner and the old owner (if changed).
     Raises MowerNotFoundError if mower does not exist, UserNotFoundError if a
     requested owner does not exist, or RepositoryError on DB error.
     """
@@ -73,7 +73,6 @@ async def add_mower_to_user(
             pipeline = v_client.pipeline()
 
             # Evict individual mower info
-            pipeline.delete(mower_owner_key(str(m_uuid)))
             pipeline.delete(mower_data_key(str(m_uuid)))
 
             # Evict mowers list cache for new owner

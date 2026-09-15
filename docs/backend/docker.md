@@ -15,6 +15,11 @@ The local backend and worker services use `python:3.12-slim`, mount the working
 tree, install `uv`, and run `uv sync --frozen` at container start. That favors
 fast iteration; it is not an immutable production image.
 
+The local Compose stack includes a dedicated `step-ca` service. It creates and
+retains its local CA state in the `step-ca-data` volume, then writes separate
+backend and router leaf identities into dedicated volumes. Do not mount the CA
+volume into the backend, worker, or Zenoh-router containers.
+
 ## Compose files
 
 | File                                                                         | Scope                       | Contents and lifetime                                                                                                                                                                    |

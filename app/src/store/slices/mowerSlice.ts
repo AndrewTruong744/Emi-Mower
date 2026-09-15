@@ -14,6 +14,7 @@ function createMowerDetails(uuid: string, name = defaultMowerName(uuid)): MowerD
     battery: null,
     state: 'unknown',
     health: 'unknown',
+    connection: 'disconnected',
     telemetry: [],
   };
 }
@@ -99,6 +100,18 @@ export const createMowerSlice: StateCreator<BoundStoreState, [], [], MowerSlice>
   },
   selectMower: (uuid) => {
     if (get().mowers.includes(uuid)) set({ selectedMowerUuid: uuid });
+  },
+  setMowerConnection: (uuid, connection) => {
+    set((state) => {
+      const mower = state.mowerDetails[uuid];
+      if (!mower || mower.connection === connection) return state;
+      return {
+        mowerDetails: {
+          ...state.mowerDetails,
+          [uuid]: { ...mower, connection },
+        },
+      };
+    });
   },
   appendTelemetryBatch: (telemetryByMower) => {
     set((state) => {

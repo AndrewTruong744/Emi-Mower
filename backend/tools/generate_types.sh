@@ -31,6 +31,7 @@ asyncapi generate models typescript zenoh_asyncapi.yaml \
 
 node tools/generate_zenoh_paths.mjs
 node tools/generate_rust_zenoh_types.mjs
+node tools/generate_cutout_types.mjs
 node tools/generate_renewal_python_types.mjs
 
 # Keep generated Rust source in the form checked by the Jetson build.

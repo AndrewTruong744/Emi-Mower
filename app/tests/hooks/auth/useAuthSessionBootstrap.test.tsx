@@ -7,6 +7,7 @@ import { closeZenoh, isZenohOperationActive } from '@/config/zenohClient';
 import { onAuthStateChanged } from '@react-native-firebase/auth';
 import { loginUser } from '@/zenoh/UserLogin';
 import { initializeMowerTelemetrySubscription } from '@/zenoh/mowerTelemetry';
+import { initializeMowerLivelinessSubscription } from '@/zenoh/mowerLiveliness';
 import { reportAppError } from '@/errors/reporter';
 
 jest.mock('@react-native-firebase/auth', () => ({
@@ -20,6 +21,9 @@ jest.mock('@/zenoh/UserLogin', () => ({ loginUser: jest.fn() }));
 jest.mock('@/zenoh/mowerTelemetry', () => ({
   initializeMowerTelemetrySubscription: jest.fn(),
 }));
+jest.mock('@/zenoh/mowerLiveliness', () => ({
+  initializeMowerLivelinessSubscription: jest.fn(),
+}));
 jest.mock('@/errors/reporter', () => ({ reportAppError: jest.fn() }));
 
 const mockAuthStateChanged = onAuthStateChanged as jest.Mock<(...args: any[]) => any>;
@@ -27,6 +31,9 @@ const mockCloseZenoh = closeZenoh as jest.Mock<(...args: any[]) => any>;
 const mockIsActive = isZenohOperationActive as jest.Mock<(...args: any[]) => any>;
 const mockLoginUser = loginUser as jest.Mock<(...args: any[]) => any>;
 const mockInitializeTelemetry = initializeMowerTelemetrySubscription as jest.Mock<
+  (...args: any[]) => any
+>;
+const mockInitializeLiveliness = initializeMowerLivelinessSubscription as jest.Mock<
   (...args: any[]) => any
 >;
 const mockReportAppError = reportAppError as jest.Mock<(...args: any[]) => any>;
@@ -49,6 +56,7 @@ describe('useAuthSessionBootstrap', () => {
       mowers: ['mower-1'],
     });
     mockInitializeTelemetry.mockResolvedValue(undefined);
+    mockInitializeLiveliness.mockResolvedValue(undefined);
   });
 
   it('clears the authenticated session when Firebase reports signed out', async () => {
@@ -82,7 +90,7 @@ describe('useAuthSessionBootstrap', () => {
     expect(mockCloseZenoh).not.toHaveBeenCalled();
   });
 
-  it('logs in, publishes the user state, and waits for telemetry setup', async () => {
+  it('logs in, publishes the user state, and waits for Zenoh subscriptions', async () => {
     renderHook(() => useAuthSessionBootstrap());
 
     await act(async () => {
@@ -91,6 +99,7 @@ describe('useAuthSessionBootstrap', () => {
 
     expect(mockLoginUser).toHaveBeenCalledTimes(1);
     expect(mockInitializeTelemetry).toHaveBeenCalledTimes(1);
+    expect(mockInitializeLiveliness).toHaveBeenCalledTimes(1);
     expect(useBoundStore.getState()).toMatchObject({
       authStatus: 'authenticated',
       user_id: 'user-1',

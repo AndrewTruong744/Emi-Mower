@@ -1,7 +1,12 @@
 import pytest
 
 from src.repositories.get_all_mowers_and_users import get_all_mowers_and_users
-from src.schemas.valkey import UserMowersCache, mower_owner_key, user_mowers_key
+from src.schemas.valkey import (
+    MowerDataCache,
+    UserMowersCache,
+    mower_data_key,
+    user_mowers_key,
+)
 
 pytestmark = pytest.mark.repository
 
@@ -25,4 +30,6 @@ async def test_get_all_mowers_and_users_returns_relationships_and_warms_cache(
     assert UserMowersCache.model_validate_json(
         await cache.get(user_mowers_key("user-1"))
     ).root == [str(mower.id)]
-    assert await cache.get(mower_owner_key(str(mower.id))) == "user-1"
+    assert MowerDataCache.model_validate_json(
+        await cache.get(mower_data_key(str(mower.id)))
+    ).owner_id == "user-1"

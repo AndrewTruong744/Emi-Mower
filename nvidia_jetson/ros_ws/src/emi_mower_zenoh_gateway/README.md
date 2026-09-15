@@ -1,7 +1,7 @@
 # Emi Mower Zenoh gateway
 
-`zenoh_gateway` is the only ROS node that uses the app/backend's native Zenoh
-routes. It has two directions:
+`zenoh_gateway` owns the app/backend native Zenoh boundary for mower control,
+telemetry, and cutouts. It has two primary data directions:
 
 ```text
 mower/<mower_id>/joystick JSON -> /teleop/cmd_vel (geometry_msgs/TwistStamped)
@@ -12,6 +12,12 @@ mower/<mower_id>/joystick JSON -> /teleop/cmd_vel (geometry_msgs/TwistStamped)
 `MOWER_ID` is set once by the launch file. The gateway validates that identifier
 before constructing a route and injects it into telemetry records, so a ROS
 publisher cannot publish data as another mower.
+
+The gateway also subscribes to the mower's native cutout-delivery route. It validates
+each `MowerCutoutDelivery` and publishes it as the typed ROS
+`/mower/boundary_cutout/download` topic. `emi_mower_boundary` owns signed HTTP
+download, local persistence, and future cutout analysis; it never opens a
+native Zenoh session.
 
 The native Zenoh structs and route helpers in `src/generated/` are generated
 from `backend/zenoh_asyncapi.yaml`. Regenerate them from `backend/` with

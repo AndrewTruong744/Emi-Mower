@@ -5,7 +5,7 @@ import pytest
 
 from src.config import __all__ as config_exports
 from src.config import database, http_client, valkey_client
-from src.config.settings import Settings
+from src.config.settings import Settings, SettingsValidationError
 from src.config.zenoh import get_zenoh_config
 
 
@@ -32,25 +32,30 @@ async def test_close_http_client_is_idempotent(monkeypatch):
     assert http_client._http_client is None
 
 
-def test_settings_builds_database_and_valkey_urls():
+def test_settings_builds_async_database_url():
     config = Settings()
     config.POSTGRES_USER = "db-user"
     config.POSTGRES_PASSWORD = "db-password"
     config.POSTGRES_HOST = "db.example.test"
     config.POSTGRES_PORT = "55432"
     config.POSTGRES_DB = "application"
-    config.VALKEY_HOST = "cache.example.test"
-    config.VALKEY_PORT = 16379
-    config.VALKEY_DB = 4
-    config.VALKEY_PASSWORD = "cache-password"
-
     assert config.DATABASE_URL_ASYNC == (
         "postgresql+asyncpg://db-user:db-password@db.example.test:55432/application"
     )
-    assert config.DATABASE_URL_SYNC == (
-        "postgresql://db-user:db-password@db.example.test:55432/application"
-    )
-    assert config.VALKEY_URL == "redis://:cache-password@cache.example.test:16379/4"
+
+
+def test_settings_validation_rejects_missing_required_values():
+    config = Settings()
+    config.JWT_SECRET = ""
+    with pytest.raises(SettingsValidationError, match="JWT_SECRET"):
+        config.validate_startup()
+
+    config.JWT_SECRET = "test-secret"
+    config.LIVEKIT_URL = "wss://livekit.example.test"
+    config.LIVEKIT_API_KEY = "api-key"
+    config.LIVEKIT_API_SECRET = ""
+    with pytest.raises(SettingsValidationError, match="LIVEKIT_API_SECRET"):
+        config.validate_startup()
 
 
 def test_config_package_exports_public_dependencies():
@@ -115,9 +120,7 @@ def test_get_zenoh_config_requires_all_certificates(monkeypatch, tmp_path):
     assert result is config
     assert config.insert_json5.call_count == 6
     config.insert_json5.assert_any_call("mode", '"client"')
-    config.insert_json5.assert_any_call(
-        "connect/endpoints", "['tls/127.0.0.1:7448']"
-    )
+    config.insert_json5.assert_any_call("connect/endpoints", "['tls/127.0.0.1:7448']")
     config.insert_json5.assert_any_call("transport/link/tls/enable_mtls", "true")
 
 

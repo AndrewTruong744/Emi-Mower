@@ -4,9 +4,9 @@
   transport: {
     link: {
       tls: {
-        root_ca_certificate: "certs/ca/ca.crt",
-        listen_certificate: "certs/zenoh_mtls/router.crt",
-        listen_private_key: "certs/zenoh_mtls/router.key",
+        root_ca_certificate: "/run/emi-mower/identity/root_ca.pem",
+        listen_certificate: "/run/emi-mower/identity/current/router.crt",
+        listen_private_key: "/run/emi-mower/identity/current/router.key",
         enable_mtls: true
       }
     }

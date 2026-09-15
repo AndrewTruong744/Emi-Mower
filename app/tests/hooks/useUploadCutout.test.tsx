@@ -28,7 +28,9 @@ describe('useUploadCutout', () => {
     });
     expect(fetchMock).toHaveBeenNthCalledWith(2, 'https://storage.test/upload', expect.objectContaining({ method: 'PUT' }));
     expect(mockedZenohPut).toHaveBeenCalledWith('user/cutouts/uploaded', {
-      id_token: 'firebase-token', cutout_id: 'cutout-1', success: true,
+      id_token: 'firebase-token', cutout_id: 'cutout-1',
+      object_key: 'users/user/cutouts/cutout-1.png', mower_ids: ['mower-1'],
+      content_type: 'image/png', success: true,
     });
     fetchMock.mockRestore();
   });
@@ -44,7 +46,8 @@ describe('useUploadCutout', () => {
         .rejects.toThrow('Cutout upload failed');
     });
     expect(mockedZenohPut).toHaveBeenCalledWith('user/cutouts/uploaded', expect.objectContaining({
-      cutout_id: 'cutout-1', success: false,
+      cutout_id: 'cutout-1', object_key: 'users/user/cutouts/cutout-1.png',
+      mower_ids: ['mower-1'], content_type: 'image/png', success: false,
     }));
     fetchMock.mockRestore();
   });

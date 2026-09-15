@@ -11,10 +11,11 @@ from src.config import (
     close_http_client,
     close_valkey_pool,
     engine,
-    get_zenoh_config,
     get_zenoh_bootstrap_config,
+    get_zenoh_config,
     init_http_client,
 )
+from src.config.settings import settings
 from src.services import initialize_backend_auth
 from src.zenoh import ZenohMessageHandler, ZenohQueryHandler
 from src.zenoh.register_handlers import register_bootstrap_handlers, register_handlers
@@ -27,6 +28,8 @@ logger = logging.getLogger("backend")
 # Lifespan manager for startup and shutdown events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate_startup()
+
     # Startup: Initialize shared HTTP client pool
     logger.info("Initializing HTTP client pool...")
     init_http_client()

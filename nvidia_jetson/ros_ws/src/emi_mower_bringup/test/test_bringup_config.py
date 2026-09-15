@@ -1,10 +1,10 @@
 from pathlib import Path
 
-
 PACKAGE_ROOT = Path(__file__).parents[1]
 CONFIG = PACKAGE_ROOT / "config" / "zenoh_client.json5"
 REAL_LAUNCH = PACKAGE_ROOT / "launch" / "real.launch.py"
 SIM_LAUNCH = PACKAGE_ROOT / "launch" / "sim.launch.py"
+COMPOSE = PACKAGE_ROOT.parents[1] / "docker-compose.yml"
 
 
 def test_zenoh_client_config_is_a_tls_client_template_fallback() -> None:
@@ -16,6 +16,18 @@ def test_zenoh_client_config_is_a_tls_client_template_fallback() -> None:
     assert "\n        certificate:" not in text
     assert "\n        private_key:" not in text
     assert "localhost" not in text
+
+
+def test_local_ros_compose_verifies_the_host_router_certificate() -> None:
+    text = COMPOSE.read_text()
+    assert "tls/host.docker.internal:7448" in text
+    assert "ZENOH_VERIFY_NAME_ON_CONNECT: ${ZENOH_VERIFY_NAME_ON_CONNECT:-true}" in text
+    assert "tls/host.docker.internal:7449" in text
+    assert (
+        "ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT: "
+        "${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT:-true}"
+    ) in text
+    assert "host.docker.internal:host-gateway" in text
 
 
 def test_real_and_sim_launches_share_the_zenoh_ros_transport() -> None:
@@ -45,3 +57,6 @@ def test_launches_use_the_single_native_zenoh_gateway() -> None:
     assert 'executable="zenoh_gateway"' in real
     assert 'executable="zenoh_gateway"' in sim
     assert "teleop_gateway" not in real + sim
+    assert 'package="emi_mower_boundary"' in real
+    assert 'package="emi_mower_boundary"' in sim
+    assert 'executable="boundary_cutout_node"' in real + sim

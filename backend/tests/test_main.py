@@ -37,7 +37,9 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
     message_handler = Mock()
     session = Mock()
     bootstrap_session = Mock()
+    validate_settings = Mock()
     monkeypatch.setattr(main, "engine", Engine())
+    monkeypatch.setattr(main.settings, "validate_startup", validate_settings)
     monkeypatch.setattr(main, "init_http_client", Mock())
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
     monkeypatch.setattr(main, "get_zenoh_config", Mock(return_value="config"))
@@ -61,11 +63,14 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
     monkeypatch.setattr("src.config.get_valkey_client", Mock(return_value=valkey))
 
     async with main.lifespan(app):
+        validate_settings.assert_called_once()
         connection.run_sync.assert_awaited_once()
         valkey.ping.assert_awaited_once()
         valkey.close.assert_awaited_once()
         main.register_handlers.assert_called_once_with(query_handler, message_handler)
-        main.register_bootstrap_handlers.assert_called_once_with(bootstrap_query_handler)
+        main.register_bootstrap_handlers.assert_called_once_with(
+            bootstrap_query_handler
+        )
 
     query_handler.close.assert_called_once()
     message_handler.close.assert_called_once()
@@ -89,6 +94,7 @@ async def test_lifespan_survives_dependency_startup_failures(monkeypatch):
     valkey = Mock()
     valkey.ping = AsyncMock(side_effect=RuntimeError("valkey unavailable"))
     monkeypatch.setattr(main, "engine", BrokenEngine())
+    monkeypatch.setattr(main.settings, "validate_startup", Mock())
     monkeypatch.setattr(main, "init_http_client", Mock())
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
     monkeypatch.setattr(

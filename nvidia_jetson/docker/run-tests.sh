@@ -9,6 +9,7 @@ set -u
 # interfaces and makes them available to the Rust bindings before Cargo tests.
 colcon build --merge-install --symlink-install --packages-select \
   emi_mower_interfaces \
+  emi_mower_boundary \
   emi_mower_control \
   emi_mower_zenoh_gateway \
   emi_mower_livekit
@@ -21,6 +22,7 @@ set -u
 # unit tests and do not need a Zenoh router, camera, or CAN interface.
 python3 -m pytest \
   /ws/src/emi_mower_interfaces/test \
+  /ws/src/emi_mower_boundary/test \
   /ws/src/emi_mower_bringup/test \
   /ws/src/emi_mower_livekit/test \
   /ws/src/emi_mower_control/test

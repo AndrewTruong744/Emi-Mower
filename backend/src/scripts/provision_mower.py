@@ -4,20 +4,24 @@ import argparse
 import asyncio
 import logging
 import os
-import subprocess
 import uuid
 from pathlib import Path
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from src.config.database import AsyncSessionLocal
 from src.config.http_client import close_http_client
 from src.config.zenoh_client import ZenohAdminClient
 from src.repositories.create_mower import create_mower
 from src.repositories.mower_device_identities import register_mower_device_identity
+from src.services.step_ca import StepCaIssuer
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = BACKEND_ROOT.parent
-CERTIFICATE_SCRIPT = BACKEND_ROOT / "tools" / "issue_mower_certificate.sh"
 DEFAULT_JETSON_ENV_FILE = REPOSITORY_ROOT / "nvidia_jetson" / ".env"
+DEFAULT_JETSON_ROUTER_ENDPOINT = "tls/host.docker.internal:7448"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,45 +73,55 @@ def issue_certificate(
     *,
     mower_id: uuid.UUID,
     output_dir: Path,
-    ca_cert: Path,
-    ca_key: Path,
-    ca_key_passphrase_file: Path | None,
 ) -> None:
-    command = [
-        "bash",
-        str(CERTIFICATE_SCRIPT),
-        "--mower-id",
-        str(mower_id),
-        "--output-dir",
-        str(output_dir),
-        "--ca-cert",
-        str(ca_cert),
-        "--ca-key",
-        str(ca_key),
-    ]
-    if ca_key_passphrase_file is not None:
-        command.extend(("--ca-key-passphrase-file", str(ca_key_passphrase_file)))
-    subprocess.run(command, check=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    version_dir = output_dir / "versions" / "initial"
+    if version_dir.exists() or (output_dir / "current").exists():
+        raise RuntimeError(f"mower credentials already exist in {output_dir}")
+    version_dir.mkdir(parents=True)
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = x509.Name(
+        [
+            x509.NameAttribute(x509.NameOID.COUNTRY_NAME, "US"),
+            x509.NameAttribute(x509.NameOID.ORGANIZATION_NAME, "EmiSamaTechnologies"),
+            x509.NameAttribute(
+                x509.NameOID.COMMON_NAME, mower_certificate_common_name(mower_id)
+            ),
+        ]
+    )
+    csr = (
+        x509.CertificateSigningRequestBuilder()
+        .subject_name(subject)
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+        .public_bytes(serialization.Encoding.PEM)
+        .decode()
+    )
+    certificate_pem, ca_chain_pem = StepCaIssuer().sign_csr(csr)
+    (version_dir / "mower.key").write_bytes(
+        private_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    (version_dir / "mower.crt").write_text(certificate_pem)
+    (version_dir / "root_ca.pem").write_text(ca_chain_pem)
+    os.chmod(version_dir / "mower.key", 0o600)
+    os.chmod(version_dir / "mower.crt", 0o644)
+    os.chmod(version_dir / "root_ca.pem", 0o644)
+    os.symlink("versions/initial", output_dir / "current")
 
 
 async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
     mower_id = args.mower_id or uuid.uuid4()
     certificate_common_name = mower_certificate_common_name(mower_id)
-    if not args.ca_cert.is_file() or not args.ca_key.is_file():
-        raise RuntimeError("the provisioning CA certificate and private key must exist")
-    if (
-        args.ca_key_passphrase_file is not None
-        and not args.ca_key_passphrase_file.is_file()
-    ):
-        raise RuntimeError("the CA key passphrase file must exist when provided")
     device_root_public_key = getattr(args, "device_root_public_key", None)
-    if (
-        device_root_public_key is not None
-        and not device_root_public_key.is_file()
-    ):
+    if device_root_public_key is not None and not device_root_public_key.is_file():
         raise RuntimeError("the mower TPM public key file must exist when provided")
-    if not CERTIFICATE_SCRIPT.is_file():
-        raise RuntimeError(f"certificate issuer not found: {CERTIFICATE_SCRIPT}")
 
     async with AsyncSessionLocal() as db:
         mower = await create_mower(
@@ -131,9 +145,6 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
         issue_certificate(
             mower_id=mower_id,
             output_dir=args.output_dir,
-            ca_cert=args.ca_cert,
-            ca_key=args.ca_key,
-            ca_key_passphrase_file=args.ca_key_passphrase_file,
         )
         write_jetson_env(
             args.jetson_env_file,
@@ -162,9 +173,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mower-cert-dir", default="/opt/emi-mower/certs")
     parser.add_argument(
         "--router-endpoint",
-        default=os.getenv(
-            "JETSON_ZENOH_ROUTER_ENDPOINT", "tls/host.docker.internal:7448"
-        ),
+        default=DEFAULT_JETSON_ROUTER_ENDPOINT,
     )
     parser.add_argument(
         "--verify-name-on-connect",
@@ -172,17 +181,6 @@ def parse_args() -> argparse.Namespace:
         default=True,
     )
     parser.add_argument("--mower-launch", choices=("real", "sim"), default="real")
-    parser.add_argument(
-        "--ca-cert", type=Path, default=BACKEND_ROOT / "certs" / "ca" / "ca.crt"
-    )
-    parser.add_argument(
-        "--ca-key", type=Path, default=BACKEND_ROOT / "certs" / "ca" / "ca.key"
-    )
-    parser.add_argument(
-        "--ca-key-passphrase-file",
-        type=Path,
-        default=(os.getenv("MOWER_CA_KEY_PASSPHRASE_FILE") or None),
-    )
     parser.add_argument(
         "--device-root-public-key",
         type=Path,

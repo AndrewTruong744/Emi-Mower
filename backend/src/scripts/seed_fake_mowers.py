@@ -13,8 +13,6 @@ from src.models.mower import MowerImuModel, MowerModel, MowerTelemetryModel
 from src.models.user import UserModel
 from src.schemas.valkey import (
     mower_data_key,
-    mower_owner_key,
-    mower_status_key,
     user_mowers_key,
 )
 
@@ -157,8 +155,6 @@ async def seed_fake_mowers() -> None:
         for mower_id in mower_id_strings
         for key in (
             mower_data_key(mower_id),
-            mower_owner_key(mower_id),
-            mower_status_key(mower_id),
         )
     ]
     async with get_valkey_client() as client:

@@ -9,7 +9,7 @@ def test_register_handlers_declares_queries_and_telemetry_subscriber():
 
     register_handlers(query_handler, message_handler)
 
-    assert query_handler.declare.call_count == 10
+    assert query_handler.declare.call_count == 9
     paths = [call.args[0] for call in query_handler.declare.call_args_list]
     assert paths == [
         "user/login",
@@ -21,11 +21,11 @@ def test_register_handlers_declares_queries_and_telemetry_subscriber():
         "mower/*/livekit/consume",
         "mower/*/livekit/upload",
         "user/cutouts/upload-url",
-        "mower/*/cutout/download-url",
     ]
     assert message_handler.declare.call_count == 2
     message_paths = [call.args[0] for call in message_handler.declare.call_args_list]
     assert message_paths == ["mower/*/telemetry", "user/cutouts/uploaded"]
+    assert message_handler.declare.call_args_list[1].kwargs["include_session"] is True
 
 
 def test_register_bootstrap_handlers_declares_only_renewal_queries():

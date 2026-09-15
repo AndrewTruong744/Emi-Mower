@@ -10,10 +10,6 @@ const rustOutputPath = resolve(
   scriptDirectory,
   '../../nvidia_jetson/ros_ws/src/emi_mower_zenoh_gateway/src/generated/zenoh_paths.rs'
 );
-const rosPythonOutputPath = resolve(
-  scriptDirectory,
-  '../../nvidia_jetson/ros_ws/src/emi_mower_bringup/emi_mower_bringup/zenoh_paths.py'
-);
 const document = readFileSync(asyncApiPath, 'utf8');
 
 const channels = document.match(/^channels:\n([\s\S]*?)^operations:/m)?.[1];
@@ -81,13 +77,20 @@ function rustPathFunction({ name, address, parameters }) {
   const constant = `${toUpperSnakeCase(name)}_ADDRESS`;
   const functionName = `${toSnakeCase(name)}_path`;
   const args = parameters.map((parameter) => `${parameter}: &str`).join(', ');
+  if (parameters.length === 0) {
+    return `pub const ${constant}: &str = ${JSON.stringify(address)};
+
+pub fn ${functionName}() -> String {
+    ${constant}.to_owned()
+}`;
+  }
   const replacements = parameters
     .map((parameter) => `    path = path.replace("{${parameter}}", ${parameter});`)
     .join('\n');
   return `pub const ${constant}: &str = ${JSON.stringify(address)};
 
 pub fn ${functionName}(${args}) -> String {
-    let ${parameters.length ? 'mut ' : ''}path = ${constant}.to_owned();
+    let mut path = ${constant}.to_owned();
 ${replacements}
     path
 }`;
@@ -111,9 +114,3 @@ ${channelDefinitions.map(rustPathFunction).join('\n\n')}
 writeFileSync(appOutputPath, appOutput);
 writeFileSync(backendOutputPath, backendOutput);
 writeFileSync(rustOutputPath, rustOutput);
-writeFileSync(
-  rosPythonOutputPath,
-  `\"\"\"Generated from backend/zenoh_asyncapi.yaml. Do not edit manually.\"\"\"\n\n${channelDefinitions
-    .map(pythonPathFunction)
-    .join('\n\n')}\n`
-);

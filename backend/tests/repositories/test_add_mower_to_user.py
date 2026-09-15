@@ -4,7 +4,7 @@ from sqlalchemy import select
 from src.exceptions import MowerNotFoundError, UserNotFoundError
 from src.models.mower import MowerModel
 from src.repositories.add_mower_to_user import add_mower_to_user
-from src.schemas.valkey import mower_data_key, mower_owner_key, user_mowers_key
+from src.schemas.valkey import mower_data_key, user_mowers_key
 
 pytestmark = pytest.mark.repository
 
@@ -17,7 +17,6 @@ async def test_add_mower_to_user_transfers_owner_and_invalidates_related_cache(
     mower = await seed_mower(owner_id="old-owner")
     keys = [
         mower_data_key(str(mower.id)),
-        mower_owner_key(str(mower.id)),
         user_mowers_key("old-owner"),
         user_mowers_key("new-owner"),
     ]
@@ -28,7 +27,7 @@ async def test_add_mower_to_user_transfers_owner_and_invalidates_related_cache(
     assert (
         await db_session.execute(select(MowerModel.owner_id))
     ).scalar_one() == "new-owner"
-    assert await cache.mget(keys) == [None, None, None, None]
+    assert await cache.mget(keys) == [None, None, None]
 
 
 async def test_add_mower_to_user_assigns_unowned_mower_and_invalidates_new_owner_cache(
@@ -38,7 +37,6 @@ async def test_add_mower_to_user_assigns_unowned_mower_and_invalidates_new_owner
     mower = await seed_mower(owner_id=None)
     keys = [
         mower_data_key(str(mower.id)),
-        mower_owner_key(str(mower.id)),
         user_mowers_key("new-owner"),
     ]
     await cache.mset({key: "stale" for key in keys})
@@ -48,7 +46,7 @@ async def test_add_mower_to_user_assigns_unowned_mower_and_invalidates_new_owner
     assert (
         await db_session.execute(select(MowerModel.owner_id))
     ).scalar_one() == "new-owner"
-    assert await cache.mget(keys) == [None, None, None]
+    assert await cache.mget(keys) == [None, None]
 
 
 async def test_add_mower_to_user_rejects_nonexistent_user_without_mutating_mower(

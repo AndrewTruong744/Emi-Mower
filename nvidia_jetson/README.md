@@ -27,10 +27,10 @@ docker compose up --build
 
 The default Compose stack runs `sim.launch.py` and reaches the host router at
 `tls/host.docker.internal:7448`. `extra_hosts` supplies that name on Linux as
-well as Docker Desktop. Set `ZENOH_ROUTER_ENDPOINT` if the router differs.
-`ZENOH_VERIFY_NAME_ON_CONNECT=false` is only the local-development default
-because the existing local router certificate names `localhost`; use a router
-certificate with the production DNS name and set it to `true` in deployment.
+well as Docker Desktop. The local router certificate includes that hostname as
+a SAN, so hostname verification remains enabled. Set
+`ZENOH_ROUTER_ENDPOINT` to a production router DNS name only when its
+certificate includes the same DNS SAN.
 
 For a physical Jetson, initialize the OAK-D and SLLidar submodules before the
 first image build. The override then builds those drivers, exposes USB and
@@ -114,9 +114,14 @@ If the external router is temporarily down, `rmw_zenoh_cpp` cannot initialize a
 ROS context. The launch files respawn affected nodes every two seconds until it
 can. Once initialized, `zenoh_gateway` reconnects to its native Zenoh routes
 with exponential backoff (2–30 seconds). It translates joystick commands to
-`/teleop/cmd_vel` and publishes typed `/mower/telemetry` batches on the
-AsyncAPI telemetry route. The LiveKit node separately retries its token
-session.
+`/teleop/cmd_vel`, publishes typed `/mower/telemetry` batches on the AsyncAPI
+telemetry route, and declares a `mower/{mower_id}/liveliness` token for the
+lifetime of its authenticated native Zenoh session. The mobile app observes
+that token directly as gateway connectivity; it is not a motor-health signal.
+The gateway also receives the latest assigned cutout. Each validated
+signed cutout reply is published on `/mower/boundary_cutout/download`;
+`emi_mower_boundary` downloads it and is the future home for cutout analysis.
+The LiveKit node separately retries its token session.
 
 ### OAKD S2 and Slamtex Lidar S2 installation
 
@@ -214,8 +219,8 @@ it does not start Zenoh, access a camera, or open the STM32 CAN interface.
 The launcher performs the equivalent of:
 
 ```bash
-colcon build --packages-select emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit
-python3 -m pytest ros_ws/src/emi_mower_interfaces/test ros_ws/src/emi_mower_bringup/test ros_ws/src/emi_mower_livekit/test ros_ws/src/emi_mower_control/test
+colcon build --packages-select emi_mower_interfaces emi_mower_boundary emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit
+python3 -m pytest ros_ws/src/emi_mower_interfaces/test ros_ws/src/emi_mower_boundary/test ros_ws/src/emi_mower_bringup/test ros_ws/src/emi_mower_livekit/test ros_ws/src/emi_mower_control/test
 cargo test --manifest-path ros_ws/src/emi_mower_control/Cargo.toml
 cargo test --manifest-path ros_ws/src/emi_mower_zenoh_gateway/Cargo.toml
 ```

@@ -31,13 +31,14 @@ substitute for monitoring failed work.
 | Tool                                      | Lifecycle                                                                                                                                                           |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tools/generate_types.sh`                 | Run after a native Zenoh AsyncAPI change. Validates the schema and regenerates committed paths/types.                                                               |
-| `tools/generate_zenoh_paths.mjs`          | Invoked by `generate_types.sh`; writes generated paths for backend, app, and Jetson consumers.                                                                      |
+| `tools/generate_zenoh_paths.mjs`          | Invoked by `generate_types.sh`; writes generated paths for backend, app, and the Jetson Zenoh gateway.                                                               |
 | `tools/generate_rust_zenoh_types.mjs`     | Invoked by `generate_types.sh`; writes the gateway's native Zenoh Rust types.                                                                                       |
 | `tools/generate_renewal_python_types.mjs` | Invoked by `generate_types.sh`; updates renewal types in backend and app generated files.                                                                           |
-| `tools/issue_mower_certificate.sh`        | Invoked by provisioning or a trusted renewal issuer. Issues/reuses a 90-day mower certificate bundle and accepts a mower CSR without exporting a mower private key. |
+| `tools/refresh_service_certificates.sh`   | Runs only inside the dedicated step-ca container. Creates or refreshes backend and Zenoh-router leaf identities in their persistent volumes. |
+| `tools/ensure_step_ca.sh`                 | Runs only inside the dedicated step-ca container. Creates the local persistent CA root when no CA state exists and refuses to overwrite partial state. |
 | `tools/initialize_simulated_mower.sh`     | Local-only simulator setup. Creates per-mower swtpm state, provisions its public identity and certificate, then starts its ROS Compose project.                     |
 
 `initialize_simulated_mower.sh` creates state under ignored Jetson simulation
 directories. It is not a physical-mower deployment tool.
-`issue_mower_certificate.sh` and `provision_mower` require access to the CA key
-and must run only on the trusted backend provisioning host.
+`provision_mower` signs a mower CSR through step-ca using a scoped issuer
+credential. It does not require or receive a CA private key.

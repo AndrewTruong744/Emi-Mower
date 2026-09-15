@@ -1,0 +1,9 @@
+FROM smallstep/step-ca:0.30.2
+
+USER root
+
+COPY --chmod=0755 tools/ensure_step_ca.sh /usr/local/bin/ensure-step-ca
+COPY --chmod=0755 tools/refresh_service_certificates.sh /usr/local/bin/refresh-service-certificates
+COPY --chmod=0755 tools/step_ca_entrypoint.sh /usr/local/bin/step-ca-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/step-ca-entrypoint"]

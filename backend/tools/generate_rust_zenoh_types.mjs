@@ -18,6 +18,7 @@ const gatewaySchemas = [
   'ImuTelemetry',
   'TelemetryRecord',
   'TelemetryList',
+  'MowerCutoutDelivery',
   'MowerCertificateRenewChallengeRequest',
   'MowerCertificateRenewChallengeResponse',
   'MowerCertificateRenewCompleteRequest',

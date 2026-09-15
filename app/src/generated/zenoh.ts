@@ -147,18 +147,20 @@ export interface CutoutUploadUrlResponse {
 export interface CutoutUploadNotification {
   id_token: string;
   cutout_id: string;
+  object_key: string;
+  mower_ids: string[];
+  content_type: "image/png" | "image/jpeg" | "image/webp";
   success: boolean;
   failure_reason?: string;
 }
 
-export type MowerCutoutDownloadUrlRequest = Record<string, never>;
-
-export interface MowerCutoutDownloadUrlResponse {
+export interface MowerCutoutDelivery {
   cutout_id: string;
   download_url: string;
   expires_in: number;
   content_type: string;
 }
+
 
 export interface ProblemDetails {
   type: string;

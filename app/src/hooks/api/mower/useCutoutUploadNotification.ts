@@ -6,6 +6,9 @@ import { reportAppError } from '@/errors/reporter';
 
 export interface CutoutUploadNotificationParams {
   cutoutId: string;
+  objectKey: string;
+  mowerIds: string[];
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
   success: boolean;
   failureReason?: string;
 }
@@ -13,11 +16,14 @@ export interface CutoutUploadNotificationParams {
 /** Tells the backend to verify (or discard) a signed GCS upload. */
 export function useCutoutUploadNotification() {
   return useMutation({
-    mutationFn: async ({ cutoutId, success, failureReason }: CutoutUploadNotificationParams) => {
+    mutationFn: async ({ cutoutId, objectKey, mowerIds, contentType, success, failureReason }: CutoutUploadNotificationParams) => {
       const idToken = await getFirebaseIdToken();
       await zenohPut(cutoutUploadedPath(), {
         id_token: idToken,
         cutout_id: cutoutId,
+        object_key: objectKey,
+        mower_ids: mowerIds,
+        content_type: contentType,
         success,
         ...(failureReason ? { failure_reason: failureReason } : {}),
       });

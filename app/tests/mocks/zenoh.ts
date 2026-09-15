@@ -13,6 +13,7 @@ export class ReplyError {
 }
 
 export const Encoding = { APPLICATION_JSON: 'application/json' };
+export const SampleKind = { PUT: 0, DELETE: 1 };
 export const Duration = {
   milliseconds: {
     of: (value: number) => ({ type: 'MILLISECONDS', valueType: 'TYPED_DURATION', value, unit: 'ms' }),

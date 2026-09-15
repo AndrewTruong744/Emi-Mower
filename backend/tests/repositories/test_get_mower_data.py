@@ -4,7 +4,6 @@ from src.repositories.get_mower_data import get_mower_data
 from src.schemas.valkey import (
     MowerDataCache,
     mower_data_key,
-    mower_status_key,
     user_mowers_key,
 )
 
@@ -25,7 +24,6 @@ async def test_get_mower_data_populates_cache_on_miss(
             "serial_number": "serial-1",
             "nickname": "DatabaseMower",
             "owner_id": "user-1",
-            "status": "offline",
         }
     ]
     assert (
@@ -49,8 +47,6 @@ async def test_get_mower_data_uses_complete_cache_hit(db_session, cache, seed_us
             owner_id="user-1",
         ).model_dump_json(),
     )
-    await cache.set(mower_status_key(mower_id), "online")
-
     assert (await get_mower_data("user-1", db_session))[0]["nickname"] == "CachedMower"
 
 

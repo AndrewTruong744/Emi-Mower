@@ -6,6 +6,16 @@ This AsyncAPI document defines the native Zenoh routes and telemetry schemas
 used by the app, backend, and Jetson gateway. In particular, mower commands and
 telemetry are scoped by `mower_id`.
 
+## Mower liveliness
+
+The Rust mower gateway declares the payload-less token
+`mower/{mower_id}/liveliness` for the lifetime of its authenticated mTLS
+Zenoh session. The app directly declares a historical liveliness subscriber
+for its ACL-scoped mower routes; a token declaration means `connected` and a
+token deletion means `disconnected`. This avoids a FastAPI/Valkey status
+projection and makes reconnects visible immediately. It is strictly Zenoh
+connectivity, not a mower health, safety, or telemetry-freshness signal.
+
 Generated outputs are committed in the backend, app, and Jetson workspace. Do
 not edit them by hand. From `backend/`, regenerate them with:
 

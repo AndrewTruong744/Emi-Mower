@@ -37,6 +37,7 @@ describe('mower store slice', () => {
       battery: null,
       state: 'unknown',
       health: 'unknown',
+      connection: 'disconnected',
       telemetry: [],
     });
     useBoundStore.getState().appendTelemetryBatch({
@@ -45,6 +46,16 @@ describe('mower store slice', () => {
     expect(useBoundStore.getState().mowerDetails['mower-1'].telemetry.map((item) => item.timestamp)).toEqual([1, 2, 3]);
     expect(useBoundStore.getState().mowerDetails['mower-1'].battery).toBe(80);
     expect(useBoundStore.getState().mowerPositions['mower-1']).toEqual({ x: -74.006, y: 40.7128 });
+  });
+
+  it('records a mower Zenoh connection state only for an owned mower', () => {
+    useBoundStore.getState().setMowers(['mower-1']);
+
+    useBoundStore.getState().setMowerConnection('mower-1', 'connected');
+    useBoundStore.getState().setMowerConnection('unowned', 'connected');
+
+    expect(useBoundStore.getState().mowerDetails['mower-1'].connection).toBe('connected');
+    expect(useBoundStore.getState().mowerDetails.unowned).toBeUndefined();
   });
 
   it('updates a live telemetry batch in one notification and ignores unknown mowers', () => {

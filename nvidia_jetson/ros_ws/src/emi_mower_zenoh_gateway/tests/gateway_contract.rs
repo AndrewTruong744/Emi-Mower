@@ -1,9 +1,10 @@
 use emi_mower_zenoh_gateway::generated::zenoh_paths::{
-    mower_joystick_path, MOWER_JOYSTICK_ADDRESS,
+    mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path,
+    MOWER_CUTOUT_DELIVERY_ADDRESS, MOWER_JOYSTICK_ADDRESS, MOWER_LIVELINESS_ADDRESS,
 };
 use emi_mower_zenoh_gateway::{
-    joystick_to_velocity, parse_joystick_payload, telemetry_payload, validate_mower_id,
-    RosImuTelemetry, RosTelemetryRecord,
+    joystick_to_velocity, parse_cutout_delivery, parse_joystick_payload, telemetry_payload,
+    validate_mower_id, RosImuTelemetry, RosTelemetryRecord,
 };
 use serde_json::Value;
 
@@ -32,6 +33,36 @@ fn record() -> RosTelemetryRecord {
             mag_z: 3.0,
         }),
     }
+}
+
+#[test]
+fn generated_liveliness_route_is_scoped_to_one_mower() {
+    assert_eq!(MOWER_LIVELINESS_ADDRESS, "mower/{mower_id}/liveliness");
+    assert_eq!(
+        mower_liveliness_path("mower-01"),
+        "mower/mower-01/liveliness"
+    );
+}
+
+#[test]
+fn generated_cutout_delivery_is_validated_before_ros_publication() {
+    assert_eq!(
+        MOWER_CUTOUT_DELIVERY_ADDRESS,
+        "mower/{mower_id}/cutout/delivery"
+    );
+    assert_eq!(
+        mower_cutout_delivery_path("mower-01"),
+        "mower/mower-01/cutout/delivery"
+    );
+    let response = parse_cutout_delivery(
+        br#"{"cutout_id":"cutout-01","download_url":"https://storage.example/cutout","expires_in":300,"content_type":"image/png"}"#,
+    )
+    .unwrap();
+    assert_eq!(response.cutout_id, "cutout-01");
+    assert!(parse_cutout_delivery(
+        br#"{"cutout_id":"../cutout","download_url":"https://storage.example/cutout","expires_in":300,"content_type":"image/png"}"#,
+    )
+    .is_err());
 }
 
 #[test]

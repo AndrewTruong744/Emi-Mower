@@ -19,6 +19,7 @@ logger = logging.getLogger("zenoh.query_handler")
 QueryFunction = Callable[[Any, Any], Awaitable[Any]]
 KeyedQueryFunction = Callable[[Any, Any, str], Awaitable[Any]]
 MessageFunction = Callable[[Any, Any], Awaitable[None]]
+SessionMessageFunction = Callable[[Any, Any, zenoh.Session], Awaitable[None]]
 QUERY_HANDLER_TIMEOUT_SECONDS = 5
 
 
@@ -182,14 +183,16 @@ class ZenohMessageHandler:
     def declare(
         self,
         key_expr: str,
-        handler: MessageFunction,
+        handler: MessageFunction | SessionMessageFunction,
         *,
         message_model: type[BaseModel] | None = None,
+        include_session: bool = False,
     ) -> Any:
         def on_message(sample: zenoh.Sample) -> None:
             try:
                 future = asyncio.run_coroutine_threadsafe(
-                    self._process(sample, handler, message_model), self.loop
+                    self._process(sample, handler, message_model, include_session),
+                    self.loop,
                 )
             except Exception:
                 logger.exception("Failed to schedule Zenoh message for %s", key_expr)
@@ -212,8 +215,9 @@ class ZenohMessageHandler:
     async def _process(
         self,
         sample: zenoh.Sample,
-        handler: MessageFunction,
+        handler: MessageFunction | SessionMessageFunction,
         message_model: type[BaseModel] | None,
+        include_session: bool = False,
     ) -> None:
         raw = _payload_bytes(sample.payload)
         message = json.loads(raw.decode("utf-8")) if raw else {}
@@ -226,7 +230,10 @@ class ZenohMessageHandler:
             message = message_model.model_validate(message)
 
         async with AsyncSessionLocal() as db:
-            await handler(message, db)
+            if include_session:
+                await handler(message, db, self.session)  # type: ignore[call-arg]
+            else:
+                await handler(message, db)  # type: ignore[call-arg]
 
     def close(self) -> None:
         for subscriber in self.subscribers:

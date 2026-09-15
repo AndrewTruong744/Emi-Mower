@@ -8,6 +8,7 @@ import { reportAppError } from '@/errors/reporter';
 import { useBoundStore } from '@/store/useBoundStore';
 import { loginUser } from '@/zenoh/UserLogin';
 import { initializeMowerTelemetrySubscription } from '@/zenoh/mowerTelemetry';
+import { initializeMowerLivelinessSubscription } from '@/zenoh/mowerLiveliness';
 
 /** Keep Firebase identity, the Zenoh session, and user-scoped app state in sync. */
 export function useAuthSessionBootstrap(): void {
@@ -51,6 +52,7 @@ export function useAuthSessionBootstrap(): void {
           });
           setMowers(userData.mowers);
           await initializeMowerTelemetrySubscription(authGeneration);
+          await initializeMowerLivelinessSubscription(authGeneration);
           if (!isZenohOperationActive(authGeneration)) return;
           setAuthStatus('authenticated');
         } catch (error) {

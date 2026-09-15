@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 INTEGRATION_MARKERS = {"repository", "api", "zenoh_integration"}
-TABLES = "mower_device_identities, cutout_mower_assignments, cutouts, mower_imu_data, mower_telemetry, yard_coordinates, yards, mowers, users"
+TABLES = "mower_device_identities, mower_imu_data, mower_telemetry, mowers, users"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -58,7 +58,6 @@ def pytest_configure(config: pytest.Config) -> None:
                 "POSTGRES_DB": "emi_mower_test",
                 "VALKEY_HOST": valkey.get_container_host_ip(),
                 "VALKEY_PORT": str(valkey.get_exposed_port(6379)),
-                "VALKEY_DB": "0",
             }
         )
         subprocess.run(

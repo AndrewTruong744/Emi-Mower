@@ -8,7 +8,6 @@ from src.zenoh.generated import (
     LiveKitUploadRequest,
     MowerCertificateRenewChallengeRequest,
     MowerCertificateRenewCompleteRequest,
-    MowerCutoutDownloadUrlRequest,
     TelemetryHistoryRequest,
     TelemetryList,
     UpdateMowerNameRequest,
@@ -23,7 +22,6 @@ from src.zenoh.listeners import (
     LIVEKIT_CONSUME_KEY_EXPR,
     LIVEKIT_UPLOAD_KEY_EXPR,
     LOGIN_KEY_EXPR,
-    MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR,
     MOWER_TELEMETRY_HISTORY_KEY_EXPR,
     MOWER_TELEMETRY_KEY_EXPR,
     UPDATE_MOWER_NAME_KEY_EXPR,
@@ -34,7 +32,6 @@ from src.zenoh.listeners import (
     cutout_uploaded,
     livekit_consume,
     livekit_upload,
-    mower_cutout_download_url,
     mower_telemetry,
     mower_telemetry_history,
     update_mower_name,
@@ -104,12 +101,6 @@ def register_handlers(
         cutout_upload_url,
         request_model=CutoutUploadUrlRequest,
     )
-    query_handler.declare(
-        MOWER_CUTOUT_DOWNLOAD_URL_KEY_EXPR,
-        mower_cutout_download_url,
-        request_model=MowerCutoutDownloadUrlRequest,
-        include_query_key=True,
-    )
     message_handler.declare(
         MOWER_TELEMETRY_KEY_EXPR,
         mower_telemetry,
@@ -119,6 +110,7 @@ def register_handlers(
         CUTOUT_UPLOADED_KEY_EXPR,
         cutout_uploaded,
         message_model=CutoutUploadNotification,
+        include_session=True,
     )
 
 

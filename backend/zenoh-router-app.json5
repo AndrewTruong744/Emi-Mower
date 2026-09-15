@@ -22,13 +22,13 @@
     },
     "link": {
       "tls": {
-        "root_ca_certificate": "certs/ca/ca.crt",
+        "root_ca_certificate": "/run/emi-mower/identity/root_ca.pem",
         // Client certs used by Router B to authenticate to Router A on port 7448
-        "connect_certificate": "certs/zenoh_app/router.crt",
-        "connect_private_key": "certs/zenoh_app/router.key",
+        "connect_certificate": "/run/emi-mower/identity/current/router.crt",
+        "connect_private_key": "/run/emi-mower/identity/current/router.key",
         
-        "listen_certificate": "certs/zenoh_app/router.crt",
-        "listen_private_key": "certs/zenoh_app/router.key",
+        "listen_certificate": "/run/emi-mower/identity/current/router.crt",
+        "listen_private_key": "/run/emi-mower/identity/current/router.key",
         "enable_mtls": true
       }
     },
@@ -72,6 +72,13 @@
         "messages": ["declare_queryable"],
         "key_exprs": ["user/login"]
       },
+      {
+        "id": "internal_liveliness_relay",
+        "permission": "allow",
+        "flows": ["ingress", "egress"],
+        "messages": ["liveliness_token"],
+        "key_exprs": ["mower/**"]
+      },
     ],
 
     "subjects": [
@@ -95,7 +102,7 @@
       {
         "id": "internal_queryable_policy",
         "subjects": ["mtls_router_peer"],
-        "rules": ["internal_queryable_declaration"]
+        "rules": ["internal_queryable_declaration", "internal_liveliness_relay"]
       }
     ]
   }

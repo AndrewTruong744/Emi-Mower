@@ -54,6 +54,15 @@ pub type TelemetryList = Vec<TelemetryRecord>;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct MowerCutoutDelivery {
+    pub cutout_id: String,
+    pub download_url: String,
+    pub expires_in: i64,
+    pub content_type: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct MowerCertificateRenewChallengeRequest {}
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

@@ -41,6 +41,7 @@ export type UserSlice = UserState & UserActions;
 
 export type MowerOperatingState = 'on' | 'off' | 'stopped' | 'unknown';
 export type MowerHealth = 'healthy' | 'attention' | 'critical' | 'unknown';
+export type MowerConnection = 'connected' | 'disconnected';
 
 export interface MowerImuTelemetry {
   accelX: number;
@@ -74,6 +75,7 @@ export interface MowerDetails {
   battery: number | null;
   state: MowerOperatingState;
   health: MowerHealth;
+  connection: MowerConnection;
   telemetry: MowerTelemetrySample[];
 }
 
@@ -95,6 +97,7 @@ export interface MowerActions {
   addMower: (uuid: string, name?: string) => void;
   renameMower: (uuid: string, name: string) => void;
   selectMower: (uuid: string) => void;
+  setMowerConnection: (uuid: string, connection: MowerConnection) => void;
   appendTelemetryBatch: (telemetryByMower: Record<string, MowerTelemetrySample[]>) => void;
   clearMowers: () => void;
 }

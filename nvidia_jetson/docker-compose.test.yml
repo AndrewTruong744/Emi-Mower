@@ -9,6 +9,8 @@ services:
     volumes:
       # Keep the checkout on the host, as the backend's test containers do.
       - ./ros_ws:/ws
+      # The bringup configuration test also validates the local ROS Compose defaults.
+      - ./docker-compose.yml:/ws/docker-compose.yml:ro
       # Keep expensive generated and compiled artefacts outside the checkout.
       - ros-build:/ws/build
       - ros-install:/ws/install

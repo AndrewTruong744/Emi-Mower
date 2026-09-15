@@ -22,8 +22,9 @@ motion. The STM32 independently validates motor commands and watchdog timing.
   renderer still needs to be attached to display video.
 - Draw a polygonal cutting boundary on a map, review it, and upload the
   resulting cutout image for all selected account mowers. The backend issues a
-  signed upload URL and verifies the completion notice before the mower uses
-  the cutout.
+  signed upload URL and verifies the completion notice before publishing a
+  short-lived download URL to each selected mower. The app retains the upload
+  details; the backend does not persist a cutout record.
 - Start, pause, resume, or cancel the app's map-session view for a confirmed
   boundary, and show mower markers during that session.
 

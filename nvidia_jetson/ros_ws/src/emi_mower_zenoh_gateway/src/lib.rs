@@ -11,12 +11,13 @@ use chrono::{DateTime, SecondsFormat, Utc};
 pub mod generated;
 pub mod renewal;
 
-use generated::zenoh::{ImuTelemetry, TelemetryRecord};
+use generated::zenoh::{ImuTelemetry, MowerCutoutDelivery, TelemetryRecord};
 
 pub use generated::zenoh::JoystickCommand;
 
 pub const TELEOP_TOPIC: &str = "/teleop/cmd_vel";
 pub const TELEMETRY_TOPIC: &str = "/mower/telemetry";
+pub const CUTOUT_DOWNLOAD_TOPIC: &str = "/mower/boundary_cutout/download";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RosTelemetryRecord {
@@ -66,6 +67,25 @@ pub fn parse_joystick_payload(payload: &[u8]) -> Result<JoystickCommand> {
         }
     }
     Ok(joystick)
+}
+
+/// Parse and minimally validate the backend's signed cutout-download reply
+/// before it enters the ROS graph.
+pub fn parse_cutout_delivery(payload: &[u8]) -> Result<MowerCutoutDelivery> {
+    let response = serde_json::from_slice::<MowerCutoutDelivery>(payload)?;
+    if response.cutout_id.is_empty()
+        || response.cutout_id.contains('/')
+        || response.cutout_id.contains('\\')
+    {
+        bail!("cutout ID must be a non-empty filename segment");
+    }
+    if !response.download_url.starts_with("https://") {
+        bail!("cutout download URL must use HTTPS");
+    }
+    if response.expires_in <= 0 {
+        bail!("cutout download URL expiry must be positive");
+    }
+    Ok(response)
 }
 
 /// Map the app's horizontal (`x`) and vertical (`y`) axes to ROS velocity.

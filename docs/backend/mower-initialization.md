@@ -17,16 +17,17 @@ sequence:
    key in `mower_device_identities`. The private half never leaves the mower.
 3. Configure the mTLS-router ACL subject for `CN=mower:{uuid}` and restrict it
    to `mower/{uuid}/**`.
-4. Run `tools/issue_mower_certificate.sh` on the trusted provisioning host to
-   create a 90-day operational certificate bundle.
+4. Submit a mower-generated CSR to step-ca through the provisioner to create a
+   90-day operational certificate bundle; the CA private key is not read by
+   the provisioning process.
 5. Write a mode-600 Jetson Compose environment file with the mower UUID,
    credential mount directory, router endpoint, TLS verification setting, and
    real/simulation launch mode.
 
-The provisioner requires readable CA certificate/key material and fails before
-issuance if they are absent. Its `--output-dir` is the protected mower
-credential directory; it must not be tracked. Re-run with `--mower-id` after a
-partial failure instead of creating a second mower record.
+The provisioner requires the public step-ca root and its scoped issuance
+credential, but never CA-key material. Its `--output-dir` is the protected
+mower credential directory; it must not be tracked. Re-run with `--mower-id`
+after a partial failure instead of creating a second mower record.
 
 ## Local TPM simulation flow
 
@@ -55,6 +56,7 @@ At gateway startup, an operational certificate that is expired or within the
 renewal window triggers the bootstrap challenge/complete flow. The mower signs
 the challenge-bound CSR digest with its TPM device-root key; the backend checks
 the registered public key, consumes the one-time nonce, renews the mTLS ACL,
-and issues a replacement certificate. The gateway verifies the replacement
-against its already-mounted CA before atomically replacing its own operational
-certificate and key. Root-CA replacement is intentionally out of band.
+and requests a replacement certificate from step-ca. The gateway verifies the
+replacement against its already-mounted CA before atomically switching its own
+versioned operational credential bundle. Root-CA replacement is intentionally
+out of band.

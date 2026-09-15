@@ -45,6 +45,7 @@ RUN rosdep init 2>/dev/null || true
 RUN rosdep update \
     && rosdep install --from-paths \
         src/emi_mower_interfaces \
+        src/emi_mower_boundary \
         src/emi_mower_livekit \
         src/emi_mower_control \
         src/emi_mower_zenoh_gateway \
@@ -62,7 +63,7 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
          && colcon build --merge-install --symlink-install; \
        else \
          colcon build --merge-install --symlink-install --packages-select \
-           emi_mower_interfaces emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit emi_mower_bringup; \
+           emi_mower_interfaces emi_mower_boundary emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit emi_mower_bringup; \
        fi \
     && find /ws/src -type d -name target -prune -exec rm -rf {} +
 

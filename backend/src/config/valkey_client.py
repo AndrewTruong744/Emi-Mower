@@ -9,7 +9,6 @@ from src.config.settings import settings
 pool = valkey.ConnectionPool(
     host=settings.VALKEY_HOST,
     port=settings.VALKEY_PORT,
-    db=settings.VALKEY_DB,
     password=settings.VALKEY_PASSWORD,
     decode_responses=True,
 )
