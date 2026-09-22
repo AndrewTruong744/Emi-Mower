@@ -25,7 +25,7 @@ async def record_zenoh_credential_expiry(user_id: str, expires_at: int) -> None:
 
 
 async def get_expired_zenoh_credential_user_ids(now: int) -> list[str]:
-    """Return users whose recorded Zenoh credential expiration is due."""
+    """Return users whose expiry is due or invalid and must be revoked."""
     try:
         async with get_valkey_client() as client:
             expiry_map = await client.hgetall(ZENOH_TOKEN_EXPIRY_KEY)
@@ -40,19 +40,23 @@ async def get_expired_zenoh_credential_user_ids(now: int) -> list[str]:
                 expired_user_ids.append(user_id)
         except (TypeError, ValueError):
             logger.warning(
-                "Ignoring invalid Zenoh credential expiry for user %s", user_id
+                "Invalid Zenoh credential expiry for user %s; revoking credential",
+                user_id,
             )
+            expired_user_ids.append(user_id)
 
     return expired_user_ids
 
+async def remove_zenoh_credential_expiries(user_ids: list[str]) -> None:
+    """Remove expiry records for router credentials deleted in the same batch."""
+    if not user_ids:
+        return
 
-async def remove_zenoh_credential_expiry(user_id: str) -> None:
-    """Remove the expiration record once the router credential is deleted."""
     try:
         async with get_valkey_client() as client:
-            await client.hdel(ZENOH_TOKEN_EXPIRY_KEY, user_id)
+            await client.hdel(ZENOH_TOKEN_EXPIRY_KEY, *user_ids)
     except Exception as err:
-        logger.error("Failed to remove Zenoh credential expiry for %s", user_id)
+        logger.error("Failed to remove Zenoh credential expiries for %s", user_ids)
         raise RepositoryError(
-            f"Failed to remove Zenoh credential expiry for user '{user_id}'"
+            "Failed to remove Zenoh credential expiries"
         ) from err

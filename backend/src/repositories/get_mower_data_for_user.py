@@ -14,10 +14,10 @@ from src.schemas.valkey import (
     user_mowers_key,
 )
 
-logger = logging.getLogger("repositories.get_mower_data")
+logger = logging.getLogger("repositories.get_mower_data_for_user")
 
 
-async def get_mower_data(user_id: str, db: AsyncSession) -> list[dict]:
+async def get_mower_data_for_user(user_id: str, db: AsyncSession) -> list[dict]:
     """Retrieve all mower data owned by a user using the Valkey schema."""
     user_mowers_cache_key = user_mowers_key(user_id)
 
@@ -60,7 +60,6 @@ async def get_mower_data(user_id: str, db: AsyncSession) -> list[dict]:
         mower_cache_values = [
             MowerDataCache(
                 id=str(mower.id),
-                serial_number=mower.serial_number,
                 nickname=mower.nickname,
                 owner_id=mower.owner_id,
             )
@@ -95,11 +94,8 @@ async def get_mower_data(user_id: str, db: AsyncSession) -> list[dict]:
             await pipeline.execute()
             logger.info("Cached mowers data for user %s", user_id)
             return [
-                mower_data.model_dump(mode="json")
-                for mower_data in mower_cache_values
+                mower_data.model_dump(mode="json") for mower_data in mower_cache_values
             ]
     except Exception as valkey_err:
         logger.error("Failed to cache mowers data in Valkey: %s", valkey_err)
-        return [
-            mower_data.model_dump(mode="json") for mower_data in mower_cache_values
-        ]
+        return [mower_data.model_dump(mode="json") for mower_data in mower_cache_values]

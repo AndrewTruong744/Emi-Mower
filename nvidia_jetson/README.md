@@ -70,8 +70,8 @@ master provisioner:
 ```bash
 cd backend
 docker compose -f local-docker-compose.yml up -d postgres valkey zenoh-mtls zenoh-bootstrap backend
-./tools/initialize_simulated_mower.sh --serial-number SIM-0001 --nickname "Mower one"
-./tools/initialize_simulated_mower.sh --serial-number SIM-0002 --nickname "Mower two"
+./tools/initialize_simulated_mower.sh --nickname "Mower one"
+./tools/initialize_simulated_mower.sh --nickname "Mower two"
 ```
 
 Each mower receives its own UUID-named directory at

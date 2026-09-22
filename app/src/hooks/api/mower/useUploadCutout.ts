@@ -9,7 +9,6 @@ import { useCutoutUploadNotification } from './useCutoutUploadNotification';
 
 export interface UploadCutoutParams {
   imageUri: string;
-  mowerIds: string[];
   contentType?: 'image/png' | 'image/jpeg' | 'image/webp';
 }
 
@@ -24,22 +23,18 @@ function inferContentType(uri: string): 'image/png' | 'image/jpeg' | 'image/webp
 export function useUploadCutout() {
   const notification = useCutoutUploadNotification();
   return useMutation({
-    mutationFn: async ({ imageUri, mowerIds, contentType }: UploadCutoutParams) => {
-      const recipients = [...new Set(mowerIds.map((id) => id.trim()).filter(Boolean))];
+    mutationFn: async ({ imageUri, contentType }: UploadCutoutParams) => {
       if (!imageUri) throw new InputValidationError('A cutout image is required');
-      if (recipients.length === 0) throw new InputValidationError('Select at least one mower');
 
       const resolvedContentType = contentType ?? inferContentType(imageUri);
       const idToken = await getFirebaseIdToken();
       const upload = await zenohQuery<CutoutUploadUrlResponse>(cutoutUploadUrlPath(), {
         id_token: idToken,
-        mower_ids: recipients,
         content_type: resolvedContentType,
       });
       const completion = {
         cutoutId: upload.cutout_id,
         objectKey: upload.object_key,
-        mowerIds: recipients,
         contentType: resolvedContentType,
       } as const;
       try {

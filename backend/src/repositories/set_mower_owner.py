@@ -10,11 +10,11 @@ from src.models.mower import MowerModel
 from src.models.user import UserModel
 from src.schemas.valkey import mower_data_key, user_mowers_key
 
-logger = logging.getLogger("repositories.add_mower_to_user")
+logger = logging.getLogger("repositories.set_mower_owner")
 
 
-async def add_mower_to_user(
-    user_id: str | None, mower_id: str, db: AsyncSession
+async def set_mower_owner(
+    owner_id: str | None, mower_id: uuid.UUID, db: AsyncSession
 ) -> None:
     """
     Updates the owner of a mower in PostgreSQL using provided AsyncSession.
@@ -23,36 +23,33 @@ async def add_mower_to_user(
     Raises MowerNotFoundError if mower does not exist, UserNotFoundError if a
     requested owner does not exist, or RepositoryError on DB error.
     """
-    logger.info(f"Adding mower {mower_id} to user: {user_id}")
-    try:
-        m_uuid = uuid.UUID(str(mower_id).strip().lower())
-    except ValueError as val_err:
-        logger.error(f"Invalid mower ID format: {val_err}")
-        raise MowerNotFoundError(f"Invalid mower ID format: {mower_id}") from val_err
+    logger.info("Setting mower %s owner to %s", mower_id, owner_id)
 
     old_owner_id = None
 
     try:
         # 1. Fetch current mower to identify the old owner
-        stmt_select = select(MowerModel.owner_id).where(MowerModel.id == m_uuid)
+        stmt_select = select(MowerModel.owner_id).where(MowerModel.id == mower_id)
         result_select = await db.execute(stmt_select)
         row = result_select.fetchone()
         if not row:
-            logger.warning(f"No mower found with ID {m_uuid}")
+            logger.warning(f"No mower found with ID {mower_id}")
             raise MowerNotFoundError(f"No mower found with ID {mower_id}")
         old_owner_id = row[0]
 
-        if user_id is not None:
+        if owner_id is not None:
             user_result = await db.execute(
-                select(UserModel.id).where(UserModel.id == user_id)
+                select(UserModel.id).where(UserModel.id == owner_id)
             )
             if user_result.scalar_one_or_none() is None:
-                logger.warning(f"No user found with ID {user_id}")
-                raise UserNotFoundError(f"No user found with ID {user_id}")
+                logger.warning(f"No user found with ID {owner_id}")
+                raise UserNotFoundError(f"No user found with ID {owner_id}")
 
         # 2. Update the owner_id
         stmt_update = (
-            update(MowerModel).where(MowerModel.id == m_uuid).values(owner_id=user_id)
+            update(MowerModel)
+            .where(MowerModel.id == mower_id)
+            .values(owner_id=owner_id)
         )
         await db.execute(stmt_update)
         await db.commit()
@@ -73,17 +70,17 @@ async def add_mower_to_user(
             pipeline = v_client.pipeline()
 
             # Evict individual mower info
-            pipeline.delete(mower_data_key(str(m_uuid)))
+            pipeline.delete(mower_data_key(str(mower_id)))
 
             # Evict mowers list cache for new owner
-            if user_id:
-                pipeline.delete(user_mowers_key(user_id))
+            if owner_id:
+                pipeline.delete(user_mowers_key(owner_id))
 
             # Evict mowers list cache for old owner
-            if old_owner_id and old_owner_id != user_id:
+            if old_owner_id and old_owner_id != owner_id:
                 pipeline.delete(user_mowers_key(old_owner_id))
 
             await pipeline.execute()
-            logger.info(f"Evicted Valkey cache keys for mower {m_uuid}")
+            logger.info(f"Evicted Valkey cache keys for mower {mower_id}")
     except Exception as valkey_err:
         logger.error(f"Failed to invalidate cache in Valkey: {valkey_err}")

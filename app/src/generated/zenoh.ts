@@ -132,8 +132,7 @@ export type TelemetryList = TelemetryRecord[];
 
 export interface CutoutUploadUrlRequest {
   id_token: string;
-  mower_ids: string[];
-  content_type: 'image/png' | 'image/jpeg' | 'image/webp';
+  content_type: "image/png" | "image/jpeg" | "image/webp";
 }
 
 export interface CutoutUploadUrlResponse {
@@ -148,7 +147,6 @@ export interface CutoutUploadNotification {
   id_token: string;
   cutout_id: string;
   object_key: string;
-  mower_ids: string[];
   content_type: "image/png" | "image/jpeg" | "image/webp";
   success: boolean;
   failure_reason?: string;

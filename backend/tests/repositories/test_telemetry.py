@@ -72,14 +72,35 @@ async def test_add_telemetry_to_cache_wraps_valkey_failures(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_push_cached_telemetry_builds_database_models_with_imu():
+async def test_telemetry_buffer_operations_use_valkey_repository(monkeypatch):
+    active_key = "mower:mower-1:telemetry:data"
+    temporary_key = f"{active_key}:temp"
+    client = Mock()
+    client.keys = AsyncMock(side_effect=[[temporary_key], [active_key]])
+    client.rename = AsyncMock()
+    client.lrange = AsyncMock(return_value=["telemetry-json"])
+    client.delete = AsyncMock()
+    monkeypatch.setattr(telemetry, "get_valkey_client", lambda: client_context(client))
+
+    assert await telemetry.list_temporary_telemetry_buffers() == [temporary_key]
+    assert await telemetry.list_active_telemetry_buffers() == [active_key]
+    assert await telemetry.claim_active_telemetry_buffer(active_key) == temporary_key
+    assert await telemetry.read_telemetry_buffer(temporary_key) == ["telemetry-json"]
+    await telemetry.delete_telemetry_buffer(temporary_key)
+
+    client.rename.assert_awaited_once_with(active_key, temporary_key)
+    client.delete.assert_awaited_once_with(temporary_key)
+
+
+@pytest.mark.asyncio
+async def test_persist_telemetry_records_builds_database_models_with_imu():
     db = Mock()
     db.add_all = Mock()
     db.commit = AsyncMock()
     db.rollback = AsyncMock()
     mower_id = str(uuid4())
 
-    inserted = await telemetry.push_cached_telemetry_to_db(
+    inserted = await telemetry.persist_telemetry_records(
         [record(mower_id, with_imu=True), record("invalid-mower")], db
     )
 
@@ -93,27 +114,25 @@ async def test_push_cached_telemetry_builds_database_models_with_imu():
 
 
 @pytest.mark.asyncio
-async def test_push_cached_telemetry_returns_zero_for_no_valid_records():
+async def test_persist_telemetry_records_returns_zero_for_no_valid_records():
     db = Mock()
     db.add_all = Mock()
     db.commit = AsyncMock()
 
-    assert await telemetry.push_cached_telemetry_to_db(
-        [record("invalid-mower")], db
-    ) == 0
+    assert await telemetry.persist_telemetry_records([record("invalid-mower")], db) == 0
 
     db.add_all.assert_not_called()
     db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_push_cached_telemetry_rolls_back_database_failure():
+async def test_persist_telemetry_records_rolls_back_database_failure():
     db = Mock()
     db.add_all = Mock()
     db.commit = AsyncMock(side_effect=RuntimeError("database down"))
     db.rollback = AsyncMock()
 
     with pytest.raises(RepositoryError):
-        await telemetry.push_cached_telemetry_to_db([record(str(uuid4()))], db)
+        await telemetry.persist_telemetry_records([record(str(uuid4()))], db)
 
     db.rollback.assert_awaited_once()

@@ -7,7 +7,12 @@ const asyncApi = readFileSync(resolve(scriptDirectory, '../zenoh_asyncapi.yaml')
 const pythonPath = resolve(scriptDirectory, '../src/zenoh/generated/types.py');
 const initPath = resolve(scriptDirectory, '../src/zenoh/generated/__init__.py');
 const typescriptPath = resolve(scriptDirectory, '../../app/src/generated/zenoh.ts');
-const schemaNames = ['CutoutUploadNotification', 'MowerCutoutDelivery'];
+const schemaNames = [
+  'CutoutUploadUrlRequest',
+  'CutoutUploadUrlResponse',
+  'CutoutUploadNotification',
+  'MowerCutoutDelivery',
+];
 
 function schemaBlock(name) {
   const schemas = asyncApi.split('  schemas:\n')[1];
@@ -69,7 +74,7 @@ function replaceBetween(source, first, after, replacement) {
 const schemas = schemaNames.map(schema);
 const pythonTypes = `${schemas.map(pythonClass).join('\n')}\n`;
 let python = readFileSync(pythonPath, 'utf8');
-python = replaceBetween(python, 'class CutoutUploadNotification', 'class ProblemDetails', pythonTypes);
+python = replaceBetween(python, 'class CutoutUploadUrlRequest', 'class ProblemDetails', pythonTypes);
 python = python
   .replace('    | MowerCutoutDownloadUrlRequest\n', '')
   .replace('    | MowerCutoutDownloadUrlResponse\n', '')
@@ -90,5 +95,5 @@ writeFileSync(initPath, init);
 
 const typescriptTypes = `${schemas.map(typescriptInterface).join('\n')}\n`;
 let typescript = readFileSync(typescriptPath, 'utf8');
-typescript = replaceBetween(typescript, 'export interface CutoutUploadNotification', 'export interface ProblemDetails', typescriptTypes);
+typescript = replaceBetween(typescript, 'export interface CutoutUploadUrlRequest', 'export interface ProblemDetails', typescriptTypes);
 writeFileSync(typescriptPath, typescript);

@@ -144,9 +144,9 @@ docker compose \
 ```
 
 The ADC file is mounted read-only. Do not copy it into the image or commit it.
-Firebase Admin and GCS both use ADC now. `FIREBASE_SERVICE_ACCOUNT_PATH` is an
-explicit legacy fallback only; deployed containers should use their attached
-production service account instead.
+The Compose overlay sets `GOOGLE_APPLICATION_CREDENTIALS` to the mounted path,
+so Firebase Admin and GCS both resolve it through ADC. Deployed containers
+should use their attached production service account instead.
 
 ## GCS buckets
 

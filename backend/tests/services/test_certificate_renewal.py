@@ -25,9 +25,11 @@ def test_renewal_message_binds_mower_nonce_and_exact_csr_bytes():
 
 def test_tpm_signature_verification_accepts_only_the_registered_public_key():
     private_key = ec.generate_private_key(ec.SECP256R1())
-    public_pem = private_key.public_key().public_bytes(
-        Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    public_pem = (
+        private_key.public_key()
+        .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
     message = renewal_message(str(uuid.uuid4()), "nonce", "csr")
     signature = private_key.sign(message, ec.ECDSA(hashes.SHA256()))
 
@@ -45,9 +47,11 @@ def test_tpm_signature_verification_accepts_only_the_registered_public_key():
 async def test_complete_renewal_verifies_tpm_proof_and_refreshes_mtls_acl(monkeypatch):
     mower_id = str(uuid.uuid4())
     device_key = ec.generate_private_key(ec.SECP256R1())
-    public_pem = device_key.public_key().public_bytes(
-        Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    public_pem = (
+        device_key.public_key()
+        .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
     operational_key = ec.generate_private_key(ec.SECP256R1())
     subject = x509.Name(
         [x509.NameAttribute(x509.NameOID.COMMON_NAME, f"mower:{mower_id}")]
@@ -70,8 +74,8 @@ async def test_complete_renewal_verifies_tpm_proof_and_refreshes_mtls_acl(monkey
     admin.configure_mower_device = AsyncMock()
     monkeypatch.setattr(
         certificate_renewal,
-        "get_active_mower_device_identity",
-        AsyncMock(return_value=SimpleNamespace(public_key_pem=public_pem)),
+        "get_active_mower_identity",
+        AsyncMock(return_value=SimpleNamespace(device_public_key_pem=public_pem)),
     )
     monkeypatch.setattr(certificate_renewal, "_consume_nonce", consume_nonce)
     monkeypatch.setattr(

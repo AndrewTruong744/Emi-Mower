@@ -27,9 +27,9 @@ def generate_jwt_token(user_id: str, exp_seconds: int = 3600) -> str:
             token = token.decode("utf-8")
         return token
     except Exception as err:
-        logger.error(f"Failed to generate JWT token for user {user_id}: {err}", exc_info=True)
-        raise TokenGenerationError(f"Failed to generate JWT token for user '{user_id}'") from err
-
-
-# Alias for compatibility if imported as generate_jwt
-generate_jwt = generate_jwt_token
+        logger.error(
+            f"Failed to generate JWT token for user {user_id}: {err}", exc_info=True
+        )
+        raise TokenGenerationError(
+            f"Failed to generate JWT token for user '{user_id}'"
+        ) from err

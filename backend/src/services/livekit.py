@@ -72,9 +72,3 @@ async def livekit_upload_service(mower_id: str) -> LiveKitTokenResponse:
         can_subscribe=False,
     )
     return _token_response(token)
-
-
-# Explicit aliases keep the service naming convenient for callers that use the
-# action-first convention used by the Zenoh listener modules.
-get_livekit_consume_token_service = livekit_consume_service
-get_livekit_upload_token_service = livekit_upload_service

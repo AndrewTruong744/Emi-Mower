@@ -32,7 +32,7 @@ ultimately enforced by the authenticated Zenoh session's ACL, not by UI checks.
 | `mower/{mower_id}/liveliness`                      | Subscribe | Observes gateway-session token declarations/deletions and displays Zenoh `connected`/`disconnected` state. |
 | `mower/{mower_id}/livekit/consume`                | Query     | Requests short-lived viewer credentials for a mower's LiveKit room.                       |
 | `user/cutouts/upload-url`                         | Query     | Requests a short-lived signed upload URL for a cutting-area image.                        |
-| `user/cutouts/uploaded`                           | Put       | Supplies upload status plus the opaque object key and recipients so the backend can verify and deliver it. |
+| `user/cutouts/uploaded`                           | Put       | Supplies upload status plus the opaque object key so the backend can verify and deliver it. |
 
 Generated helpers also expose routes for assigning and renaming mowers,
 cutout delivery, LiveKit publishing, and mower certificate renewal. They are

@@ -1,7 +1,3 @@
-"""
-May need to replace with check_mower_ownership instead
-"""
-
 import logging
 import uuid
 
@@ -20,16 +16,14 @@ from src.schemas.valkey import (
 logger = logging.getLogger("repositories.verify_ownership")
 
 
-async def verify_ownership(
-    user_id: str, mower_uuid: str | uuid.UUID, db: AsyncSession
-) -> bool:
+async def verify_ownership(user_id: str, mower_id: uuid.UUID, db: AsyncSession) -> bool:
     """
     Verifies if a user owns a given mower using a cache-aside pattern.
     Checks Valkey first under 'user:{user_id}:mowers'.
     On cache miss, queries Postgres via provided AsyncSession and populates Valkey.
     Raises RepositoryError on DB error.
     """
-    mower_uuid_str = str(mower_uuid).strip().lower()
+    mower_id_str = str(mower_id)
     valkey_key = user_mowers_key(user_id)
 
     try:
@@ -41,8 +35,7 @@ async def verify_ownership(
                     mower_list = UserMowersCache.model_validate_json(cached_data).root
                     if isinstance(mower_list, list):
                         logger.info(f"Cache hit for key {valkey_key}")
-                        normalized_list = [str(m).strip().lower() for m in mower_list]
-                        return mower_uuid_str in normalized_list
+                        return mower_id_str in mower_list
                 except Exception as e:
                     logger.error(f"Failed to parse cached mowers JSON: {e}")
                     # Fall through to DB on cache parse error
@@ -56,9 +49,9 @@ async def verify_ownership(
         result = await db.execute(stmt)
         mower_ids = result.scalars().all()
 
-        mower_strings = [str(m_id).strip().lower() for m_id in mower_ids]
+        mower_strings = [str(mower_id) for mower_id in mower_ids]
 
-        # Populate Valkey cache (with 1 hour TTL)
+        # Populate Valkey cache
         try:
             async with get_valkey_client() as v_client:
                 await v_client.setex(
@@ -70,7 +63,7 @@ async def verify_ownership(
         except Exception as cache_err:
             logger.error(f"Failed to populate Valkey cache: {cache_err}")
 
-        return mower_uuid_str in mower_strings
+        return mower_id_str in mower_strings
 
     except Exception as db_err:
         logger.error(

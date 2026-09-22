@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -34,10 +35,10 @@ async def test_telemetry_history_cursor_returns_non_overlapping_pages(
     await db_session.commit()
 
     total, first_page, cursor = await get_telemetry_history(
-        str(mower.id), "battery_percentage", None, db_session
+        mower.id, "battery_percentage", None, db_session
     )
     _, second_page, second_cursor = await get_telemetry_history(
-        str(mower.id), "battery_percentage", cursor, db_session
+        mower.id, "battery_percentage", cursor, db_session
     )
 
     assert total == 121
@@ -53,7 +54,7 @@ async def test_telemetry_history_cursor_returns_non_overlapping_pages(
 async def test_telemetry_history_rejects_an_invalid_cursor(db_session):
     with pytest.raises(ValidationError, match="cursor"):
         await get_telemetry_history(
-            "00000000-0000-4000-8000-000000000001",
+            uuid.UUID("00000000-0000-4000-8000-000000000001"),
             "battery_percentage",
             "not-a-cursor",
             db_session,

@@ -15,8 +15,8 @@ expectations are documented in
 - Never generate or retain the CA private key on a mower Jetson.
 - Keep mower private keys and generated `.env` files out of Git and container
   images.
-- Use the same mower ID and serial number when resuming a failed provisioning
-  attempt to avoid creating a duplicate mower record.
+- Use the same mower ID when resuming a failed provisioning attempt to avoid
+  creating a duplicate mower record.
 - Verify the mower can authenticate only to its intended routes before treating
   provisioning as complete.
 - Register the TPM device-root public key during initialization. Its private

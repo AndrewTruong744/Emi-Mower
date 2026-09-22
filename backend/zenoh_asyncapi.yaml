@@ -636,15 +636,10 @@ components:
         means that session ended. It is not a mower health or safety signal.
     CutoutUploadUrlRequest:
       type: object
-      required: [id_token, mower_ids, content_type]
+      required: [id_token, content_type]
       additionalProperties: false
       properties:
         id_token: {type: string, description: Firebase Identity Platform ID token.}
-        mower_ids:
-          type: array
-          minItems: 1
-          items: {type: string}
-          description: Owned mowers that should receive this cutout.
         content_type:
           type: string
           enum: [image/png, image/jpeg, image/webp]
@@ -660,16 +655,12 @@ components:
         content_type: {type: string}
     CutoutUploadNotification:
       type: object
-      required: [id_token, cutout_id, object_key, mower_ids, content_type, success]
+      required: [id_token, cutout_id, object_key, content_type, success]
       additionalProperties: false
       properties:
         id_token: {type: string, description: Firebase Identity Platform ID token.}
         cutout_id: {type: string}
         object_key: {type: string}
-        mower_ids:
-          type: array
-          minItems: 1
-          items: {type: string}
         content_type:
           type: string
           enum: [image/png, image/jpeg, image/webp]

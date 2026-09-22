@@ -2,7 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.auth import verify_zenoh_google_id_token
+from src.services.auth import verify_firebase_id_token
 from src.services.user import update_user_name_service
 from src.zenoh.generated import UpdateUserNameRequest, UpdateUserNameResponse
 from src.zenoh.generated.paths import update_user_name_path
@@ -14,8 +14,8 @@ async def update_user_name(
     payload: UpdateUserNameRequest, db: AsyncSession
 ) -> UpdateUserNameResponse:
     """Update the name belonging to the authenticated user."""
-    identity = await verify_zenoh_google_id_token(payload.id_token)
-    user_id = identity.get("uid") or identity.get("user_id")
+    identity = await verify_firebase_id_token(payload.id_token)
+    user_id = identity["user_id"]
 
     await update_user_name_service(user_id, payload.new_user_name, db=db)
     return UpdateUserNameResponse(

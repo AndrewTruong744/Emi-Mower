@@ -16,7 +16,8 @@ async def test_create_user_service_validates_claims_and_delegates(monkeypatch):
     monkeypatch.setattr(user, "create_user", create)
 
     assert await user.create_user_service(
-        {"uid": "user-1", "email": "one@example.test", "name": "One"}, object()
+        {"user_id": "user-1", "email": "one@example.test", "name": "One"},
+        object(),
     ) == {"id": "user-1"}
     create.assert_awaited_once()
     with pytest.raises(ValidationError):
@@ -31,7 +32,7 @@ async def test_create_user_service_generates_name_when_claim_is_missing(monkeypa
     )
 
     await user.create_user_service(
-        {"uid": "user-1", "email": "one@example.test"}, object()
+        {"user_id": "user-1", "email": "one@example.test"}, object()
     )
 
     assert create.await_args.kwargs["name"] == "Generated"
@@ -44,7 +45,7 @@ async def test_user_login_service_rejects_empty_token():
 
 async def test_user_login_service_rejects_identity_without_user_id(monkeypatch):
     monkeypatch.setattr(
-        user, "verify_zenoh_google_id_token", AsyncMock(return_value={})
+        user, "verify_firebase_id_token", AsyncMock(return_value={})
     )
 
     with pytest.raises(AuthenticationError):
@@ -54,10 +55,10 @@ async def test_user_login_service_rejects_identity_without_user_id(monkeypatch):
 async def test_user_login_service_creates_missing_user(monkeypatch):
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
+        "verify_firebase_id_token",
         AsyncMock(
             return_value={
-                "uid": "user-1",
+                "user_id": "user-1",
                 "email": "one@example.test",
                 "name": "One",
             }
@@ -80,10 +81,7 @@ async def test_user_login_service_creates_missing_user(monkeypatch):
     )
     monkeypatch.setattr(user, "get_mowers_of_user", AsyncMock(return_value=[]))
     monkeypatch.setattr(user, "generate_jwt_token", Mock(return_value="jwt"))
-    admin = Mock()
-    admin.configure_user_app = AsyncMock()
-    monkeypatch.setattr(user, "ZenohAdminClient", Mock(return_value=admin))
-    monkeypatch.setattr(user, "record_zenoh_credential_expiry", AsyncMock())
+    monkeypatch.setattr(user, "provision_zenoh_credential", AsyncMock())
 
     result = await user.user_login_service(UserLoginRequest(id_token="token"), object())
 
@@ -93,8 +91,8 @@ async def test_user_login_service_creates_missing_user(monkeypatch):
 async def test_update_user_email_service_rejects_missing_email_claim(monkeypatch):
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
-        AsyncMock(return_value={"uid": "user-1"}),
+        "verify_firebase_id_token",
+        AsyncMock(return_value={"user_id": "user-1"}),
     )
 
     with pytest.raises(ValidationError):
@@ -105,8 +103,8 @@ async def test_update_user_email_service_delegates_verified_email(monkeypatch):
     update = AsyncMock()
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
-        AsyncMock(return_value={"uid": "user-1", "email": "new@example.test"}),
+        "verify_firebase_id_token",
+        AsyncMock(return_value={"user_id": "user-1", "email": "new@example.test"}),
     )
     monkeypatch.setattr(user, "find_user_by_email", AsyncMock(return_value=None))
     monkeypatch.setattr(user, "update_user_email", update)
@@ -123,8 +121,8 @@ async def test_update_user_email_service_rejects_email_owned_by_another_user(
     update = AsyncMock()
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
-        AsyncMock(return_value={"uid": "user-1", "email": "taken@example.test"}),
+        "verify_firebase_id_token",
+        AsyncMock(return_value={"user_id": "user-1", "email": "taken@example.test"}),
     )
     monkeypatch.setattr(user, "find_user_by_email", AsyncMock(return_value="user-2"))
     monkeypatch.setattr(user, "update_user_email", update)
@@ -143,16 +141,19 @@ async def test_get_user_data_service_delegates(monkeypatch):
     get_data.assert_awaited_once()
 
 
-async def test_get_zenoh_jwt_service_configures_acl_and_records_expiry(monkeypatch):
+async def test_get_zenoh_jwt_service_provisions_credential(monkeypatch):
     monkeypatch.setattr(user, "get_mowers_of_user", AsyncMock(return_value=["mower-1"]))
     monkeypatch.setattr(user, "generate_jwt_token", Mock(return_value="jwt"))
-    monkeypatch.setattr(user, "record_zenoh_credential_expiry", AsyncMock())
-    admin = Mock()
-    admin.configure_user_app = AsyncMock()
-    monkeypatch.setattr(user, "ZenohAdminClient", Mock(return_value=admin))
+    provision = AsyncMock()
+    monkeypatch.setattr(user, "provision_zenoh_credential", provision)
 
     assert await user.get_zenoh_jwt_service("user-1", object()) == "jwt"
-    admin.configure_user_app.assert_awaited_once()
+    provision.assert_awaited_once_with(
+        user_id="user-1",
+        mower_ids=["mower-1"],
+        password="jwt",
+        ttl_seconds=user.ZENOH_JWT_TTL_SECONDS,
+    )
 
 
 async def test_update_user_email_service_allows_new_token_for_different_firebase_user(
@@ -161,10 +162,10 @@ async def test_update_user_email_service_allows_new_token_for_different_firebase
     update = AsyncMock()
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
+        "verify_firebase_id_token",
         AsyncMock(
             return_value={
-                "uid": "new-firebase-user",
+                "user_id": "new-firebase-user",
                 "email": "other@example.test",
             }
         ),
@@ -192,9 +193,11 @@ async def test_update_user_name_service_validates_then_delegates(monkeypatch):
 async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatch):
     monkeypatch.setattr(
         user,
-        "verify_zenoh_google_id_token",
+        "verify_firebase_id_token",
         AsyncMock(
-            return_value={"uid": "user-1", "email": "one@example.test", "name": "One"}
+            return_value={
+                "user_id": "user-1", "email": "one@example.test", "name": "One"
+            }
         ),
     )
     monkeypatch.setattr(
@@ -211,11 +214,8 @@ async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatc
     )
     monkeypatch.setattr(user, "get_mowers_of_user", AsyncMock(return_value=["mower-1"]))
     monkeypatch.setattr(user, "generate_jwt_token", Mock(return_value="jwt"))
-    record = AsyncMock()
-    monkeypatch.setattr(user, "record_zenoh_credential_expiry", record)
-    admin = Mock()
-    admin.configure_user_app = AsyncMock()
-    monkeypatch.setattr(user, "ZenohAdminClient", Mock(return_value=admin))
+    provision = AsyncMock()
+    monkeypatch.setattr(user, "provision_zenoh_credential", provision)
 
     result = await user.user_login_service(
         UserLoginRequest(id_token="firebase-token"), object()
@@ -223,7 +223,9 @@ async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatc
 
     assert result.user_id == "user-1"
     assert result.token == "jwt"
-    admin.configure_user_app.assert_awaited_once_with(
-        user_id="user-1", mower_ids=["mower-1"], password="jwt"
+    provision.assert_awaited_once_with(
+        user_id="user-1",
+        mower_ids=["mower-1"],
+        password="jwt",
+        ttl_seconds=user.ZENOH_JWT_TTL_SECONDS,
     )
-    record.assert_awaited_once()

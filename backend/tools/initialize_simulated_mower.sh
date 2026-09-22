@@ -3,21 +3,19 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 --serial-number SERIAL --nickname NAME [--mower-id UUID]" >&2
+  echo "Usage: $0 --nickname NAME [--mower-id UUID]" >&2
 }
 
-serial_number=""
 nickname=""
 mower_id=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --serial-number) serial_number="${2:-}"; shift 2 ;;
     --nickname) nickname="${2:-}"; shift 2 ;;
     --mower-id) mower_id="${2:-}"; shift 2 ;;
     *) usage; exit 2 ;;
   esac
 done
-if [[ -z "$serial_number" || -z "$nickname" ]]; then usage; exit 2; fi
+if [[ -z "$nickname" ]]; then usage; exit 2; fi
 if [[ -z "$mower_id" ]]; then mower_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"; fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -64,7 +62,6 @@ POSTGRES_PORT="${LOCAL_POSTGRES_PORT:-15432}" \
 VALKEY_HOST=127.0.0.1 \
 uv run python -m src.scripts.provision_mower \
   --mower-id "$mower_id" \
-  --serial-number "$serial_number" \
   --nickname "$nickname" \
   --output-dir "$credential_dir" \
   --jetson-env-file "$env_file" \

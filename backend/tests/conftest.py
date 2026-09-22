@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 INTEGRATION_MARKERS = {"repository", "api", "zenoh_integration"}
-TABLES = "mower_device_identities, mower_imu_data, mower_telemetry, mowers, users"
+TABLES = "mower_imu_data, mower_telemetry, mowers, users"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -174,12 +174,9 @@ async def seed_mower(db_session: Any) -> Callable[..., Any]:
     async def create(
         *,
         owner_id: str | None = "user-1",
-        serial_number: str = "serial-1",
         nickname: str = "MowerOne",
     ) -> MowerModel:
-        mower = MowerModel(
-            owner_id=owner_id, serial_number=serial_number, nickname=nickname
-        )
+        mower = MowerModel(owner_id=owner_id, nickname=nickname)
         db_session.add(mower)
         await db_session.commit()
         await db_session.refresh(mower)

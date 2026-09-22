@@ -20,16 +20,16 @@ describe('useUploadCutout', () => {
     const { result } = renderHook(() => useUploadCutout(), { wrapper: createWrapper() });
 
     await act(async () => {
-      await result.current.mutateAsync({ imageUri: 'file:///boundary.png', mowerIds: ['mower-1'] });
+      await result.current.mutateAsync({ imageUri: 'file:///boundary.png' });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedZenohQuery).toHaveBeenCalledWith('user/cutouts/upload-url', {
-      id_token: 'firebase-token', mower_ids: ['mower-1'], content_type: 'image/png',
+      id_token: 'firebase-token', content_type: 'image/png',
     });
     expect(fetchMock).toHaveBeenNthCalledWith(2, 'https://storage.test/upload', expect.objectContaining({ method: 'PUT' }));
     expect(mockedZenohPut).toHaveBeenCalledWith('user/cutouts/uploaded', {
       id_token: 'firebase-token', cutout_id: 'cutout-1',
-      object_key: 'users/user/cutouts/cutout-1.png', mower_ids: ['mower-1'],
+      object_key: 'users/user/cutouts/cutout-1.png',
       content_type: 'image/png', success: true,
     });
     fetchMock.mockRestore();
@@ -42,12 +42,12 @@ describe('useUploadCutout', () => {
     const { result } = renderHook(() => useUploadCutout(), { wrapper: createWrapper() });
 
     await act(async () => {
-      await expect(result.current.mutateAsync({ imageUri: 'file:///boundary.png', mowerIds: ['mower-1'] }))
+      await expect(result.current.mutateAsync({ imageUri: 'file:///boundary.png' }))
         .rejects.toThrow('Cutout upload failed');
     });
     expect(mockedZenohPut).toHaveBeenCalledWith('user/cutouts/uploaded', expect.objectContaining({
       cutout_id: 'cutout-1', object_key: 'users/user/cutouts/cutout-1.png',
-      mower_ids: ['mower-1'], content_type: 'image/png', success: false,
+      content_type: 'image/png', success: false,
     }));
     fetchMock.mockRestore();
   });

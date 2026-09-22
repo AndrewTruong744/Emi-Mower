@@ -27,7 +27,7 @@ async def test_telemetry_history_verifies_firebase_token_then_reads_owned_histor
 ):
     listener = import_module("src.zenoh.listeners.mower_telemetry_history")
 
-    verify = AsyncMock(return_value={"uid": "user-1"})
+    verify = AsyncMock(return_value={"user_id": "user-1"})
     service = AsyncMock(
         return_value=TelemetryHistoryResponse(
             telemetry_type="accel_x",
@@ -38,7 +38,7 @@ async def test_telemetry_history_verifies_firebase_token_then_reads_owned_histor
             points=[],
         )
     )
-    monkeypatch.setattr(listener, "verify_zenoh_google_id_token", verify)
+    monkeypatch.setattr(listener, "verify_firebase_id_token", verify)
     monkeypatch.setattr(listener, "get_telemetry_history_service", service)
 
     result = await mower_telemetry_history(

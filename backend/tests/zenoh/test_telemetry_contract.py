@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from src.zenoh.generated import (
     CutoutUploadNotification,
+    CutoutUploadUrlRequest,
     EmergencyStopCommand,
     ImuTelemetry,
     MowerCertificateRenewChallengeRequest,
@@ -103,10 +104,15 @@ def test_cutout_delivery_contract_is_generated_for_the_gateway():
     )
 
 
-def test_cutout_notification_contract_is_generated_for_backend_and_app():
-    fields = _schema_properties("CutoutUploadNotification")
-    assert fields == set(CutoutUploadNotification.model_fields)
-    assert fields == _typescript_interface_properties("CutoutUploadNotification")
+def test_cutout_upload_contract_is_generated_for_backend_and_app():
+    models = (
+        ("CutoutUploadUrlRequest", CutoutUploadUrlRequest),
+        ("CutoutUploadNotification", CutoutUploadNotification),
+    )
+    for name, model in models:
+        fields = _schema_properties(name)
+        assert fields == set(model.model_fields)
+        assert fields == _typescript_interface_properties(name)
     rust_paths = RUST_PATHS_PATH.read_text()
     assert (
         'MOWER_CUTOUT_DELIVERY_ADDRESS: &str = "mower/{mower_id}/cutout/delivery"'
@@ -151,8 +157,7 @@ def test_liveliness_route_is_generated_for_the_app_and_gateway():
     rust_paths = RUST_PATHS_PATH.read_text()
     assert 'MOWER_LIVELINESS_ADDRESS = "mower/{mower_id}/liveliness"' in app_paths
     assert (
-        'MOWER_LIVELINESS_ADDRESS: &str = "mower/{mower_id}/liveliness"'
-        in rust_paths
+        'MOWER_LIVELINESS_ADDRESS: &str = "mower/{mower_id}/liveliness"' in rust_paths
     )
 
 

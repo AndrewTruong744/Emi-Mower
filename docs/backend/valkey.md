@@ -9,12 +9,15 @@ credentials. The key definitions and Pydantic value models live in
 
 These values are JSON strings and use the common cache TTL of 86,400 seconds
 (one day). Repository reads refresh the TTL when they use a cached value.
+[`src/schemas/valkey.py`](../../backend/src/schemas/valkey.py) is the
+authoritative source for every application-owned key, pattern, key-format
+helper, TTL, and JSON value model; do not construct Valkey keys elsewhere.
 
 | Key                       | Value                           | Purpose                                                   |
 | ------------------------- | ------------------------------- | --------------------------------------------------------- |
 | `user:{user_id}:mowers`   | JSON list of mower IDs          | Avoids re-reading a user's mower list.                    |
 | `user:{user_id}:data`     | JSON user data                  | Caches ID, email, name, and creation time.                |
-| `mower:{mower_id}:data`   | JSON mower data                 | Caches ID, serial number, nickname, and owner ID.         |
+| `mower:{mower_id}:data`   | JSON mower data                 | Caches ID, nickname, and owner ID.                        |
 
 Write paths must invalidate or refresh every affected cache key. For example,
 the fake-mower seed script invalidates the user mower list and each seeded
@@ -46,6 +49,13 @@ expiry. The `remove_usrpwds_from_zenoh` worker checks it every 60 seconds,
 deletes expired router passwords through the app-router admin API, and removes
 the corresponding hash field. It is an expiry registry, not a token store: do
 not put the actual JWT/password in Valkey.
+
+## Certificate-renewal nonce keys
+
+`mower_certificate_renewal:{mower_id}:{nonce}` is a five-minute STRING whose
+value is the mower ID. The renewal-challenge handler creates it, and the
+completion handler atomically consumes it with `GETDEL`. It binds one
+certificate-renewal attempt to a mower and prevents replay; it is not a cache.
 
 ## Operations
 

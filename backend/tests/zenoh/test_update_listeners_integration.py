@@ -1,7 +1,7 @@
 """Container-backed behavior tests for the authenticated Zenoh listeners."""
 
 from importlib import import_module
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from sqlalchemy import select
@@ -27,8 +27,8 @@ async def test_add_mower_to_user_listener_updates_real_database(
     mower = await seed_mower(owner_id=None)
     listener = import_module("src.zenoh.listeners.add_mower_to_user")
     monkeypatch.setattr(
-        "src.services.auth._verify_google_id_token",
-        AsyncMock(return_value={"uid": "user-1"}),
+        "src.services.auth.auth.verify_id_token",
+        Mock(return_value={"user_id": "user-1"}),
     )
 
     await listener.add_mower_to_user(
@@ -47,8 +47,8 @@ async def test_update_user_name_listener_updates_real_database(
     await seed_user()
     listener = import_module("src.zenoh.listeners.update_user_name")
     monkeypatch.setattr(
-        "src.services.auth._verify_google_id_token",
-        AsyncMock(return_value={"uid": "user-1"}),
+        "src.services.auth.auth.verify_id_token",
+        Mock(return_value={"user_id": "user-1"}),
     )
 
     await listener.update_user_name(
@@ -68,8 +68,8 @@ async def test_update_mower_name_listener_extracts_path_id_and_updates_real_data
     mower = await seed_mower(owner_id="user-1")
     listener = import_module("src.zenoh.listeners.update_mower_name")
     monkeypatch.setattr(
-        "src.services.auth._verify_google_id_token",
-        AsyncMock(return_value={"uid": "user-1"}),
+        "src.services.auth.auth.verify_id_token",
+        Mock(return_value={"user_id": "user-1"}),
     )
 
     await listener.update_mower_name(
@@ -87,15 +87,15 @@ async def test_update_user_email_listener_updates_real_database(
     monkeypatch, db_session, seed_user
 ):
     await seed_user()
-    identity = {"uid": "user-1", "email": "new@example.test"}
+    identity = {"user_id": "user-1", "email": "new@example.test"}
     listener = import_module("src.zenoh.listeners.update_user_email")
     monkeypatch.setattr(
-        "src.services.auth._verify_google_id_token",
-        AsyncMock(return_value=identity),
+        "src.services.auth.auth.verify_id_token",
+        Mock(return_value=identity),
     )
     monkeypatch.setattr(
         user_service,
-        "verify_zenoh_google_id_token",
+        "verify_firebase_id_token",
         AsyncMock(return_value=identity),
     )
 
@@ -118,10 +118,10 @@ async def test_update_user_email_rejects_a_duplicate_email_in_real_database(
     await seed_user(
         user_id="user-2", email="taken@example.test", name="OtherUser"
     )
-    identity = {"uid": "user-1", "email": "taken@example.test"}
+    identity = {"user_id": "user-1", "email": "taken@example.test"}
     monkeypatch.setattr(
         user_service,
-        "verify_zenoh_google_id_token",
+        "verify_firebase_id_token",
         AsyncMock(return_value=identity),
     )
 

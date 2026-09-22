@@ -56,7 +56,7 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     async def fake_session():
         yield db
 
-    mower = SimpleNamespace(id=mower_id, serial_number="SN-42")
+    mower = SimpleNamespace(id=mower_id)
     create = AsyncMock(return_value=mower)
     client = Mock()
     client.configure_mower_device = AsyncMock()
@@ -71,7 +71,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     monkeypatch.setattr(provision_mower, "close_http_client", close)
     args = SimpleNamespace(
         mower_id=mower_id,
-        serial_number="SN-42",
         nickname="Front yard",
         output_dir=tmp_path / "bundle",
         jetson_env_file=tmp_path / ".env",
@@ -88,7 +87,6 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     create.assert_awaited_once()
     assert create.await_args.kwargs == {
         "mower_id": mower_id,
-        "serial_number": "SN-42",
         "nickname": "Front yard",
         "db": db,
     }

@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import zenoh
 from src.config.settings import settings
 from src.exceptions import ForbiddenError, ValidationError
-from src.repositories import verify_ownership
-from src.services.auth import verify_zenoh_google_id_token
+from src.repositories import get_mowers_of_user
+from src.services.auth import verify_firebase_id_token
 from src.zenoh.generated import (
     CutoutUploadNotification,
     CutoutUploadUrlRequest,
@@ -55,18 +55,15 @@ async def _signed_url(*, object_key: str, method: str, content_type: str | None)
 async def request_cutout_upload_service(
     payload: CutoutUploadUrlRequest, db: AsyncSession
 ) -> CutoutUploadUrlResponse:
-    """Authorize owned mowers and create a transient signed GCS upload."""
-    identity = await verify_zenoh_google_id_token(payload.id_token)
-    user_id = identity.get("uid") or identity.get("user_id")
+    """Require an owned mower, then create a transient signed GCS upload."""
+    identity = await verify_firebase_id_token(payload.id_token)
+    user_id = identity.get("user_id")
     if not user_id:
         raise ForbiddenError("Authenticated identity does not contain a user id")
 
-    mower_ids = list(dict.fromkeys(mower_id.strip() for mower_id in payload.mower_ids))
-    if not mower_ids or any(not mower_id for mower_id in mower_ids):
-        raise ValidationError("At least one mower id is required")
-    for mower_id in mower_ids:
-        if not await verify_ownership(user_id, mower_id, db=db):
-            raise ForbiddenError("A cutout can only be sent to mowers you own")
+    mower_ids = await get_mowers_of_user(user_id, db=db)
+    if not mower_ids:
+        raise ValidationError("At least one owned mower is required")
 
     cutout_id = uuid.uuid4()
     object_key = _object_key(user_id, cutout_id, payload.content_type)
@@ -85,9 +82,9 @@ async def request_cutout_upload_service(
 async def record_cutout_upload_service(
     payload: CutoutUploadNotification, db: AsyncSession, session: zenoh.Session
 ) -> None:
-    """Verify an upload, then immediately deliver it to selected mowers."""
-    identity = await verify_zenoh_google_id_token(payload.id_token)
-    user_id = identity.get("uid") or identity.get("user_id")
+    """Verify an upload, then best-effort deliver it to all current mowers."""
+    identity = await verify_firebase_id_token(payload.id_token)
+    user_id = identity.get("user_id")
     if not user_id:
         raise ForbiddenError("Authenticated identity does not contain a user id")
     try:
@@ -96,12 +93,6 @@ async def record_cutout_upload_service(
         raise ValidationError("cutout_id must be a UUID") from error
     if payload.object_key != _object_key(user_id, cutout_id, payload.content_type):
         raise ForbiddenError("Cutout object key does not belong to this upload")
-    mower_ids = list(dict.fromkeys(mower_id.strip() for mower_id in payload.mower_ids))
-    if not mower_ids or any(not mower_id for mower_id in mower_ids):
-        raise ValidationError("At least one mower id is required")
-    for mower_id in mower_ids:
-        if not await verify_ownership(user_id, mower_id, db=db):
-            raise ForbiddenError("A cutout can only be sent to mowers you own")
     if not payload.success:
         return
 
@@ -114,6 +105,7 @@ async def record_cutout_upload_service(
 
     if not await asyncio.to_thread(uploaded):
         raise ValidationError("The uploaded cutout could not be verified in GCS")
+    mower_ids = await get_mowers_of_user(user_id, db=db)
     for mower_id in mower_ids:
         download_url = await _signed_url(
             object_key=payload.object_key, method="GET", content_type=None

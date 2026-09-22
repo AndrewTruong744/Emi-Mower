@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from src.repositories.check_mower_ownership import check_mower_ownership
@@ -12,7 +14,7 @@ async def test_check_mower_ownership_uses_the_shared_mower_data_cache(
     await seed_user()
     mower = await seed_mower()
 
-    assert await check_mower_ownership(str(mower.id), db_session) == "user-1"
+    assert await check_mower_ownership(mower.id, db_session) == "user-1"
     cached = MowerDataCache.model_validate_json(
         await cache.get(mower_data_key(str(mower.id)))
     )
@@ -23,19 +25,14 @@ async def test_check_mower_ownership_uses_the_shared_mower_data_cache(
 async def test_check_mower_ownership_reads_an_unowned_mower_from_shared_cache(
     db_session, cache
 ):
-    mower_id = "00000000-0000-0000-0000-000000000001"
+    mower_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
     await cache.set(
-        mower_data_key(mower_id),
+        mower_data_key(str(mower_id)),
         MowerDataCache(
-            id=mower_id,
-            serial_number="cached",
+            id=str(mower_id),
             nickname="Cached mower",
             owner_id=None,
         ).model_dump_json(),
     )
 
     assert await check_mower_ownership(mower_id, db_session) is None
-
-
-async def test_check_mower_ownership_returns_none_for_malformed_uuid(db_session):
-    assert await check_mower_ownership("not-a-uuid", db_session) is None

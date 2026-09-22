@@ -31,13 +31,6 @@ TELEMETRY_COLUMNS = {
 }
 
 
-def _mower_uuid(mower_id: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(mower_id)
-    except (TypeError, ValueError) as error:
-        raise ValidationError("Mower ID must be a UUID") from error
-
-
 def encode_telemetry_cursor(timestamp: datetime, telemetry_id: uuid.UUID) -> str:
     """Create an opaque ordering cursor from the final record in a page."""
     value = json.dumps({"timestamp": timestamp.isoformat(), "id": str(telemetry_id)})
@@ -61,7 +54,7 @@ def decode_telemetry_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
 
 
 async def get_telemetry_history(
-    mower_id: str, telemetry_type: str, cursor: str | None, db: AsyncSession
+    mower_id: uuid.UUID, telemetry_type: str, cursor: str | None, db: AsyncSession
 ) -> tuple[int, list[tuple], str | None]:
     """Return a stable newest-first graph page and an opaque next cursor.
 
@@ -72,9 +65,8 @@ async def get_telemetry_history(
     if column is None:
         raise ValidationError("Unsupported telemetry graph type")
 
-    mower_uuid = _mower_uuid(mower_id)
     filters = (
-        MowerTelemetryModel.mower_id == mower_uuid,
+        MowerTelemetryModel.mower_id == mower_id,
         column.is_not(None),
     )
     statement = (

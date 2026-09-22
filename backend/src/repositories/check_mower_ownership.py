@@ -14,20 +14,13 @@ from src.schemas.valkey import VALKEY_CACHE_TTL_SECONDS, MowerDataCache, mower_d
 logger = logging.getLogger("repositories.check_mower_ownership")
 
 
-async def check_mower_ownership(mower_id: str, db: AsyncSession) -> str | None:
+async def check_mower_ownership(mower_id: uuid.UUID, db: AsyncSession) -> str | None:
     """Return a mower's owner from ``mower:{id}:data`` or PostgreSQL.
 
     A mower's data entry already contains ``owner_id``. Reusing it prevents a
     second owner-only Valkey projection from becoming stale independently.
     """
-    mower_uuid_str = str(mower_id).strip().lower()
-    try:
-        mower_uuid = uuid.UUID(mower_uuid_str)
-    except ValueError:
-        logger.warning("Invalid mower UUID in ownership lookup: %s", mower_id)
-        return None
-
-    cache_key = mower_data_key(str(mower_uuid))
+    cache_key = mower_data_key(str(mower_id))
     try:
         async with get_valkey_client() as v_client:
             cached = await v_client.get(cache_key)
@@ -41,10 +34,10 @@ async def check_mower_ownership(mower_id: str, db: AsyncSession) -> str | None:
 
     logger.info("Valkey cache miss for mower data %s; checking PostgreSQL", cache_key)
     try:
-        result = await db.execute(select(MowerModel).where(MowerModel.id == mower_uuid))
+        result = await db.execute(select(MowerModel).where(MowerModel.id == mower_id))
         mower = result.scalar_one_or_none()
     except Exception as db_err:
-        logger.error("Database lookup failed for mower %s", mower_uuid, exc_info=True)
+        logger.error("Database lookup failed for mower %s", mower_id, exc_info=True)
         raise RepositoryError(
             f"Database lookup failed for mower '{mower_id}'"
         ) from db_err
@@ -54,7 +47,6 @@ async def check_mower_ownership(mower_id: str, db: AsyncSession) -> str | None:
 
     mower_data = MowerDataCache(
         id=str(mower.id),
-        serial_number=mower.serial_number,
         nickname=mower.nickname,
         owner_id=mower.owner_id,
     )

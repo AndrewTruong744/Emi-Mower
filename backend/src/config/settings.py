@@ -77,9 +77,6 @@ class Settings:
     )
 
     FIREBASE_DISABLED: bool = _env_bool("FIREBASE_DISABLED", False)
-    FIREBASE_SERVICE_ACCOUNT_PATH: str | None = (
-        os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") or None
-    )
 
     @property
     def DATABASE_URL_ASYNC(self) -> str:

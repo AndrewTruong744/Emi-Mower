@@ -13,7 +13,6 @@ export function useMap() {
   const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
   const { addPoint, clear, points, undo } = useBoundaryDrawing();
   const mowerDetails = useBoundStore((state) => state.mowerDetails);
-  const mowers = useBoundStore((state) => state.mowers);
   const mowerPositions = useBoundStore((state) => state.mowerPositions);
   const isSessionActive = useBoundStore((state) => state.isSessionActive);
   const isSessionPaused = useBoundStore((state) => state.isSessionPaused);
@@ -26,16 +25,13 @@ export function useMap() {
   useLandscapeMap();
   const confirmCuttingArea = useCallback(async () => {
     if (points.length < 3) return;
-    if (mowers.length > 0) {
-      await uploadCutout.mutateAsync({
-        imageUri: LOCAL_CUTTING_AREA_IMAGE_URI,
-        mowerIds: mowers,
-      });
-    }
+    await uploadCutout.mutateAsync({
+      imageUri: LOCAL_CUTTING_AREA_IMAGE_URI,
+    });
     startMowingSession(points, LOCAL_CUTTING_AREA_IMAGE_URI);
     setConfirmModalVisible(false);
     clear();
-  }, [clear, mowers, points, startMowingSession, uploadCutout]);
+  }, [clear, points, startMowingSession, uploadCutout]);
 
   const acceptBoundary = useCallback(() => {
     if (points.length >= 3) setConfirmModalVisible(true);

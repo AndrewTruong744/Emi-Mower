@@ -219,9 +219,7 @@ class CutoutUploadUrlRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id_token: str
-    mower_ids: list[str]
     content_type: Literal["image/png", "image/jpeg", "image/webp"]
-
 
 class CutoutUploadUrlResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -232,14 +230,12 @@ class CutoutUploadUrlResponse(BaseModel):
     object_key: str
     content_type: str
 
-
 class CutoutUploadNotification(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id_token: str
     cutout_id: str
     object_key: str
-    mower_ids: list[str]
     content_type: Literal["image/png", "image/jpeg", "image/webp"]
     success: bool
     failure_reason: str | None = None

@@ -8,18 +8,23 @@ access. Use the fleet provisioning procedure for target/environment approval.
 ## Physical mower flow
 
 [`src/scripts/provision_mower.py`](../../backend/src/scripts/provision_mower.py)
-is idempotent for the same mower UUID and serial number. It performs this
-sequence:
+is idempotent for the same mower UUID. It performs this sequence:
 
 1. Choose the supplied UUID or generate one, then create/upsert an unassigned
-   `mowers` row with serial number and nickname.
-2. If supplied, validate and store the mower TPM P-256 device-root **public**
-   key in `mower_device_identities`. The private half never leaves the mower.
+   `mowers` row with that canonical ID and a nickname.
+2. The mower initializer exports its TPM P-256 device-root **public** key to a
+   protected PEM file. For a physical mower, this handoff is currently
+   operator/factory-mediated: the trusted provisioner reads that file through
+   `--device-root-public-key`; a running mower does not automatically upload
+   it. The provisioner validates and normalizes the PEM, stores it in
+   `mowers.device_public_key_pem`, and stores its normalized SHA-256 digest in
+   `mowers.device_key_fingerprint`. The private half never leaves the mower.
 3. Configure the mTLS-router ACL subject for `CN=mower:{uuid}` and restrict it
    to `mower/{uuid}/**`.
-4. Submit a mower-generated CSR to step-ca through the provisioner to create a
-   90-day operational certificate bundle; the CA private key is not read by
-   the provisioning process.
+4. Generate a separate operational mTLS key and CSR on the trusted
+   provisioner, submit that CSR to step-ca, and write the resulting 90-day
+   certificate bundle to the protected mower credential directory. The CA
+   private key is not read by the provisioning process.
 5. Write a mode-600 Jetson Compose environment file with the mower UUID,
    credential mount directory, router endpoint, TLS verification setting, and
    real/simulation launch mode.

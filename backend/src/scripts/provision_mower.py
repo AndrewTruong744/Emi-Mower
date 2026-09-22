@@ -15,7 +15,7 @@ from src.config.database import AsyncSessionLocal
 from src.config.http_client import close_http_client
 from src.config.zenoh_client import ZenohAdminClient
 from src.repositories.create_mower import create_mower
-from src.repositories.mower_device_identities import register_mower_device_identity
+from src.repositories.mower_identity import register_mower_identity
 from src.services.step_ca import StepCaIssuer
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -126,17 +126,16 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
     async with AsyncSessionLocal() as db:
         mower = await create_mower(
             mower_id=mower_id,
-            serial_number=args.serial_number,
             nickname=args.nickname,
             db=db,
         )
         if device_root_public_key is not None:
-            await register_mower_device_identity(
+            await register_mower_identity(
                 mower_id,
                 device_root_public_key.read_text(),
                 db,
             )
-    logger.info("Mower record ready: %s (%s)", mower.id, mower.serial_number)
+    logger.info("Mower record ready: %s", mower.id)
 
     try:
         await ZenohAdminClient().configure_mower_device(
@@ -165,7 +164,6 @@ async def provision_mower(args: argparse.Namespace) -> uuid.UUID:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--serial-number", required=True)
     parser.add_argument("--nickname", required=True)
     parser.add_argument("--mower-id", type=uuid.UUID)
     parser.add_argument("--output-dir", required=True, type=Path)

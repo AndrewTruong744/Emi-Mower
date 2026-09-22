@@ -1,11 +1,9 @@
 import logging
 import random
 import string
-import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import ZenohAdminClient
 from src.exceptions import (
     AuthenticationError,
     ForbiddenError,
@@ -17,12 +15,12 @@ from src.repositories import (
     find_user_by_email,
     get_mowers_of_user,
     get_user_data,
-    record_zenoh_credential_expiry,
     update_user_email,
     update_user_name,
 )
-from src.services.auth import verify_zenoh_google_id_token
+from src.services.auth import verify_firebase_id_token
 from src.services.temp_jwt import generate_jwt_token
+from src.services.zenoh_credentials import provision_zenoh_credential
 from src.zenoh.generated import UserData, UserLoginRequest, UserLoginResponse
 
 ZENOH_JWT_TTL_SECONDS = 5 * 60
@@ -39,8 +37,7 @@ async def create_user_service(id_token: dict, db: AsyncSession) -> dict:
     """
     logger.info("create_user_service called")
 
-    # Firebase decoded ID token stores the user ID in the 'uid' claim
-    user_id = id_token.get("uid") or id_token.get("user_id")
+    user_id = id_token.get("user_id")
     email = id_token.get("email")
     name = id_token.get("name")
 
@@ -67,8 +64,8 @@ async def user_login_service(
     if not firebase_token:
         raise ValidationError("The login payload must contain a non-empty id_token")
 
-    decoded_identity = await verify_zenoh_google_id_token(firebase_token)
-    user_id = decoded_identity.get("uid") or decoded_identity.get("user_id")
+    decoded_identity = await verify_firebase_id_token(firebase_token)
+    user_id = decoded_identity.get("user_id")
     if not user_id:
         raise AuthenticationError("Authenticated identity does not contain a user id")
 
@@ -80,14 +77,12 @@ async def user_login_service(
     mower_ids = await get_mowers_of_user(user_id, db=db)
     user_data = {**user_data, "mowers": mower_ids}
     token = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
-    await ZenohAdminClient().configure_user_app(
+    await provision_zenoh_credential(
         user_id=user_id,
         mower_ids=mower_ids,
         password=token,
+        ttl_seconds=ZENOH_JWT_TTL_SECONDS,
     )
-
-    expires_at = int(time.time()) + ZENOH_JWT_TTL_SECONDS
-    await record_zenoh_credential_expiry(user_id, expires_at)
     return UserLoginResponse(
         user_id=user_id,
         token=token,
@@ -110,7 +105,7 @@ async def update_user_email_service(
 ) -> str:
     """
     Service to update the email of a user.
-    Verifies the new_id_token using verify_zenoh_google_id_token,
+    Verifies the new_id_token using verify_firebase_id_token,
     then updates the current user's email. The new token may have a different
     Firebase UID; its email must not already belong to a database user.
     Raises ForbiddenError, ValidationError, UserNotFoundError, or RepositoryError.
@@ -118,7 +113,7 @@ async def update_user_email_service(
     logger.info(f"update_user_email_service called for user: {user_id}")
 
     try:
-        decoded_token = await verify_zenoh_google_id_token(new_id_token)
+        decoded_token = await verify_firebase_id_token(new_id_token)
     except Exception as verify_err:
         logger.warning(f"Failed to verify ID token for user email update: {verify_err}")
         raise ForbiddenError(
@@ -171,11 +166,10 @@ async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
 
     mower_ids = await get_mowers_of_user(user_id, db=db)
     jwt_value = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
-    await ZenohAdminClient().configure_user_app(
+    await provision_zenoh_credential(
         user_id=user_id,
         mower_ids=mower_ids,
         password=jwt_value,
+        ttl_seconds=ZENOH_JWT_TTL_SECONDS,
     )
-    expires_at = int(time.time()) + ZENOH_JWT_TTL_SECONDS
-    await record_zenoh_credential_expiry(user_id, expires_at)
     return jwt_value

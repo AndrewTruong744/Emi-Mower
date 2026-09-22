@@ -13,7 +13,7 @@ logger = logging.getLogger("repositories.update_mower_name")
 
 
 async def update_mower_name(
-    mower_id: str | uuid.UUID, new_name: str, db: AsyncSession
+    mower_id: uuid.UUID, new_name: str, db: AsyncSession
 ) -> None:
     """
     Updates the nickname/name of a mower in PostgreSQL using provided AsyncSession.
@@ -21,20 +21,16 @@ async def update_mower_name(
     Raises MowerNotFoundError if mower does not exist, or RepositoryError on DB error.
     """
     logger.info(f"Updating mower {mower_id} nickname to: {new_name}")
-    try:
-        m_uuid = uuid.UUID(mower_id) if isinstance(mower_id, str) else mower_id
-    except ValueError as val_err:
-        logger.error(f"Invalid mower ID format: {val_err}")
-        raise MowerNotFoundError(f"Invalid mower ID format: {mower_id}") from val_err
-
     # 1. Update database
     try:
         stmt = (
-            update(MowerModel).where(MowerModel.id == m_uuid).values(nickname=new_name)
+            update(MowerModel)
+            .where(MowerModel.id == mower_id)
+            .values(nickname=new_name)
         )
         result = await db.execute(stmt)
         if result.rowcount == 0:
-            logger.warning(f"No mower found with ID {m_uuid}")
+            logger.warning(f"No mower found with ID {mower_id}")
             raise MowerNotFoundError(f"No mower found with ID {mower_id}")
         await db.commit()
     except MowerNotFoundError:
@@ -50,7 +46,7 @@ async def update_mower_name(
     # 2. Invalidate Valkey cache for this mower
     try:
         async with get_valkey_client() as v_client:
-            cache_key = mower_data_key(str(m_uuid))
+            cache_key = mower_data_key(str(mower_id))
             await v_client.delete(cache_key)
             logger.info(f"Invalidated Valkey cache key '{cache_key}'")
     except Exception as valkey_err:

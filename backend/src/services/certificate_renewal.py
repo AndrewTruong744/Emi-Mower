@@ -17,10 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.valkey_client import get_valkey_client
 from src.config.zenoh_client import ZenohAdminClient
 from src.exceptions import AuthenticationError, ValidationError
-from src.repositories.mower_device_identities import get_active_mower_device_identity
+from src.repositories.mower_identity import get_active_mower_identity
+from src.schemas.valkey import (
+    MOWER_CERTIFICATE_RENEWAL_NONCE_TTL_SECONDS,
+    mower_certificate_renewal_nonce_key,
+)
 from src.services.step_ca import StepCaIssuer
-
-NONCE_TTL_SECONDS = 300
 
 
 def renewal_message(mower_id: str, nonce: str, csr_pem: str) -> bytes:
@@ -35,23 +37,21 @@ def renewal_message(mower_id: str, nonce: str, csr_pem: str) -> bytes:
     )
 
 
-def _nonce_key(mower_id: str, nonce: str) -> str:
-    return f"mower_certificate_renewal:{mower_id}:{nonce}"
-
-
-async def issue_renewal_challenge(
-    mower_id: str, db: AsyncSession
-) -> dict[str, object]:
+async def issue_renewal_challenge(mower_id: str, db: AsyncSession) -> dict[str, object]:
     # Do not allocate challenge state for arbitrary key expressions. The
     # completion path will verify this identity again before signing anything.
-    await get_active_mower_device_identity(uuid.UUID(mower_id), db)
+    await get_active_mower_identity(uuid.UUID(mower_id), db)
     nonce = secrets.token_urlsafe(32)
     client = get_valkey_client()
     try:
-        await client.set(_nonce_key(mower_id, nonce), mower_id, ex=NONCE_TTL_SECONDS)
+        await client.set(
+            mower_certificate_renewal_nonce_key(mower_id, nonce),
+            mower_id,
+            ex=MOWER_CERTIFICATE_RENEWAL_NONCE_TTL_SECONDS,
+        )
     finally:
         await client.close()
-    return {"nonce": nonce, "expires_in": NONCE_TTL_SECONDS}
+    return {"nonce": nonce, "expires_in": MOWER_CERTIFICATE_RENEWAL_NONCE_TTL_SECONDS}
 
 
 def _validate_csr(mower_id: str, csr_pem: str) -> x509.CertificateSigningRequest:
@@ -73,7 +73,9 @@ def _validate_csr(mower_id: str, csr_pem: str) -> x509.CertificateSigningRequest
 async def _consume_nonce(mower_id: str, nonce: str) -> None:
     client = get_valkey_client()
     try:
-        value = await client.getdel(_nonce_key(mower_id, nonce))
+        value = await client.getdel(
+            mower_certificate_renewal_nonce_key(mower_id, nonce)
+        )
     finally:
         await client.close()
     if value != mower_id:
@@ -113,9 +115,10 @@ async def complete_certificate_renewal(
 ) -> dict[str, object]:
     mower_uuid = uuid.UUID(mower_id)
     _validate_csr(mower_id, csr_pem)
-    identity = await get_active_mower_device_identity(mower_uuid, db)
+    mower = await get_active_mower_identity(mower_uuid, db)
+    assert mower.device_public_key_pem is not None
     message = renewal_message(mower_id, nonce, csr_pem)
-    _verify_tpm_signature(identity.public_key_pem, message, tpm_signature)
+    _verify_tpm_signature(mower.device_public_key_pem, message, tpm_signature)
     await _consume_nonce(mower_id, nonce)
     certificate_pem, ca_chain_pem, expires_at = await asyncio.to_thread(
         _issue_from_csr, mower_id, csr_pem

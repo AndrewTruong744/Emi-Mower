@@ -46,7 +46,6 @@ async def get_all_mowers_and_users(db: AsyncSession) -> dict[str, list[dict]]:
             select(
                 MowerModel.id,
                 MowerModel.owner_id,
-                MowerModel.serial_number,
                 MowerModel.nickname,
             ).order_by(MowerModel.id)
         )
@@ -64,7 +63,7 @@ async def get_all_mowers_and_users(db: AsyncSession) -> dict[str, list[dict]]:
             "mower_id": str(mower_id),
             "owner_id": str(owner_id) if owner_id is not None else None,
         }
-        for mower_id, owner_id, _, _ in mower_rows
+        for mower_id, owner_id, _ in mower_rows
     ]
 
     mowers_by_user = {user_id: [] for user_id in user_ids}
@@ -91,13 +90,12 @@ async def get_all_mowers_and_users(db: AsyncSession) -> dict[str, list[dict]]:
                     UserMowersCache(user["mower_ids"]).model_dump_json(),
                 )
 
-            for mower_id, owner_id, serial_number, nickname in mower_rows:
+            for mower_id, owner_id, nickname in mower_rows:
                 pipeline.setex(
                     mower_data_key(str(mower_id)),
                     VALKEY_CACHE_TTL_SECONDS,
                     MowerDataCache(
                         id=str(mower_id),
-                        serial_number=serial_number,
                         nickname=nickname,
                         owner_id=str(owner_id) if owner_id is not None else None,
                     ).model_dump_json(),

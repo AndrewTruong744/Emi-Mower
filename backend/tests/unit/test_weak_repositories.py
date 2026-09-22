@@ -25,13 +25,12 @@ from src.schemas.valkey import (
     UserMowersCache,
 )
 
-add_mower_module = import_module("src.repositories.add_mower_to_user")
+set_owner_module = import_module("src.repositories.set_mower_owner")
 check_owner_module = import_module("src.repositories.check_mower_ownership")
 create_user_module = import_module("src.repositories.create_user")
 find_email_module = import_module("src.repositories.find_user_by_email")
-find_mower_module = import_module("src.repositories.find_user_by_mower")
 get_all_module = import_module("src.repositories.get_all_mowers_and_users")
-mower_data_module = import_module("src.repositories.get_mower_data")
+mower_data_module = import_module("src.repositories.get_mower_data_for_user")
 mowers_module = import_module("src.repositories.get_mowers_of_user")
 user_data_module = import_module("src.repositories.get_user_data")
 update_mower_module = import_module("src.repositories.update_mower_name")
@@ -176,13 +175,10 @@ async def test_user_updates_tolerate_cache_invalidation_failure(
     db.commit.assert_awaited_once()
 
 
-async def test_update_mower_name_validates_uuid_and_missing_rows():
-    with pytest.raises(MowerNotFoundError, match="Invalid mower ID"):
-        await update_mower_module.update_mower_name("not-a-uuid", "New", Mock())
-
+async def test_update_mower_name_handles_missing_rows():
     db = db_with(SimpleNamespace(rowcount=0))
     with pytest.raises(MowerNotFoundError, match="No mower found"):
-        await update_mower_module.update_mower_name(str(uuid4()), "New", db)
+        await update_mower_module.update_mower_name(uuid4(), "New", db)
 
 
 async def test_update_mower_name_tolerates_cache_invalidation_failure(monkeypatch):
@@ -193,19 +189,14 @@ async def test_update_mower_name_tolerates_cache_invalidation_failure(monkeypatc
         update_mower_module, "get_valkey_client", lambda: cache_context(broken_cache)
     )
 
-    await update_mower_module.update_mower_name(str(uuid4()), "New", db)
+    await update_mower_module.update_mower_name(uuid4(), "New", db)
     db.commit.assert_awaited_once()
 
 
-async def test_add_mower_to_user_handles_validation_not_found_and_cache_errors(
-    monkeypatch,
-):
-    with pytest.raises(MowerNotFoundError):
-        await add_mower_module.add_mower_to_user("user-1", "bad-id", Mock())
-
+async def test_set_mower_owner_handles_not_found_and_cache_errors(monkeypatch):
     missing_db = db_with(SimpleNamespace(fetchone=lambda: None))
     with pytest.raises(MowerNotFoundError):
-        await add_mower_module.add_mower_to_user("user-1", str(uuid4()), missing_db)
+        await set_owner_module.set_mower_owner("user-1", uuid4(), missing_db)
 
     mower_id = uuid4()
     db = db_with(
@@ -218,34 +209,34 @@ async def test_add_mower_to_user_handles_validation_not_found_and_cache_errors(
         side_effect=RuntimeError("cache down")
     )
     monkeypatch.setattr(
-        add_mower_module, "get_valkey_client", lambda: cache_context(cache)
+        set_owner_module, "get_valkey_client", lambda: cache_context(cache)
     )
-    await add_mower_module.add_mower_to_user("new-user", str(mower_id), db)
+    await set_owner_module.set_mower_owner("new-user", mower_id, db)
     db.commit.assert_awaited_once()
 
 
-async def test_add_mower_to_user_rejects_unknown_user_and_db_failures():
+async def test_set_mower_owner_rejects_unknown_user_and_db_failures():
     mower_id = uuid4()
     unknown_user = db_with(
         SimpleNamespace(fetchone=lambda: (None,)),
         SimpleNamespace(scalar_one_or_none=lambda: None),
     )
     with pytest.raises(UserNotFoundError):
-        await add_mower_module.add_mower_to_user("missing", str(mower_id), unknown_user)
+        await set_owner_module.set_mower_owner("missing", mower_id, unknown_user)
 
     broken = Mock()
     broken.execute = AsyncMock(side_effect=RuntimeError("database down"))
     broken.rollback = AsyncMock()
     with pytest.raises(RepositoryError):
-        await add_mower_module.add_mower_to_user(None, str(mower_id), broken)
+        await set_owner_module.set_mower_owner(None, mower_id, broken)
     broken.rollback.assert_awaited_once()
 
 
 async def test_ownership_reads_the_shared_mower_data_cache(monkeypatch):
-    mower_id = str(uuid4())
+    mower_id = uuid4()
     client = successful_cache(
         get=MowerDataCache(
-            id=mower_id, serial_number="serial", nickname="One", owner_id="owner-1"
+            id=str(mower_id), nickname="One", owner_id="owner-1"
         ).model_dump_json()
     )
     monkeypatch.setattr(
@@ -258,25 +249,19 @@ async def test_ownership_reads_the_shared_mower_data_cache(monkeypatch):
 
 async def test_ownership_cache_miss_queries_and_caches_full_mower_data(monkeypatch):
     mower_id = uuid4()
-    mower = SimpleNamespace(
-        id=mower_id, serial_number="serial", nickname="One", owner_id="owner-1"
-    )
+    mower = SimpleNamespace(id=mower_id, nickname="One", owner_id="owner-1")
     db = db_with(SimpleNamespace(scalar_one_or_none=lambda: mower))
     client = successful_cache()
     monkeypatch.setattr(
         check_owner_module, "get_valkey_client", lambda: cache_context(client)
     )
 
-    assert (
-        await check_owner_module.check_mower_ownership(str(mower_id), db)
-        == "owner-1"
-    )
+    assert await check_owner_module.check_mower_ownership(mower_id, db) == "owner-1"
     client.setex.assert_awaited_once()
-    assert await check_owner_module.check_mower_ownership("not-a-uuid", db) is None
 
 
 async def test_ownership_cache_and_database_failures(monkeypatch):
-    mower_id = str(uuid4())
+    mower_id = uuid4()
     broken_cache = successful_cache()
     broken_cache.get.side_effect = RuntimeError("cache down")
     monkeypatch.setattr(
@@ -288,7 +273,7 @@ async def test_ownership_cache_and_database_failures(monkeypatch):
     broken_db = Mock()
     broken_db.execute = AsyncMock(side_effect=RuntimeError("database down"))
     with pytest.raises(RepositoryError):
-        await find_mower_module.find_user_by_mower(mower_id, broken_db)
+        await check_owner_module.check_mower_ownership(mower_id, broken_db)
 
 
 async def test_get_mowers_of_user_cache_hit_and_cache_miss(monkeypatch):
@@ -367,8 +352,8 @@ async def test_get_all_mowers_and_users_builds_relationships_and_survives_cache_
     )
     mower_result = SimpleNamespace(
         all=lambda: [
-            (UUID(int=1), "user-1", "serial-1", "One"),
-            (UUID(int=2), None, "serial-2", "Two"),
+            (UUID(int=1), "user-1", "One"),
+            (UUID(int=2), None, "Two"),
         ]
     )
     db = db_with(user_result, mower_result)
@@ -393,10 +378,12 @@ async def test_get_all_mowers_and_users_wraps_database_errors():
         await get_all_module.get_all_mowers_and_users(db)
 
 
-async def test_get_mower_data_uses_cache_without_status_projection(monkeypatch):
+async def test_get_mower_data_for_user_uses_cache_without_status_projection(
+    monkeypatch,
+):
     mower_id = str(UUID(int=1))
     data_json = MowerDataCache(
-        id=mower_id, serial_number="serial", nickname="One", owner_id="user-1"
+        id=mower_id, nickname="One", owner_id="user-1"
     ).model_dump_json()
     client = successful_cache(
         get=UserMowersCache([mower_id]).model_dump_json(),
@@ -410,17 +397,15 @@ async def test_get_mower_data_uses_cache_without_status_projection(monkeypatch):
         mower_data_module, "get_valkey_client", lambda: cache_context(client)
     )
 
-    result = await mower_data_module.get_mower_data("user-1", Mock())
+    result = await mower_data_module.get_mower_data_for_user("user-1", Mock())
 
     assert result[0]["id"] == mower_id
 
 
-async def test_get_mower_data_falls_back_to_db_on_cache_write_error(
+async def test_get_mower_data_for_user_falls_back_to_db_on_cache_write_error(
     monkeypatch,
 ):
-    mower = SimpleNamespace(
-        id=UUID(int=1), serial_number="serial", nickname="One", owner_id="user-1"
-    )
+    mower = SimpleNamespace(id=UUID(int=1), nickname="One", owner_id="user-1")
     client = successful_cache()
     client.pipeline.return_value.execute = AsyncMock(
         side_effect=RuntimeError("cache down")
@@ -430,12 +415,12 @@ async def test_get_mower_data_falls_back_to_db_on_cache_write_error(
     )
     db = db_with(SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [mower])))
 
-    result = await mower_data_module.get_mower_data("user-1", db)
+    result = await mower_data_module.get_mower_data_for_user("user-1", db)
 
     assert result[0]["id"] == str(mower.id)
 
 
-async def test_get_mower_data_wraps_database_errors(monkeypatch):
+async def test_get_mower_data_for_user_wraps_database_errors(monkeypatch):
     client = successful_cache()
     client.get.side_effect = RuntimeError("cache down")
     monkeypatch.setattr(
@@ -444,7 +429,7 @@ async def test_get_mower_data_wraps_database_errors(monkeypatch):
     db = Mock()
     db.execute = AsyncMock(side_effect=RuntimeError("database down"))
     with pytest.raises(RepositoryError):
-        await mower_data_module.get_mower_data("user-1", db)
+        await mower_data_module.get_mower_data_for_user("user-1", db)
 
 
 async def test_verify_ownership_handles_cache_hit_miss_and_database_failure(
@@ -476,7 +461,7 @@ async def test_zenoh_credential_repository_wraps_valkey_failures(monkeypatch):
     for function, args, method in [
         (credentials_module.record_zenoh_credential_expiry, ("user-1", 1), "hset"),
         (credentials_module.get_expired_zenoh_credential_user_ids, (1,), "hgetall"),
-        (credentials_module.remove_zenoh_credential_expiry, ("user-1",), "hdel"),
+        (credentials_module.remove_zenoh_credential_expiries, (["user-1"],), "hdel"),
     ]:
         client = successful_cache()
         getattr(client, method).side_effect = RuntimeError("cache down")
@@ -500,10 +485,11 @@ async def test_zenoh_credential_repository_reads_and_removes_expirations(monkeyp
 
     client.hgetall.return_value = {"due": "100", "future": "101", "bad": "nope"}
     assert await credentials_module.get_expired_zenoh_credential_user_ids(100) == [
-        "due"
+        "due",
+        "bad",
     ]
 
-    await credentials_module.remove_zenoh_credential_expiry("user-1")
+    await credentials_module.remove_zenoh_credential_expiries(["user-1"])
     client.hdel.assert_awaited_once()
 
 
@@ -520,19 +506,14 @@ def test_telemetry_cursor_round_trip_and_invalid_values():
         with pytest.raises(history_module.ValidationError):
             history_module.decode_telemetry_cursor(invalid)
 
-    with pytest.raises(history_module.ValidationError):
-        history_module._mower_uuid("not-a-uuid")
 
-
-async def test_get_telemetry_history_validates_graph_and_mower_ids():
+async def test_get_telemetry_history_validates_graph_type():
     with pytest.raises(history_module.ValidationError, match="Unsupported"):
-        await history_module.get_telemetry_history("mower-1", "unknown", None, Mock())
-    with pytest.raises(history_module.ValidationError, match="UUID"):
-        await history_module.get_telemetry_history("mower-1", "accel_x", None, Mock())
+        await history_module.get_telemetry_history(uuid4(), "unknown", None, Mock())
 
 
 async def test_get_telemetry_history_returns_page_and_cursor(monkeypatch):
-    mower_id = str(uuid4())
+    mower_id = uuid4()
     first_timestamp = datetime(2026, 1, 1, tzinfo=timezone.utc)
     rows = [
         SimpleNamespace(timestamp=first_timestamp, id=uuid4())
@@ -565,12 +546,12 @@ async def test_get_telemetry_history_handles_empty_and_database_error():
     empty_db.scalar = AsyncMock(return_value=0)
     empty_db.execute = AsyncMock(return_value=SimpleNamespace(all=lambda: []))
     assert await history_module.get_telemetry_history(
-        str(uuid4()), "battery_percentage", None, empty_db
+        uuid4(), "battery_percentage", None, empty_db
     ) == (0, [], None)
 
     broken_db = Mock()
     broken_db.scalar = AsyncMock(side_effect=RuntimeError("database down"))
     with pytest.raises(RepositoryError):
         await history_module.get_telemetry_history(
-            str(uuid4()), "battery_percentage", None, broken_db
+            uuid4(), "battery_percentage", None, broken_db
         )

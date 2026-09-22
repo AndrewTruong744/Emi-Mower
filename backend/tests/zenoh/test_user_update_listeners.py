@@ -21,9 +21,9 @@ async def test_add_mower_to_user_listener_verifies_token_and_assigns_to_user(
     monkeypatch,
 ):
     listener = import_module("src.zenoh.listeners.add_mower_to_user")
-    verify = AsyncMock(return_value={"uid": "user-1"})
+    verify = Mock(return_value={"user_id": "user-1"})
     service = AsyncMock()
-    monkeypatch.setattr("src.services.auth._verify_google_id_token", verify)
+    monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
     monkeypatch.setattr(listener, "update_mower_ownership_service", service)
 
     db = Mock()
@@ -32,7 +32,7 @@ async def test_add_mower_to_user_listener_verifies_token_and_assigns_to_user(
         db,
     )
 
-    verify.assert_awaited_once()
+    verify.assert_called_once_with("google-token", clock_skew_seconds=10)
     service.assert_awaited_once_with(
         current_owner_id=None,
         new_owner_id="user-1",
@@ -46,9 +46,9 @@ async def test_add_mower_to_user_listener_verifies_token_and_assigns_to_user(
 
 async def test_update_user_name_listener_verifies_token_and_returns_reply(monkeypatch):
     listener = import_module("src.zenoh.listeners.update_user_name")
-    verify = AsyncMock(return_value={"user_id": "user-1"})
+    verify = Mock(return_value={"user_id": "user-1"})
     service = AsyncMock()
-    monkeypatch.setattr("src.services.auth._verify_google_id_token", verify)
+    monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
     monkeypatch.setattr(listener, "update_user_name_service", service)
     db = Mock()
 
@@ -57,7 +57,7 @@ async def test_update_user_name_listener_verifies_token_and_returns_reply(monkey
         db,
     )
 
-    verify.assert_awaited_once()
+    verify.assert_called_once_with("google-token", clock_skew_seconds=10)
     service.assert_awaited_once_with("user-1", "NewName", db=db)
     assert isinstance(result, UpdateUserNameResponse)
     assert result.new_user_name == "NewName"
@@ -65,9 +65,9 @@ async def test_update_user_name_listener_verifies_token_and_returns_reply(monkey
 
 async def test_update_mower_name_listener_verifies_token_and_returns_reply(monkeypatch):
     listener = import_module("src.zenoh.listeners.update_mower_name")
-    verify = AsyncMock(return_value={"uid": "user-1"})
+    verify = Mock(return_value={"user_id": "user-1"})
     service = AsyncMock()
-    monkeypatch.setattr("src.services.auth._verify_google_id_token", verify)
+    monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
     monkeypatch.setattr(listener, "update_mower_name_service", service)
     db = Mock()
 
@@ -77,7 +77,7 @@ async def test_update_mower_name_listener_verifies_token_and_returns_reply(monke
         "mower/mower-1/update_name",
     )
 
-    verify.assert_awaited_once()
+    verify.assert_called_once_with("google-token", clock_skew_seconds=10)
     service.assert_awaited_once_with(
         user_id="user-1",
         mower_id="mower-1",
@@ -91,8 +91,8 @@ async def test_update_mower_name_listener_verifies_token_and_returns_reply(monke
 async def test_update_mower_name_listener_rejects_a_mismatched_query_path(monkeypatch):
     listener = import_module("src.zenoh.listeners.update_mower_name")
     monkeypatch.setattr(
-        "src.services.auth._verify_google_id_token",
-        AsyncMock(return_value={"uid": "user-1"}),
+        "src.services.auth.auth.verify_id_token",
+        Mock(return_value={"user_id": "user-1"}),
     )
     service = AsyncMock()
     monkeypatch.setattr(listener, "update_mower_name_service", service)
@@ -111,13 +111,13 @@ async def test_update_user_email_listener_verifies_token_and_returns_new_email(
     monkeypatch,
 ):
     listener = import_module("src.zenoh.listeners.update_user_email")
-    verify = AsyncMock(
+    verify = Mock(
         side_effect=[
-            {"uid": "user-1", "email": "old@example.test"},
-            {"uid": "new-firebase-user", "email": "new@example.test"},
+            {"user_id": "user-1", "email": "old@example.test"},
+            {"user_id": "new-firebase-user", "email": "new@example.test"},
         ]
     )
-    monkeypatch.setattr("src.services.auth._verify_google_id_token", verify)
+    monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
     update = AsyncMock()
     monkeypatch.setattr(
         user_service, "find_user_by_email", AsyncMock(return_value=None)
@@ -132,9 +132,9 @@ async def test_update_user_email_listener_verifies_token_and_returns_new_email(
         db,
     )
 
-    assert verify.await_count == 2
-    assert verify.await_args_list[0].args == ("original-google-token",)
-    assert verify.await_args_list[1].args == ("new-google-token",)
+    assert verify.call_count == 2
+    assert verify.call_args_list[0].args == ("original-google-token",)
+    assert verify.call_args_list[1].args == ("new-google-token",)
     update.assert_awaited_once_with("user-1", "new@example.test", db=db)
     assert isinstance(result, UpdateUserEmailResponse)
     assert result.new_email == "new@example.test"

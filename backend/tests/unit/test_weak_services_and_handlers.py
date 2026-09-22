@@ -36,33 +36,36 @@ class Sample:
         self.payload = payload
 
 
-async def test_auth_verification_accepts_uid_and_user_id_claims(monkeypatch):
+async def test_auth_verification_normalizes_uid_to_user_id(monkeypatch):
     verify = Mock(return_value={"uid": "uid-1"})
     monkeypatch.setattr(auth_module.auth, "verify_id_token", verify)
 
-    assert await auth_module.verify_zenoh_google_id_token("token") == {"uid": "uid-1"}
+    assert await auth_module.verify_firebase_id_token("token") == {
+        "uid": "uid-1",
+        "user_id": "uid-1",
+    }
     verify.assert_called_once_with("token", clock_skew_seconds=10)
 
     verify.reset_mock()
     verify.return_value = {"user_id": "legacy-user"}
-    assert (await auth_module.verify_zenoh_google_id_token("token"))[
+    assert (await auth_module.verify_firebase_id_token("token"))[
         "user_id"
     ] == "legacy-user"
 
 
 async def test_auth_verification_rejects_empty_missing_and_invalid_tokens(monkeypatch):
     with pytest.raises(auth_module.ValidationError):
-        await auth_module.verify_zenoh_google_id_token("")
+        await auth_module.verify_firebase_id_token("")
 
     monkeypatch.setattr(auth_module.auth, "verify_id_token", Mock(return_value={}))
     with pytest.raises(AuthenticationError):
-        await auth_module.verify_zenoh_google_id_token("token")
+        await auth_module.verify_firebase_id_token("token")
 
     monkeypatch.setattr(
         auth_module.auth, "verify_id_token", Mock(side_effect=ValueError("bad"))
     )
     with pytest.raises(AuthenticationError, match="Invalid, expired"):
-        await auth_module.verify_zenoh_google_id_token("token")
+        await auth_module.verify_firebase_id_token("token")
 
 
 def test_initialize_backend_auth_supports_disabled_existing_and_first_start(
