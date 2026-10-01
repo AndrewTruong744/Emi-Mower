@@ -17,13 +17,26 @@ from src.repositories import (
     update_mower_name,
     verify_ownership,
 )
-from src.zenoh.generated import (
-    TelemetryHistoryPoint,
-    TelemetryHistoryResponse,
-    TelemetryRecord,
-)
+from src.repositories.get_telemetry_history import TELEMETRY_PAGE_SIZE
+from src.zenoh.generated import TelemetryRecord
 
 logger = logging.getLogger("services.mower_service")
+
+
+def mower_route_params(key_expr: str, pattern: str) -> tuple[str, ...]:
+    """Match a concrete mower route and return its non-empty wildcard values."""
+    actual = str(key_expr).split("/")
+    expected = pattern.split("/")
+    if len(actual) != len(expected) or any(
+        not segment or (template != "*" and segment != template)
+        for segment, template in zip(actual, expected, strict=True)
+    ):
+        raise ValidationError("Invalid mower query path")
+    return tuple(
+        segment
+        for segment, template in zip(actual, expected, strict=True)
+        if template == "*"
+    )
 
 
 def _parse_mower_id(mower_id: str) -> uuid.UUID:
@@ -47,7 +60,7 @@ async def get_telemetry_history_service(
     telemetry_type: str,
     cursor: str | None,
     db: AsyncSession,
-) -> TelemetryHistoryResponse:
+) -> dict:
     """Read one authorized, cursor-paged newest-first 60-point graph page."""
     mower_uuid = _parse_mower_id(mower_id)
     if not await verify_ownership(user_id, mower_uuid, db):
@@ -56,18 +69,17 @@ async def get_telemetry_history_service(
     total, points, next_cursor = await get_telemetry_history(
         mower_uuid, telemetry_type, cursor, db
     )
-    return TelemetryHistoryResponse(
-        telemetry_type=telemetry_type,
-        limit=60,
-        total=total,
-        has_more=next_cursor is not None,
-        next_cursor=next_cursor,
-        points=[
-            TelemetryHistoryPoint(timestamp=timestamp, value=float(value))
+    return {
+        "telemetry_type": telemetry_type,
+        "limit": TELEMETRY_PAGE_SIZE,
+        "total": total,
+        "next_cursor": next_cursor,
+        "points": [
+            (timestamp, float(value))
             for timestamp, value, _ in points
             if value is not None
         ],
-    )
+    }
 
 
 async def get_mower_data_service(user_id: str, mower_id: str, db: AsyncSession) -> dict:

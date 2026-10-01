@@ -1,0 +1,16 @@
+services:
+  mujoco:
+    build: .
+    image: emi-mower-mujoco:local
+    init: true
+    environment:
+      MUJOCO_GL: osmesa
+    ports:
+      - "${MUJOCO_VIEWER_BIND:-127.0.0.1}:8080:8080"
+      # Jetson containers reach this published port through host.docker.internal.
+      - "${MUJOCO_BRIDGE_BIND:-0.0.0.0}:8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

@@ -4,31 +4,15 @@ export interface UserLoginRequest {
   id_token: string;
 }
 
-export interface UserData {
-  id: string;
-  email: string;
-  name: string;
-  created_at?: string | null;
-  mowers: string[];
-  [key: string]: unknown;
-}
-
-export interface UserLoginResponse {
-  user_id: string;
-  token: string;
-  expires_in: number;
-  user_data: UserData;
-}
-
-export interface UpdateUserEmailRequest {
+export interface AddMowerToUserRequest {
   id_token: string;
-  new_id_token: string;
+  mower_id: string;
 }
 
-export interface UpdateUserEmailResponse {
+export interface AddMowerToUserResponse {
   message: string;
   user_id: string;
-  new_email: string;
+  mower_id: string;
 }
 
 export interface UpdateUserNameRequest {
@@ -42,9 +26,46 @@ export interface UpdateUserNameResponse {
   new_user_name: string;
 }
 
-export type LiveKitConsumeRequest = Record<string, never>;
+export interface UpdateMowerNameRequest {
+  id_token: string;
+  new_name: string;
+}
 
-export type LiveKitUploadRequest = Record<string, never>;
+export interface UpdateMowerNameResponse {
+  message: string;
+  mower_id: string;
+  new_name: string;
+}
+
+export interface UpdateUserEmailRequest {
+  id_token: string;
+  new_id_token: string;
+}
+
+export interface UpdateUserEmailResponse {
+  message: string;
+  user_id: string;
+  new_email: string;
+}
+
+export interface UserData {
+  id: string;
+  email: string;
+  name: string;
+  created_at?: string | null;
+  mowers: string[];
+}
+
+export interface UserLoginResponse {
+  user_id: string;
+  token: string;
+  expires_in: number;
+  user_data: UserData;
+}
+
+export type LiveKitConsumeRequest = Record<string, unknown>;
+
+export type LiveKitUploadRequest = Record<string, unknown>;
 
 export interface LiveKitTokenResponse {
   token: string;
@@ -59,27 +80,27 @@ export interface JoystickCommand {
 
 export interface EmergencyStopCommand {
   command_id: string;
-  type: 'emergency_stop';
+  type: "emergency_stop";
 }
 
 export interface SetPowerCommand {
   command_id: string;
-  type: 'set_power';
+  type: "set_power";
   enabled: boolean;
 }
 
 export interface SetModeCommand {
   command_id: string;
-  type: 'set_mode';
-  mode: 'manual' | 'auto';
+  type: "set_mode";
+  mode: "manual" | "auto";
 }
 
 export type MowerCommandRequest = EmergencyStopCommand | SetPowerCommand | SetModeCommand;
 
 export interface MowerCommandResponse {
   command_id: string;
-  status: 'accepted' | 'rejected';
-  reason?: string;
+  status: "accepted" | "rejected";
+  reason?: string | null;
 }
 
 export interface TelemetryHistoryRequest {
@@ -130,6 +151,8 @@ export interface TelemetryRecord {
 
 export type TelemetryList = TelemetryRecord[];
 
+export type MowerLiveliness = Record<string, unknown>;
+
 export interface CutoutUploadUrlRequest {
   id_token: string;
   content_type: "image/png" | "image/jpeg" | "image/webp";
@@ -149,7 +172,7 @@ export interface CutoutUploadNotification {
   object_key: string;
   content_type: "image/png" | "image/jpeg" | "image/webp";
   success: boolean;
-  failure_reason?: string;
+  failure_reason?: string | null;
 }
 
 export interface MowerCutoutDelivery {
@@ -159,20 +182,7 @@ export interface MowerCutoutDelivery {
   content_type: string;
 }
 
-
-export interface ProblemDetails {
-  type: string;
-  title: string;
-  status: number;
-  detail: string;
-  instance: string;
-  code: string;
-  timestamp: string;
-  [key: string]: unknown;
-}
-
-// Bootstrap renewal types generated from zenoh_asyncapi.yaml.
-export type MowerCertificateRenewChallengeRequest = Record<string, never>;
+export type MowerCertificateRenewChallengeRequest = Record<string, unknown>;
 
 export interface MowerCertificateRenewChallengeResponse {
   nonce: string;
@@ -189,4 +199,14 @@ export interface MowerCertificateRenewCompleteResponse {
   certificate_pem: string;
   ca_chain_pem: string;
   expires_at: string;
+}
+
+export interface ProblemDetails {
+  type: string;
+  title: string;
+  status: number;
+  detail: string;
+  instance: string;
+  code: string;
+  timestamp: string;
 }

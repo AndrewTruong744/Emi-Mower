@@ -12,4 +12,5 @@ CUTOUT_UPLOAD_URL_KEY_EXPR = cutout_upload_url_path()
 async def cutout_upload_url(
     payload: CutoutUploadUrlRequest, db: AsyncSession
 ) -> CutoutUploadUrlResponse:
-    return await request_cutout_upload_service(payload, db)
+    result = await request_cutout_upload_service(payload, db)
+    return CutoutUploadUrlResponse(**result)

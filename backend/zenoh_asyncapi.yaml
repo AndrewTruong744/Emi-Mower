@@ -8,11 +8,6 @@ info:
     operations accept a Firebase ID token and return a typed reply. LiveKit
     query paths issue room-scoped tokens for either an app consumer or a mower
     publisher.
-servers:
-  public:
-    host: localhost:7447
-    protocol: ws
-    description: Public Zenoh router endpoint
 channels:
   userLogin:
     address: user/login
@@ -404,7 +399,6 @@ components:
     AddMowerToUserRequest:
       type: object
       required: [id_token, mower_id]
-      additionalProperties: false
       properties:
         id_token:
           type: string
@@ -413,7 +407,6 @@ components:
     AddMowerToUserResponse:
       type: object
       required: [message, user_id, mower_id]
-      additionalProperties: false
       properties:
         message: {type: string}
         user_id: {type: string}
@@ -421,7 +414,6 @@ components:
     UpdateUserNameRequest:
       type: object
       required: [id_token, new_user_name]
-      additionalProperties: false
       properties:
         id_token:
           type: string
@@ -430,7 +422,6 @@ components:
     UpdateUserNameResponse:
       type: object
       required: [message, user_id, new_user_name]
-      additionalProperties: false
       properties:
         message: {type: string}
         user_id: {type: string}
@@ -438,7 +429,6 @@ components:
     UpdateMowerNameRequest:
       type: object
       required: [id_token, new_name]
-      additionalProperties: false
       properties:
         id_token:
           type: string
@@ -447,7 +437,6 @@ components:
     UpdateMowerNameResponse:
       type: object
       required: [message, mower_id, new_name]
-      additionalProperties: false
       properties:
         message: {type: string}
         mower_id: {type: string}
@@ -455,7 +444,6 @@ components:
     UpdateUserEmailRequest:
       type: object
       required: [id_token, new_id_token]
-      additionalProperties: false
       properties:
         id_token:
           type: string
@@ -466,7 +454,6 @@ components:
     UpdateUserEmailResponse:
       type: object
       required: [message, user_id, new_email]
-      additionalProperties: false
       properties:
         message: {type: string}
         user_id: {type: string}
@@ -485,23 +472,20 @@ components:
     UserData:
       type: object
       required: [id, email, name, mowers]
-      additionalProperties: true
       properties:
         id: {type: string}
         email: {type: string}
         name: {type: string}
-        created_at: {type: string, format: date-time, nullable: true}
+        created_at: {type: [string, 'null']}
         mowers:
           type: array
           items: {type: string}
           description: IDs of the mowers owned by this user.
     LiveKitConsumeRequest:
       type: object
-      additionalProperties: false
       description: Empty request; mower_id is taken from the Zenoh channel path.
     LiveKitUploadRequest:
       type: object
-      additionalProperties: false
       description: Empty request; mower_id is taken from the Zenoh channel path.
     LiveKitTokenResponse:
       type: object
@@ -512,17 +496,17 @@ components:
           description: Signed LiveKit room access token.
         url:
           type: string
-          format: uri
+
           description: LiveKit WebSocket endpoint used to connect.
         expires_in: {type: integer, example: 3600}
     JoystickCommand:
       type: object
       required: [x, y]
-      additionalProperties: false
-      description: Normalized manual drive vector, where each axis ranges from -1 to 1.
+
+      description: Manual drive vector published on the joystick channel.
       properties:
-        x: {type: number, minimum: -1, maximum: 1}
-        y: {type: number, minimum: -1, maximum: 1}
+        x: {type: number}
+        y: {type: number}
     MowerCommandRequest:
       oneOf:
         - {$ref: '#/components/schemas/EmergencyStopCommand'}
@@ -531,14 +515,12 @@ components:
     EmergencyStopCommand:
       type: object
       required: [command_id, type]
-      additionalProperties: false
       properties:
         command_id: {type: string}
         type: {const: emergency_stop}
     SetPowerCommand:
       type: object
       required: [command_id, type, enabled]
-      additionalProperties: false
       properties:
         command_id: {type: string}
         type: {const: set_power}
@@ -546,7 +528,6 @@ components:
     SetModeCommand:
       type: object
       required: [command_id, type, mode]
-      additionalProperties: false
       properties:
         command_id: {type: string}
         type: {const: set_mode}
@@ -554,47 +535,41 @@ components:
     MowerCommandResponse:
       type: object
       required: [command_id, status]
-      additionalProperties: false
       properties:
         command_id: {type: string}
         status: {type: string, enum: [accepted, rejected]}
-        reason: {type: string}
+        reason: {type: [string, 'null']}
     TelemetryHistoryRequest:
       type: object
       required: [id_token]
-      additionalProperties: false
       properties:
         id_token:
           type: string
           description: Firebase Identity Platform ID token.
         cursor:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Opaque next_cursor returned by the previous page. Omit for the newest 60 points.
     TelemetryHistoryPoint:
       type: object
       required: [timestamp, value]
-      additionalProperties: false
       properties:
-        timestamp: {type: string, format: date-time}
+        timestamp: {type: string}
         value: {type: number}
     TelemetryHistoryResponse:
       type: object
       required: [telemetry_type, limit, total, has_more, next_cursor, points]
-      additionalProperties: false
       properties:
         telemetry_type: {type: string}
         limit: {type: integer, example: 60}
         total: {type: integer}
         has_more: {type: boolean}
-        next_cursor: {type: string, nullable: true}
+        next_cursor: {type: [string, 'null']}
         points:
           type: array
           items: {$ref: '#/components/schemas/TelemetryHistoryPoint'}
     ImuTelemetry:
       type: object
       required: [accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z]
-      additionalProperties: false
       properties:
         accel_x: {type: number}
         accel_y: {type: number}
@@ -608,10 +583,9 @@ components:
     TelemetryRecord:
       type: object
       required: [mower_id, timestamp, latitude, longitude, battery_percentage]
-      additionalProperties: false
       properties:
         mower_id: {type: string}
-        timestamp: {type: string, format: date-time}
+        timestamp: {type: string}
         latitude: {type: number}
         longitude: {type: number}
         battery_percentage: {type: integer}
@@ -622,14 +596,14 @@ components:
         cutting_motor_speed: {type: number, default: 0}
         slippage_detected: {type: boolean, default: false}
         imu_data:
-          nullable: true
-          allOf: [{$ref: '#/components/schemas/ImuTelemetry'}]
+          oneOf:
+            - {$ref: '#/components/schemas/ImuTelemetry'}
+            - {type: 'null'}
     TelemetryList:
       type: array
       items: {$ref: '#/components/schemas/TelemetryRecord'}
     MowerLiveliness:
       type: object
-      additionalProperties: false
       description: >-
         A payload-less Zenoh liveliness token. Its declaration means the
         mower gateway has an active authenticated Zenoh session; deletion
@@ -637,7 +611,6 @@ components:
     CutoutUploadUrlRequest:
       type: object
       required: [id_token, content_type]
-      additionalProperties: false
       properties:
         id_token: {type: string, description: Firebase Identity Platform ID token.}
         content_type:
@@ -646,17 +619,15 @@ components:
     CutoutUploadUrlResponse:
       type: object
       required: [cutout_id, upload_url, expires_in, object_key, content_type]
-      additionalProperties: false
       properties:
         cutout_id: {type: string}
-        upload_url: {type: string, format: uri}
+        upload_url: {type: string}
         expires_in: {type: integer}
         object_key: {type: string}
         content_type: {type: string}
     CutoutUploadNotification:
       type: object
       required: [id_token, cutout_id, object_key, content_type, success]
-      additionalProperties: false
       properties:
         id_token: {type: string, description: Firebase Identity Platform ID token.}
         cutout_id: {type: string}
@@ -665,31 +636,27 @@ components:
           type: string
           enum: [image/png, image/jpeg, image/webp]
         success: {type: boolean}
-        failure_reason: {type: string}
+        failure_reason: {type: [string, 'null']}
     MowerCutoutDelivery:
       type: object
       required: [cutout_id, download_url, expires_in, content_type]
-      additionalProperties: false
       properties:
         cutout_id: {type: string}
-        download_url: {type: string, format: uri}
+        download_url: {type: string}
         expires_in: {type: integer}
         content_type: {type: string}
     MowerCertificateRenewChallengeRequest:
       type: object
-      additionalProperties: false
       description: Empty request. The mower identity is taken from the scoped bootstrap path.
     MowerCertificateRenewChallengeResponse:
       type: object
       required: [nonce, expires_in]
-      additionalProperties: false
       properties:
         nonce: {type: string, description: Base64url one-time challenge.}
         expires_in: {type: integer, example: 300}
     MowerCertificateRenewCompleteRequest:
       type: object
       required: [nonce, csr_pem, tpm_signature]
-      additionalProperties: false
       properties:
         nonce: {type: string}
         csr_pem: {type: string}
@@ -697,20 +664,18 @@ components:
     MowerCertificateRenewCompleteResponse:
       type: object
       required: [certificate_pem, ca_chain_pem, expires_at]
-      additionalProperties: false
       properties:
         certificate_pem: {type: string}
         ca_chain_pem: {type: string}
-        expires_at: {type: string, format: date-time}
+        expires_at: {type: string}
     ProblemDetails:
       type: object
       required: [type, title, status, detail, instance, code, timestamp]
-      additionalProperties: true
       properties:
-        type: {type: string, format: uri}
+        type: {type: string}
         title: {type: string}
-        status: {type: integer, minimum: 400, maximum: 599}
+        status: {type: integer}
         detail: {type: string}
         instance: {type: string}
         code: {type: string}
-        timestamp: {type: string, format: date-time}
+        timestamp: {type: string}

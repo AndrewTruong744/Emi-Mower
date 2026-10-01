@@ -14,7 +14,7 @@ from src.zenoh.generated import TelemetryRecord
 def record(mower_id: str, *, with_imu: bool = False) -> TelemetryRecord:
     return TelemetryRecord(
         mower_id=mower_id,
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
         latitude=1.0,
         longitude=2.0,
         battery_percentage=90,
@@ -108,6 +108,7 @@ async def test_persist_telemetry_records_builds_database_models_with_imu():
     db.add_all.assert_called_once()
     models = db.add_all.call_args.args[0]
     assert models[0].mower_id.hex == mower_id.replace("-", "")
+    assert models[0].timestamp == datetime(2026, 1, 1, tzinfo=timezone.utc)
     assert models[0].imu_data.accel_x == 1
     db.commit.assert_awaited_once()
     db.rollback.assert_not_awaited()
@@ -120,6 +121,34 @@ async def test_persist_telemetry_records_returns_zero_for_no_valid_records():
     db.commit = AsyncMock()
 
     assert await telemetry.persist_telemetry_records([record("invalid-mower")], db) == 0
+
+    db.add_all.assert_not_called()
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_persist_telemetry_records_skips_invalid_timestamps():
+    db = Mock()
+    db.add_all = Mock()
+    db.commit = AsyncMock()
+    invalid = record(str(uuid4()))
+    invalid.timestamp = "not-a-date"
+
+    assert await telemetry.persist_telemetry_records([invalid], db) == 0
+
+    db.add_all.assert_not_called()
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_persist_telemetry_records_skips_nonfinite_values():
+    db = Mock()
+    db.add_all = Mock()
+    db.commit = AsyncMock()
+    invalid = record(str(uuid4()))
+    invalid.latitude = float("nan")
+
+    assert await telemetry.persist_telemetry_records([invalid], db) == 0
 
     db.add_all.assert_not_called()
     db.commit.assert_not_awaited()

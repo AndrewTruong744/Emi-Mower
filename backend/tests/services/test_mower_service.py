@@ -5,7 +5,7 @@ import pytest
 
 from src.exceptions import MowerNotFoundError, OwnershipError, ValidationError
 from src.services import mower
-from src.zenoh.generated import TelemetryHistoryPoint, TelemetryRecord
+from src.zenoh.generated import TelemetryRecord
 
 MOWER_ID = str(uuid4())
 MOWER_UUID = UUID(MOWER_ID)
@@ -55,11 +55,8 @@ async def test_telemetry_history_service_requires_ownership_and_returns_cursor_p
         "user-1", MOWER_ID, "accel_x", "cursor-1", object()
     )
 
-    assert result.has_more is True
-    assert result.next_cursor == "cursor-2"
-    assert result.points == [
-        TelemetryHistoryPoint(timestamp="2026-01-01T00:00:00Z", value=0.5)
-    ]
+    assert result["next_cursor"] == "cursor-2"
+    assert result["points"] == [("2026-01-01T00:00:00Z", 0.5)]
     history.assert_awaited_once_with(MOWER_UUID, "accel_x", "cursor-1", ANY)
 
     monkeypatch.setattr(mower, "verify_ownership", AsyncMock(return_value=False))

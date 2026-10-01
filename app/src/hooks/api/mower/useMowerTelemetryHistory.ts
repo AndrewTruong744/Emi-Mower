@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { TelemetryHistoryResponse } from '@/generated/zenoh';
+import type { TelemetryHistoryRequest, TelemetryHistoryResponse } from '@/generated/zenoh';
 import { mowerTelemetryHistoryPath } from '@/generated/zenohPaths';
 import { getFirebaseIdToken } from '@/config/firebase';
 import { zenohQuery } from '@/config/zenohClient';
@@ -36,10 +36,11 @@ export function useMowerTelemetryHistory({
     staleTime: 30_000,
     queryFn: async () => {
       const idToken = await getFirebaseIdToken();
-      return zenohQuery<TelemetryHistoryResponse>(mowerTelemetryHistoryPath(mowerId, telemetryType), {
+      const request: TelemetryHistoryRequest = {
         id_token: idToken,
         cursor: cursor ?? null,
-      });
+      };
+      return zenohQuery<TelemetryHistoryResponse>(mowerTelemetryHistoryPath(mowerId, telemetryType), request);
     },
   });
 

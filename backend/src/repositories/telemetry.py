@@ -1,7 +1,9 @@
 """Repository operations for buffered mower telemetry."""
 
 import logging
+import math
 import uuid
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,16 +108,34 @@ def _build_telemetry_models(
     for record in telemetry_data:
         try:
             mower_id = uuid.UUID(record.mower_id)
+            timestamp = datetime.fromisoformat(record.timestamp.replace("Z", "+00:00"))
+            if timestamp.tzinfo is None:
+                raise ValueError("telemetry timestamp must include a timezone")
         except (AttributeError, ValueError):
             logger.warning(
-                "Skipping telemetry with invalid mower UUID %s", record.mower_id
+                "Skipping telemetry with invalid mower ID or timestamp %s",
+                record.mower_id,
             )
             continue
 
-        telemetry = MowerTelemetryModel(
-            mower_id=mower_id,
-            **record.model_dump(exclude={"mower_id", "imu_data"}),
-        )
+        numbers = [
+            record.latitude,
+            record.longitude,
+            record.left_motor_speed,
+            record.right_motor_speed,
+            record.cutting_motor_speed,
+        ]
+        if record.imu_data is not None:
+            numbers.extend(record.imu_data.model_dump().values())
+        if any(not math.isfinite(value) for value in numbers):
+            logger.warning(
+                "Skipping telemetry with non-finite values for %s", record.mower_id
+            )
+            continue
+
+        values = record.model_dump(exclude={"mower_id", "imu_data"})
+        values["timestamp"] = timestamp
+        telemetry = MowerTelemetryModel(mower_id=mower_id, **values)
 
         if record.imu_data is not None:
             telemetry.imu_data = MowerImuModel(**record.imu_data.model_dump())

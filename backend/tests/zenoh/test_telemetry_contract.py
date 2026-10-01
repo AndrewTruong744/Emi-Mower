@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from src.zenoh.generated import (
     CutoutUploadNotification,
@@ -18,11 +18,15 @@ from src.zenoh.generated import (
     ImuTelemetry,
     MowerCertificateRenewChallengeRequest,
     MowerCertificateRenewCompleteRequest,
+    MowerCommandRequest,
     MowerCommandResponse,
     SetModeCommand,
+    TelemetryHistoryResponse,
     TelemetryList,
     TelemetryRecord,
+    UserData,
 )
+from src.zenoh.generated import types as generated_types
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ASYNCAPI_PATH = REPOSITORY_ROOT / "backend" / "zenoh_asyncapi.yaml"
@@ -54,8 +58,34 @@ def _schema_block(name: str) -> str:
 
 
 def _schema_properties(name: str) -> set[str]:
-    block = _schema_block(name).split("      properties:\n", 1)[1]
+    schema = _schema_block(name)
+    if "      properties:\n" not in schema:
+        return set()
+    block = schema.split("      properties:\n", 1)[1]
     return set(re.findall(r"^        ([a-z_]+):", block, re.MULTILINE))
+
+
+def test_every_python_object_model_matches_schema_fields_and_requiredness():
+    document = ASYNCAPI_PATH.read_text().split("  schemas:\n", 1)[1]
+    names = re.findall(r"^    ([A-Za-z]\w+):\n", document, re.MULTILINE)
+    for name in names:
+        schema = _schema_block(name)
+        if not re.search(r"^      type: object$", schema, re.MULTILINE):
+            continue
+        model = getattr(generated_types, name)
+        assert set(model.model_fields) == _schema_properties(name), name
+        required_match = re.search(
+            r"^      required: \[([^]]*)\]", schema, re.MULTILINE
+        )
+        required = (
+            {field.strip() for field in required_match.group(1).split(",")}
+            if required_match
+            else set()
+        )
+        assert {
+            field for field, info in model.model_fields.items() if info.is_required()
+        } == required, name
+        assert model.model_config["extra"] == "allow", name
 
 
 def _typescript_interface_properties(name: str) -> set[str]:
@@ -185,7 +215,37 @@ def test_mower_command_contract_is_typed_and_has_an_acceptance_reply():
     )
 
 
-def test_generated_telemetry_model_applies_asyncapi_defaults_and_direction_bounds():
+def test_top_level_array_and_command_union_validate_the_declared_payload_shapes():
+    telemetry_schema = _schema_block("TelemetryList")
+    assert "type: array" in telemetry_schema
+    assert "items: {$ref: '#/components/schemas/TelemetryRecord'}" in telemetry_schema
+    telemetry = {
+        "mower_id": "mower-1",
+        "timestamp": "2026-08-16T12:00:00Z",
+        "latitude": 40.7128,
+        "longitude": -74.006,
+        "battery_percentage": 81,
+    }
+    assert len(TelemetryList.model_validate([telemetry]).root) == 1
+    with pytest.raises(ValidationError):
+        TelemetryList.model_validate({"records": [telemetry]})
+
+    command_schema = _schema_block("MowerCommandRequest")
+    assert command_schema.count("#/components/schemas/") == 3
+    command_adapter = TypeAdapter(MowerCommandRequest)
+    assert (
+        command_adapter.validate_python(
+            {"command_id": "command-1", "type": "set_power", "enabled": True}
+        ).type
+        == "set_power"
+    )
+    with pytest.raises(ValidationError):
+        command_adapter.validate_python(
+            {"command_id": "command-1", "type": "set_power"}
+        )
+
+
+def test_generated_telemetry_model_keeps_defaults_and_protocol_choices():
     record = TelemetryRecord.model_validate(
         {
             "mower_id": "mower-1",
@@ -195,12 +255,39 @@ def test_generated_telemetry_model_applies_asyncapi_defaults_and_direction_bound
             "battery_percentage": 81,
         }
     )
-
-    assert record.left_motor_speed == 0
+    assert record.left_motor_speed == 0.0
     assert record.left_motor_direction == 0
     assert record.slippage_detected is False
-
     with pytest.raises(ValidationError, match="left_motor_direction"):
         TelemetryRecord.model_validate(
             {**record.model_dump(mode="json"), "left_motor_direction": 2}
+        )
+
+
+def test_nullable_fields_and_open_objects_follow_wire_shapes():
+    response = {
+        "telemetry_type": "battery_percentage",
+        "limit": 60,
+        "total": 0,
+        "has_more": False,
+        "next_cursor": None,
+        "points": [],
+    }
+    assert TelemetryHistoryResponse.model_validate(response).next_cursor is None
+    with pytest.raises(ValidationError, match="next_cursor"):
+        TelemetryHistoryResponse.model_validate(
+            {
+                field: value
+                for field, value in response.items()
+                if field != "next_cursor"
+            }
+        )
+
+    command = MowerCommandResponse(command_id="command-1", status="accepted")
+    assert command.reason is None
+    user = {"id": "user-1", "email": "user@example.com", "name": "User", "mowers": []}
+    assert UserData.model_validate({**user, "custom": 1}).model_dump()["custom"] == 1
+    with pytest.raises(ValidationError, match="mowers"):
+        UserData.model_validate(
+            {field: value for field, value in user.items() if field != "mowers"}
         )

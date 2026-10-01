@@ -32,6 +32,13 @@ a SAN, so hostname verification remains enabled. Set
 `ZENOH_ROUTER_ENDPOINT` to a production router DNS name only when its
 certificate includes the same DNS SAN.
 
+For a visual physics simulation, start
+[`simulation/mujoco`](../simulation/mujoco/README.md) before the Jetson
+simulation containers. Each Jetson's ROS bridge connects to MuJoCo through
+`host.docker.internal:8765`, and the viewer is at `http://localhost:8080`.
+The simulation launch scopes ROS command topics by `MOWER_ID` so multiple
+containers on one router do not share drive commands.
+
 For a physical Jetson, initialize the OAK-D and SLLidar submodules before the
 first image build. The override then builds those drivers, exposes USB and
 lidar devices, shares the host CAN interface, and starts `real.launch.py`:

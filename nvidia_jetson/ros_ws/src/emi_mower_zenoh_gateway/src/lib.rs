@@ -61,10 +61,12 @@ pub fn telemetry_payload(mower_id: &str, records: &[RosTelemetryRecord]) -> Resu
 
 pub fn parse_joystick_payload(payload: &[u8]) -> Result<JoystickCommand> {
     let joystick = serde_json::from_slice::<JoystickCommand>(payload)?;
-    for (axis, value) in [("x", joystick.x), ("y", joystick.y)] {
-        if !value.is_finite() || !(-1.0..=1.0).contains(&value) {
-            bail!("joystick axis {axis} must be finite and in [-1, 1], got {value}");
-        }
+    if !joystick.x.is_finite()
+        || !joystick.y.is_finite()
+        || !(-1.0..=1.0).contains(&joystick.x)
+        || !(-1.0..=1.0).contains(&joystick.y)
+    {
+        bail!("joystick axes must be finite and between -1 and 1");
     }
     Ok(joystick)
 }
@@ -79,7 +81,9 @@ pub fn parse_cutout_delivery(payload: &[u8]) -> Result<MowerCutoutDelivery> {
     {
         bail!("cutout ID must be a non-empty filename segment");
     }
-    if !response.download_url.starts_with("https://") {
+    let download_url = url::Url::parse(&response.download_url)
+        .map_err(|error| anyhow::anyhow!("invalid cutout download URL: {error}"))?;
+    if download_url.scheme() != "https" || download_url.host_str().is_none() {
         bail!("cutout download URL must use HTTPS");
     }
     if response.expires_in <= 0 {
@@ -118,12 +122,12 @@ fn telemetry_record(mower_id: &str, record: &RosTelemetryRecord) -> Result<Telem
         latitude: record.latitude,
         longitude: record.longitude,
         battery_percentage: i64::from(record.battery_percentage),
-        left_motor_speed: Some(record.left_motor_speed),
-        left_motor_direction: Some(i64::from(record.left_motor_direction)),
-        right_motor_speed: Some(record.right_motor_speed),
-        right_motor_direction: Some(i64::from(record.right_motor_direction)),
-        cutting_motor_speed: Some(record.cutting_motor_speed),
-        slippage_detected: Some(record.slippage_detected),
+        left_motor_speed: record.left_motor_speed,
+        left_motor_direction: i64::from(record.left_motor_direction),
+        right_motor_speed: record.right_motor_speed,
+        right_motor_direction: i64::from(record.right_motor_direction),
+        cutting_motor_speed: record.cutting_motor_speed,
+        slippage_detected: record.slippage_detected,
         imu_data,
     })
 }

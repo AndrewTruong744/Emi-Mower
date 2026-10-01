@@ -7,7 +7,6 @@ from livekit import api
 
 from src.config.settings import settings
 from src.exceptions import TokenGenerationError, ValidationError
-from src.zenoh.generated import LiveKitTokenResponse
 
 LIVEKIT_TOKEN_TTL_SECONDS = 60 * 60
 
@@ -38,15 +37,15 @@ def _livekit_token(
         raise TokenGenerationError("Failed to generate LiveKit access token") from error
 
 
-def _token_response(token: str) -> LiveKitTokenResponse:
-    return LiveKitTokenResponse(
-        token=token,
-        url=settings.LIVEKIT_URL,
-        expires_in=LIVEKIT_TOKEN_TTL_SECONDS,
-    )
+def _token_result(token: str) -> dict:
+    return {
+        "token": token,
+        "url": settings.LIVEKIT_URL,
+        "expires_in": LIVEKIT_TOKEN_TTL_SECONDS,
+    }
 
 
-async def livekit_consume_service(mower_id: str) -> LiveKitTokenResponse:
+async def livekit_consume_service(mower_id: str) -> dict:
     """Issue a subscribe-only token for the mower room authorized by Zenoh."""
     if not mower_id:
         raise ValidationError("mower_id is required")
@@ -57,10 +56,10 @@ async def livekit_consume_service(mower_id: str) -> LiveKitTokenResponse:
         can_publish=False,
         can_subscribe=True,
     )
-    return _token_response(token)
+    return _token_result(token)
 
 
-async def livekit_upload_service(mower_id: str) -> LiveKitTokenResponse:
+async def livekit_upload_service(mower_id: str) -> dict:
     """Issue a publish-only token to a mower for its own room."""
     if not mower_id:
         raise ValidationError("mower_id is required")
@@ -71,4 +70,4 @@ async def livekit_upload_service(mower_id: str) -> LiveKitTokenResponse:
         can_publish=True,
         can_subscribe=False,
     )
-    return _token_response(token)
+    return _token_result(token)

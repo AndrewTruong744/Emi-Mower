@@ -10,8 +10,12 @@ route payloads and must be changed first.
 At FastAPI startup, `register_handlers` declares backend queryables and
 subscribers on the backend's mTLS Zenoh session. `ZenohQueryHandler` converts a
 JSON-object query payload into its generated Pydantic request model, opens an
-async database session, calls the listener, and replies with JSON. It waits up
-to five seconds for the coroutine scheduled from Zenoh's callback thread.
+async database session, calls the listener, and replies with JSON. Zenoh's
+callback schedules that coroutine on the backend event loop and returns without
+waiting. The handler drops the query after replying or handling an error so
+Zenoh can finalize it. Queries require a JSON object payload, including `{}`
+for routes with an empty request schema; an absent or zero-byte payload receives
+an invalid-request error.
 
 Expected application, validation, authentication, ownership, repository, and
 external-service failures become RFC 9457-style `ProblemDetails` error replies.
@@ -19,7 +23,8 @@ Unexpected failures become a sanitized internal-error reply. Clients must not
 assume every reply is a success payload.
 
 `ZenohMessageHandler` serves one-way publications. It validates the JSON payload
-and invokes the listener, but cannot reply to the sender; failures are logged.
+and invokes the listener. Zero-byte payloads are rejected. It cannot reply to
+the sender, so processing failures are logged locally.
 Telemetry and cutout-upload completion use this pattern.
 
 ## Routes declared by the backend
@@ -57,9 +62,10 @@ gateway's Zenoh session is active, not that the mower is safe or healthy.
 
 Listener constants come from generated path functions, with `*` only for a
 backend declaration that accepts a parameterized route. The listener parses the
-concrete key expression before using its mower ID or metric. Do not build route
-strings by hand or expand a wildcard's authorization beyond the ACL supplied by
-the router.
+concrete key expression against the generated route pattern before using its
+mower ID or metric. Mower query listeners share this parsing in
+`src/services/mower.py`. Do not build route strings by hand or expand a
+wildcard's authorization beyond the ACL supplied by the router.
 
 The normal handlers use the mTLS router session. Only renewal handlers register
 on the TLS-only bootstrap session, keeping the expiry-recovery plane unable to

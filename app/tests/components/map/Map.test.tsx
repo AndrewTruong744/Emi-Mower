@@ -13,8 +13,20 @@ jest.mock('expo-router', () => {
   };
 });
 
+const mockUploadCutout = jest.fn(async () => undefined);
+jest.mock('@/hooks/api/mower/useUploadCutout', () => ({
+  useUploadCutout: () => ({
+    error: null,
+    isPending: false,
+    mutateAsync: mockUploadCutout,
+  }),
+}));
+
 describe('Map', () => {
-  beforeEach(() => useBoundStore.getState().resetStore());
+  beforeEach(() => {
+    useBoundStore.getState().resetStore();
+    mockUploadCutout.mockReset().mockImplementation(async () => undefined);
+  });
 
   it('creates a boundary, confirms a session, pauses it, and returns to drawing on cancellation', async () => {
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -34,6 +46,9 @@ describe('Map', () => {
     await waitFor(() => expect(screen.getByText('Start cutting session?')).toBeTruthy());
     fireEvent.press(screen.getByTestId('confirm-cutting-area'));
     await waitFor(() => expect(screen.getByText('Mowing session active')).toBeTruthy());
+    expect(mockUploadCutout).toHaveBeenCalledWith({
+      imageUri: expect.stringMatching(/cutting-area-preview/),
+    });
     expect(useBoundStore.getState().areaImageUri).toMatch(/cutting-area-preview/);
     // Markers are driven only by received live telemetry; starting a session
     // must not invent mower positions inside the boundary.
@@ -46,6 +61,30 @@ describe('Map', () => {
       expect(screen.getByText('Tap the map to add boundary points (0/3 minimum).')).toBeTruthy()
     );
     expect(useBoundStore.getState().isSessionActive).toBe(false);
+  });
+
+  it('keeps the boundary available when its cutout upload fails', async () => {
+    mockUploadCutout.mockImplementationOnce(async () => {
+      throw new Error('Upload failed');
+    });
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const screen = render(
+      <QueryClientProvider client={queryClient}><PaperProvider><Map /></PaperProvider></QueryClientProvider>
+    );
+    const map = screen.getByTestId('mower-map');
+    fireEvent.press(map, { nativeEvent: { lngLat: [-74.006, 40.7128] } });
+    fireEvent.press(map, { nativeEvent: { lngLat: [-74.005, 40.7128] } });
+    fireEvent.press(map, { nativeEvent: { lngLat: [-74.005, 40.7138] } });
+    fireEvent.press(screen.getByTestId('accept-boundary'));
+    await waitFor(() => expect(screen.getByText('Start cutting session?')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('confirm-cutting-area'));
+    await waitFor(() =>
+      expect(screen.getByText('Review the boundary, then accept it to continue.')).toBeTruthy()
+    );
+    expect(useBoundStore.getState().isSessionActive).toBe(false);
+    expect(useBoundStore.getState().cuttingBoundary).toEqual([]);
+    expect(screen.getByTestId('accept-boundary')).toBeTruthy();
   });
 
   it('allows drawing only while satellite imagery is selected', async () => {

@@ -16,7 +16,6 @@ from src.services.auth import verify_firebase_id_token
 from src.zenoh.generated import (
     CutoutUploadNotification,
     CutoutUploadUrlRequest,
-    CutoutUploadUrlResponse,
 )
 from src.zenoh.generated.paths import mower_cutout_delivery_path
 
@@ -54,7 +53,7 @@ async def _signed_url(*, object_key: str, method: str, content_type: str | None)
 
 async def request_cutout_upload_service(
     payload: CutoutUploadUrlRequest, db: AsyncSession
-) -> CutoutUploadUrlResponse:
+) -> dict:
     """Require an owned mower, then create a transient signed GCS upload."""
     identity = await verify_firebase_id_token(payload.id_token)
     user_id = identity.get("user_id")
@@ -70,13 +69,13 @@ async def request_cutout_upload_service(
     upload_url = await _signed_url(
         object_key=object_key, method="PUT", content_type=payload.content_type
     )
-    return CutoutUploadUrlResponse(
-        cutout_id=str(cutout_id),
-        upload_url=upload_url,
-        expires_in=settings.GCS_UPLOAD_URL_TTL_SECONDS,
-        object_key=object_key,
-        content_type=payload.content_type,
-    )
+    return {
+        "cutout_id": str(cutout_id),
+        "upload_url": upload_url,
+        "expires_in": settings.GCS_UPLOAD_URL_TTL_SECONDS,
+        "object_key": object_key,
+        "content_type": payload.content_type,
+    }
 
 
 async def record_cutout_upload_service(

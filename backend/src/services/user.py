@@ -21,7 +21,7 @@ from src.repositories import (
 from src.services.auth import verify_firebase_id_token
 from src.services.temp_jwt import generate_jwt_token
 from src.services.zenoh_credentials import provision_zenoh_credential
-from src.zenoh.generated import UserData, UserLoginRequest, UserLoginResponse
+from src.zenoh.generated import UserLoginRequest
 
 ZENOH_JWT_TTL_SECONDS = 5 * 60
 
@@ -56,10 +56,8 @@ async def create_user_service(id_token: dict, db: AsyncSession) -> dict:
     return await create_user(user_id=user_id, email=email, name=name, db=db)
 
 
-async def user_login_service(
-    payload: UserLoginRequest, db: AsyncSession
-) -> UserLoginResponse:
-    """Process a generated Zenoh login request and return its wire response."""
+async def user_login_service(payload: UserLoginRequest, db: AsyncSession) -> dict:
+    """Authenticate the user and provision a temporary Zenoh credential."""
     firebase_token = payload.id_token
     if not firebase_token:
         raise ValidationError("The login payload must contain a non-empty id_token")
@@ -83,12 +81,12 @@ async def user_login_service(
         password=token,
         ttl_seconds=ZENOH_JWT_TTL_SECONDS,
     )
-    return UserLoginResponse(
-        user_id=user_id,
-        token=token,
-        expires_in=ZENOH_JWT_TTL_SECONDS,
-        user_data=UserData.model_validate(user_data),
-    )
+    return {
+        "user_id": user_id,
+        "token": token,
+        "expires_in": ZENOH_JWT_TTL_SECONDS,
+        "user_data": user_data,
+    }
 
 
 async def get_user_data_service(user_id: str, db: AsyncSession) -> dict:

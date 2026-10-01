@@ -1,3 +1,4 @@
+use emi_mower_zenoh_gateway::generated::zenoh::TelemetryRecord;
 use emi_mower_zenoh_gateway::generated::zenoh_paths::{
     mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path,
     MOWER_CUTOUT_DELIVERY_ADDRESS, MOWER_JOYSTICK_ADDRESS, MOWER_LIVELINESS_ADDRESS,
@@ -63,6 +64,10 @@ fn generated_cutout_delivery_is_validated_before_ros_publication() {
         br#"{"cutout_id":"../cutout","download_url":"https://storage.example/cutout","expires_in":300,"content_type":"image/png"}"#,
     )
     .is_err());
+    assert!(parse_cutout_delivery(
+        br#"{"cutout_id":"cutout-01","download_url":"https://","expires_in":300,"content_type":"image/png"}"#,
+    )
+    .is_err());
 }
 
 #[test]
@@ -72,7 +77,7 @@ fn generated_joystick_contract_drives_the_ros_velocity_convention() {
     assert_eq!(mower_joystick_path("mower-01"), "mower/mower-01/joystick");
     assert_eq!(joystick_to_velocity(joystick, 2.0, 1.5), (-0.5, 0.75));
     assert!(parse_joystick_payload(br#"{"x":1.1,"y":0.0}"#).is_err());
-    assert!(parse_joystick_payload(br#"{"x":0.0,"y":0.0,"extra":true}"#).is_err());
+    assert!(parse_joystick_payload(br#"{"x":0.0,"y":0.0,"extra":true}"#).is_ok());
     assert!(validate_mower_id("mower/01").is_err());
 }
 
@@ -93,4 +98,20 @@ fn telemetry_rejects_an_invalid_motor_direction_or_mower_route() {
     invalid.left_motor_direction = 2;
     assert!(telemetry_payload("mower-01", &[invalid]).is_err());
     assert!(telemetry_payload("another/mower", &[record()]).is_err());
+}
+
+#[test]
+fn generated_telemetry_type_applies_wire_defaults_and_accepts_extensions() {
+    let record: TelemetryRecord = serde_json::from_str(
+        r#"{"mower_id":"mower-01","timestamp":"2026-08-16T12:00:00Z","latitude":30.0,"longitude":-97.0,"battery_percentage":87}"#,
+    )
+    .unwrap();
+    assert_eq!(record.left_motor_speed, 0.0);
+    assert_eq!(record.left_motor_direction, 0);
+    assert!(!record.slippage_detected);
+    let extended: TelemetryRecord = serde_json::from_str(
+        r#"{"mower_id":"mower-01","timestamp":"2026-08-16T12:00:00Z","latitude":30.0,"longitude":-97.0,"battery_percentage":87,"future_field":true}"#,
+    )
+    .unwrap();
+    assert_eq!(extended.mower_id, record.mower_id);
 }

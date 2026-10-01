@@ -12,7 +12,7 @@ from src.zenoh.generated import TelemetryRecord
 def telemetry_json(mower_id: str) -> str:
     return TelemetryRecord(
         mower_id=mower_id,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         latitude=1.0,
         longitude=2.0,
         battery_percentage=90,
@@ -64,7 +64,7 @@ async def test_persist_telemetry_buffer_persists_valid_record_with_nested_imu(
     mower_id = str(uuid4())
     record = TelemetryRecord(
         mower_id=mower_id,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         latitude=1.0,
         longitude=2.0,
         battery_percentage=90,

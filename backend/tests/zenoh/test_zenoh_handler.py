@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import zenoh
 from src.exceptions import OwnershipError
 from src.zenoh.generated import TelemetryList, UserLoginRequest
 from src.zenoh.zenoh_handler import (
@@ -15,10 +16,11 @@ from src.zenoh.zenoh_handler import (
 class FakeQuery:
     key_expr = "user/login"
 
-    def __init__(self, payload: bytes):
-        self.payload = payload
+    def __init__(self, payload: bytes | None):
+        self.payload = zenoh.ZBytes(payload) if payload is not None else None
         self.replies = []
         self.errors = []
+        self.drops = 0
 
     def reply(self, key_expr, payload):
         self.replies.append((str(key_expr), payload))
@@ -26,10 +28,13 @@ class FakeQuery:
     def reply_err(self, payload):
         self.errors.append(payload)
 
+    def drop(self):
+        self.drops += 1
+
 
 class FakeSample:
     def __init__(self, payload: bytes):
-        self.payload = payload
+        self.payload = zenoh.ZBytes(payload)
 
 
 @asynccontextmanager
@@ -58,6 +63,7 @@ async def test_query_handler_validates_request_and_replies_json(monkeypatch):
     callback.assert_awaited_once()
     assert query.replies == [("user/login", b'{"ok": true}')]
     assert query.errors == []
+    assert query.drops == 1
 
 
 async def test_query_handler_can_pass_concrete_query_key_to_listener(monkeypatch):
@@ -87,6 +93,25 @@ async def test_query_handler_returns_problem_details_for_invalid_payload(monkeyp
 
     assert query.replies == []
     assert b'"status":400' in query.errors[0]
+    assert query.drops == 1
+
+
+@pytest.mark.parametrize("payload", [None, b""])
+async def test_query_handler_rejects_empty_payload(monkeypatch, payload):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    callback = AsyncMock()
+    query = FakeQuery(payload)
+    handler = ZenohQueryHandler(Mock(), Mock())
+
+    await handler._process(query, callback, UserLoginRequest)
+
+    callback.assert_not_awaited()
+    assert query.replies == []
+    assert b'"status":400' in query.errors[0]
+    assert b"Query payload is required" in query.errors[0]
+    assert query.drops == 1
 
 
 async def test_query_handler_rejects_non_object_json_payload(monkeypatch):
@@ -101,7 +126,22 @@ async def test_query_handler_rejects_non_object_json_payload(monkeypatch):
     assert b'"status":400' in query.errors[0]
 
 
-async def test_message_handler_rejects_non_object_payload(monkeypatch):
+async def test_query_handler_drops_query_when_reply_fails(monkeypatch):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    query = FakeQuery(b"{}")
+    query.reply = Mock(side_effect=RuntimeError("reply failed"))
+    query.reply_err = Mock(side_effect=RuntimeError("error reply failed"))
+    handler = ZenohQueryHandler(Mock(), Mock())
+
+    with pytest.raises(RuntimeError, match="error reply failed"):
+        await handler._process(query, AsyncMock(return_value={"ok": True}), None)
+
+    assert query.drops == 1
+
+
+async def test_message_handler_rejects_non_object_payload(monkeypatch, caplog):
     import src.zenoh.zenoh_handler as handlers
 
     monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
@@ -111,6 +151,21 @@ async def test_message_handler_rejects_non_object_payload(monkeypatch):
         await handler._process(
             FakeSample(b'["not", "an", "object"]'), AsyncMock(), UserLoginRequest
         )
+    assert "Zenoh message processing failed" in caplog.text
+
+
+async def test_message_handler_rejects_zero_byte_payload(monkeypatch, caplog):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    callback = AsyncMock()
+    handler = ZenohMessageHandler(Mock(), Mock())
+
+    with pytest.raises(ValueError, match="Message payload is required"):
+        await handler._process(FakeSample(b""), callback, UserLoginRequest)
+
+    callback.assert_not_awaited()
+    assert "Zenoh message processing failed" in caplog.text
 
 
 def test_handlers_close_undeclares_registered_handles():

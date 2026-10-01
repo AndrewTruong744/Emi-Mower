@@ -33,8 +33,8 @@ async def test_request_cutout_upload_requires_an_owned_mower_and_returns_signed_
         db,
     )
 
-    assert result.object_key.startswith("users/user-1/cutouts/")
-    assert result.object_key.endswith(".png")
+    assert result["object_key"].startswith("users/user-1/cutouts/")
+    assert result["object_key"].endswith(".png")
     get_mowers.assert_awaited_once_with("user-1", db=db)
 
 

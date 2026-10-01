@@ -26,7 +26,9 @@ motion. The STM32 independently validates motor commands and watchdog timing.
   download URL to each mower currently owned by the user. The app retains the
   upload details; the backend does not persist a cutout record.
 - Start, pause, resume, or cancel the app's map-session view for a confirmed
-  boundary, and show mower markers during that session.
+  boundary, and show mower markers during that session. The session starts only
+  after the cutout upload succeeds; on failure, the drawing remains available
+  for another attempt.
 
 ## Current UI-only behavior
 

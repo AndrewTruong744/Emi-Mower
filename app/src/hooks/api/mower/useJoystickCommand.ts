@@ -20,7 +20,8 @@ export function useJoystickCommand() {
         throw new InputValidationError('Joystick coordinates must be normalized between -1 and 1');
       }
 
-      await zenohPut(mowerJoystickPath(normalizedMowerId), { x, y });
+      const command: JoystickCommand = { x, y };
+      await zenohPut(mowerJoystickPath(normalizedMowerId), command);
     },
     retry: false,
     gcTime: 0,

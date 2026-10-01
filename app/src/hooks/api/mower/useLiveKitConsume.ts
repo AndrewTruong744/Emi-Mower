@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { zenohQuery } from '@/config/zenohClient';
-import { LiveKitTokenResponse } from '@/generated/zenoh';
+import type { LiveKitTokenResponse } from '@/generated/zenoh';
 import { livekitConsumePath } from '@/generated/zenohPaths';
 import { reportAppError } from '@/errors/reporter';
 import { InputValidationError, isInputValidationError } from '@/errors/types';

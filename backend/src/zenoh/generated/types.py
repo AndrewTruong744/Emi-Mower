@@ -1,140 +1,111 @@
-"""Generated from ``backend/zenoh_asyncapi.yaml``.
+"""Generated from ``backend/zenoh_asyncapi.yaml``. Do not edit manually.
 
-Do not edit manually. Regenerate with ``backend/tools/generate_types.sh``.
+Regenerate with ``npm --prefix tools run generate``.
 """
 
-from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, RootModel
 
 
-class UserLoginRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ZenohModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
+
+class UserLoginRequest(ZenohModel):
     id_token: str
 
 
-class AddMowerToUserRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class AddMowerToUserRequest(ZenohModel):
     id_token: str
     mower_id: str
 
 
-class AddMowerToUserResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class AddMowerToUserResponse(ZenohModel):
     message: str
     user_id: str
     mower_id: str
 
 
-class UpdateUserNameRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateUserNameRequest(ZenohModel):
     id_token: str
     new_user_name: str
 
 
-class UpdateUserNameResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateUserNameResponse(ZenohModel):
     message: str
     user_id: str
     new_user_name: str
 
 
-class UpdateMowerNameRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateMowerNameRequest(ZenohModel):
     id_token: str
     new_name: str
 
 
-class UpdateMowerNameResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateMowerNameResponse(ZenohModel):
     message: str
     mower_id: str
     new_name: str
 
 
-class UpdateUserEmailRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateUserEmailRequest(ZenohModel):
     id_token: str
     new_id_token: str
 
 
-class UpdateUserEmailResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UpdateUserEmailResponse(ZenohModel):
     message: str
     user_id: str
     new_email: str
 
 
-class UserData(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
+class UserData(ZenohModel):
     id: str
     email: str
     name: str
-    created_at: datetime | None = None
-    mowers: list[str] = []
+    created_at: str | None = None
+    mowers: list[str]
 
 
-class UserLoginResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class UserLoginResponse(ZenohModel):
     user_id: str
     token: str
     expires_in: int
     user_data: UserData
 
 
-class LiveKitConsumeRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class LiveKitConsumeRequest(ZenohModel):
+    pass
 
 
-class LiveKitUploadRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class LiveKitUploadRequest(ZenohModel):
+    pass
 
 
-class LiveKitTokenResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class LiveKitTokenResponse(ZenohModel):
     token: str
     url: str
     expires_in: int
 
 
-class JoystickCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class JoystickCommand(ZenohModel):
     x: float
     y: float
 
 
-class EmergencyStopCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class EmergencyStopCommand(ZenohModel):
     command_id: str
     type: Literal["emergency_stop"]
 
 
-class SetPowerCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class SetPowerCommand(ZenohModel):
     command_id: str
     type: Literal["set_power"]
     enabled: bool
 
 
-class SetModeCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class SetModeCommand(ZenohModel):
     command_id: str
     type: Literal["set_mode"]
     mode: Literal["manual", "auto"]
@@ -143,44 +114,32 @@ class SetModeCommand(BaseModel):
 MowerCommandRequest = EmergencyStopCommand | SetPowerCommand | SetModeCommand
 
 
-class MowerCommandResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class MowerCommandResponse(ZenohModel):
     command_id: str
     status: Literal["accepted", "rejected"]
     reason: str | None = None
 
 
-class TelemetryHistoryRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class TelemetryHistoryRequest(ZenohModel):
     id_token: str
     cursor: str | None = None
 
 
-class TelemetryHistoryPoint(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    timestamp: datetime
+class TelemetryHistoryPoint(ZenohModel):
+    timestamp: str
     value: float
 
 
-class TelemetryHistoryResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class TelemetryHistoryResponse(ZenohModel):
     telemetry_type: str
     limit: int
     total: int
     has_more: bool
-    next_cursor: str | None = None
+    next_cursor: str | None
     points: list[TelemetryHistoryPoint]
 
 
-class ImuTelemetry(BaseModel):
-    """Generated from ``components.schemas.ImuTelemetry``."""
-
-    model_config = ConfigDict(extra="forbid")
-
+class ImuTelemetry(ZenohModel):
     accel_x: float
     accel_y: float
     accel_z: float
@@ -192,13 +151,9 @@ class ImuTelemetry(BaseModel):
     mag_z: float
 
 
-class TelemetryRecord(BaseModel):
-    """Generated from ``components.schemas.TelemetryRecord``."""
-
-    model_config = ConfigDict(extra="forbid")
-
+class TelemetryRecord(ZenohModel):
     mower_id: str
-    timestamp: datetime
+    timestamp: str
     latitude: float
     longitude: float
     battery_percentage: int
@@ -212,27 +167,27 @@ class TelemetryRecord(BaseModel):
 
 
 class TelemetryList(RootModel[list[TelemetryRecord]]):
-    """Generated from ``components.schemas.TelemetryList``."""
+    pass
 
 
-class CutoutUploadUrlRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class MowerLiveliness(ZenohModel):
+    pass
 
+
+class CutoutUploadUrlRequest(ZenohModel):
     id_token: str
     content_type: Literal["image/png", "image/jpeg", "image/webp"]
 
-class CutoutUploadUrlResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
+class CutoutUploadUrlResponse(ZenohModel):
     cutout_id: str
     upload_url: str
     expires_in: int
     object_key: str
     content_type: str
 
-class CutoutUploadNotification(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
+class CutoutUploadNotification(ZenohModel):
     id_token: str
     cutout_id: str
     object_key: str
@@ -240,80 +195,40 @@ class CutoutUploadNotification(BaseModel):
     success: bool
     failure_reason: str | None = None
 
-class MowerCutoutDelivery(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
+class MowerCutoutDelivery(ZenohModel):
     cutout_id: str
     download_url: str
     expires_in: int
     content_type: str
 
 
-class ProblemDetails(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class MowerCertificateRenewChallengeRequest(ZenohModel):
+    pass
 
+
+class MowerCertificateRenewChallengeResponse(ZenohModel):
+    nonce: str
+    expires_in: int
+
+
+class MowerCertificateRenewCompleteRequest(ZenohModel):
+    nonce: str
+    csr_pem: str
+    tpm_signature: str
+
+
+class MowerCertificateRenewCompleteResponse(ZenohModel):
+    certificate_pem: str
+    ca_chain_pem: str
+    expires_at: str
+
+
+class ProblemDetails(ZenohModel):
     type: str
     title: str
     status: int
     detail: str
     instance: str
     code: str
-    timestamp: datetime
-
-
-WireMessage = (
-    UserLoginRequest
-    | UserLoginResponse
-    | AddMowerToUserRequest
-    | AddMowerToUserResponse
-    | UpdateUserNameRequest
-    | UpdateUserNameResponse
-    | UpdateMowerNameRequest
-    | UpdateMowerNameResponse
-    | UpdateUserEmailRequest
-    | UpdateUserEmailResponse
-    | LiveKitConsumeRequest
-    | LiveKitUploadRequest
-    | LiveKitTokenResponse
-    | JoystickCommand
-    | EmergencyStopCommand
-    | SetPowerCommand
-    | SetModeCommand
-    | MowerCommandResponse
-    | TelemetryHistoryRequest
-    | TelemetryHistoryResponse
-    | CutoutUploadUrlRequest
-    | CutoutUploadUrlResponse
-    | CutoutUploadNotification
-    | MowerCutoutDelivery
-    | ProblemDetails
-    | dict[str, Any]
-)
-
-# Bootstrap renewal schemas generated from zenoh_asyncapi.yaml.
-
-class MowerCertificateRenewChallengeRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class MowerCertificateRenewChallengeResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    nonce: str
-    expires_in: int
-
-
-class MowerCertificateRenewCompleteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    nonce: str
-    csr_pem: str
-    tpm_signature: str
-
-
-class MowerCertificateRenewCompleteResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    certificate_pem: str
-    ca_chain_pem: str
-    expires_at: datetime
+    timestamp: str

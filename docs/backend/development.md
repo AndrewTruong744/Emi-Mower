@@ -66,11 +66,11 @@ intended.
 ## Contract generation
 
 `zenoh_asyncapi.yaml` is the native Zenoh contract source of truth. After a
-contract change, install the AsyncAPI CLI and regenerate from `backend/`:
+contract change, install the generator dependencies and regenerate from `backend/`:
 
 ```sh
-npm install --global @asyncapi/cli
-sh tools/generate_types.sh
+npm ci --prefix tools
+npm --prefix tools run generate
 ```
 
 The command affects backend, app, and Jetson generated bindings. See

@@ -1,12 +1,13 @@
 import { getFirebaseIdToken } from '@/config/firebase';
-import type { UserLoginResponse } from '@/generated/zenoh';
+import type { UserLoginRequest, UserLoginResponse } from '@/generated/zenoh';
 import { userLoginPath } from '@/generated/zenohPaths';
 import { connectZenoh, zenohQuery } from '@/config/zenohClient';
 
 /** Authenticate the current Firebase user and establish its scoped Zenoh session. */
 export async function loginUser(): Promise<UserLoginResponse['user_data']> {
   const idToken = await getFirebaseIdToken();
-  const response = await zenohQuery<UserLoginResponse>(userLoginPath(), { id_token: idToken });
+  const request: UserLoginRequest = { id_token: idToken };
+  const response = await zenohQuery<UserLoginResponse>(userLoginPath(), request);
   // user/login is intentionally reachable by the guest session. Replace it
   // immediately with the user-scoped session so mower routes use the ACL
   // provisioned for this username and one-time Zenoh password.

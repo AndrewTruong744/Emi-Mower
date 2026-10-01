@@ -1,6 +1,6 @@
 //! Generated from `backend/zenoh_asyncapi.yaml`. Do not edit manually.
 //!
-//! Regenerate with `backend/tools/generate_types.sh`.
+//! Regenerate with `npm --prefix tools run generate`.
 
 pub const USER_LOGIN_ADDRESS: &str = "user/login";
 

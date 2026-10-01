@@ -17,9 +17,7 @@ from src.zenoh.listeners import (
 async def test_livekit_consume_listener_delegates_request(monkeypatch):
     listener_module = import_module("src.zenoh.listeners.livekit_consume")
     service = AsyncMock(
-        return_value=LiveKitTokenResponse(
-            token="token", url="wss://test", expires_in=60
-        )
+        return_value={"token": "token", "url": "wss://test", "expires_in": 60}
     )
     monkeypatch.setattr(listener_module, "livekit_consume_service", service)
     request = LiveKitConsumeRequest()
@@ -28,24 +26,24 @@ async def test_livekit_consume_listener_delegates_request(monkeypatch):
     result = await livekit_consume(request, db, "mower/mower-1/livekit/consume")
 
     service.assert_awaited_once_with("mower-1")
+    assert isinstance(result, LiveKitTokenResponse)
     assert result.token == "token"
 
 
 async def test_livekit_upload_listener_delegates_request(monkeypatch):
     listener_module = import_module("src.zenoh.listeners.livekit_upload")
     service = AsyncMock(
-        return_value=LiveKitTokenResponse(
-            token="token", url="wss://test", expires_in=60
-        )
+        return_value={"token": "token", "url": "wss://test", "expires_in": 60}
     )
     monkeypatch.setattr(listener_module, "livekit_upload_service", service)
     db = Mock()
 
-    await livekit_upload(
+    result = await livekit_upload(
         LiveKitUploadRequest(), db, "mower/mower-1/livekit/upload"
     )
 
     service.assert_awaited_once_with("mower-1")
+    assert isinstance(result, LiveKitTokenResponse)
 
 
 def test_livekit_listeners_use_mower_scoped_query_paths():

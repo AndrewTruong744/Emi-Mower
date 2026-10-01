@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { getFirebaseIdToken } from '@/config/firebase';
 import { zenohQuery } from '@/config/zenohClient';
 import { cutoutUploadUrlPath } from '@/generated/zenohPaths';
-import type { CutoutUploadUrlResponse } from '@/generated/zenoh';
+import type { CutoutUploadUrlRequest, CutoutUploadUrlResponse } from '@/generated/zenoh';
 import { reportAppError } from '@/errors/reporter';
 import { InputValidationError } from '@/errors/types';
 import { useCutoutUploadNotification } from './useCutoutUploadNotification';
@@ -28,10 +28,11 @@ export function useUploadCutout() {
 
       const resolvedContentType = contentType ?? inferContentType(imageUri);
       const idToken = await getFirebaseIdToken();
-      const upload = await zenohQuery<CutoutUploadUrlResponse>(cutoutUploadUrlPath(), {
+      const request: CutoutUploadUrlRequest = {
         id_token: idToken,
         content_type: resolvedContentType,
-      });
+      };
+      const upload = await zenohQuery<CutoutUploadUrlResponse>(cutoutUploadUrlPath(), request);
       const completion = {
         cutoutId: upload.cutout_id,
         objectKey: upload.object_key,

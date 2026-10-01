@@ -127,5 +127,5 @@ async def complete_certificate_renewal(
     return {
         "certificate_pem": certificate_pem,
         "ca_chain_pem": ca_chain_pem,
-        "expires_at": expires_at.astimezone(UTC),
+        "expires_at": expires_at.astimezone(UTC).isoformat(),
     }

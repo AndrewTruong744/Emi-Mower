@@ -20,15 +20,12 @@ QueryFunction = Callable[[Any, Any], Awaitable[Any]]
 KeyedQueryFunction = Callable[[Any, Any, str], Awaitable[Any]]
 MessageFunction = Callable[[Any, Any], Awaitable[None]]
 SessionMessageFunction = Callable[[Any, Any, zenoh.Session], Awaitable[None]]
-QUERY_HANDLER_TIMEOUT_SECONDS = 5
 
 
-def _payload_bytes(payload: Any) -> bytes:
+def _payload_bytes(payload: zenoh.ZBytes | None) -> bytes:
     if payload is None:
         return b""
-    if hasattr(payload, "to_bytes"):
-        return payload.to_bytes()
-    return bytes(payload)
+    return payload.to_bytes()
 
 
 def _problem_detail(
@@ -41,7 +38,7 @@ def _problem_detail(
         detail=detail,
         instance=instance,
         code=code,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 
@@ -119,14 +116,13 @@ class ZenohQueryHandler:
         include_query_key: bool = False,
     ) -> Any:
         def on_query(query: zenoh.Query) -> None:
-            future = asyncio.run_coroutine_threadsafe(
-                self._process(query, handler, request_model, include_query_key),
-                self.loop,
-            )
+            coroutine = self._process(query, handler, request_model, include_query_key)
             try:
-                future.result(timeout=QUERY_HANDLER_TIMEOUT_SECONDS)
+                asyncio.run_coroutine_threadsafe(coroutine, self.loop)
             except Exception:
-                logger.exception("Zenoh query failed for %s", key_expr)
+                coroutine.close()
+                logger.exception("Failed to schedule Zenoh query for %s", key_expr)
+                return
 
         queryable = self.session.declare_queryable(key_expr, on_query)
         self.queryables.append(queryable)
@@ -142,7 +138,9 @@ class ZenohQueryHandler:
         instance = str(query.key_expr)
         try:
             raw = _payload_bytes(query.payload)
-            request = json.loads(raw.decode("utf-8")) if raw else {}
+            if not raw:
+                raise ValueError("Query payload is required")
+            request = json.loads(raw.decode("utf-8"))
             if not isinstance(request, dict):
                 raise ValueError("Query payload must be a JSON object")
             if request_model is not None:
@@ -161,6 +159,8 @@ class ZenohQueryHandler:
         except Exception as error:
             problem = _exception_problem(error, instance)
             query.reply_err(problem.model_dump_json().encode("utf-8"))
+        finally:
+            query.drop()
 
     def close(self) -> None:
         for queryable in self.queryables:
@@ -189,28 +189,17 @@ class ZenohMessageHandler:
         include_session: bool = False,
     ) -> Any:
         def on_message(sample: zenoh.Sample) -> None:
+            coroutine = self._process(sample, handler, message_model, include_session)
             try:
-                future = asyncio.run_coroutine_threadsafe(
-                    self._process(sample, handler, message_model, include_session),
-                    self.loop,
-                )
+                asyncio.run_coroutine_threadsafe(coroutine, self.loop)
             except Exception:
+                coroutine.close()
                 logger.exception("Failed to schedule Zenoh message for %s", key_expr)
                 return
-            future.add_done_callback(
-                lambda completed: self._log_failure(completed, key_expr)
-            )
 
         subscriber = self.session.declare_subscriber(key_expr, on_message)
         self.subscribers.append(subscriber)
         return subscriber
-
-    @staticmethod
-    def _log_failure(future: Any, key_expr: str) -> None:
-        try:
-            future.result()
-        except Exception:
-            logger.exception("Zenoh message failed for %s", key_expr)
 
     async def _process(
         self,
@@ -219,21 +208,27 @@ class ZenohMessageHandler:
         message_model: type[BaseModel] | None,
         include_session: bool = False,
     ) -> None:
-        raw = _payload_bytes(sample.payload)
-        message = json.loads(raw.decode("utf-8")) if raw else {}
-        accepts_root_model = message_model is not None and issubclass(
-            message_model, RootModel
-        )
-        if not isinstance(message, dict) and not accepts_root_model:
-            raise ValueError("Message payload must be a JSON object")
-        if message_model is not None:
-            message = message_model.model_validate(message)
+        try:
+            raw = _payload_bytes(sample.payload)
+            if not raw:
+                raise ValueError("Message payload is required")
+            message = json.loads(raw.decode("utf-8"))
+            accepts_root_model = message_model is not None and issubclass(
+                message_model, RootModel
+            )
+            if not isinstance(message, dict) and not accepts_root_model:
+                raise ValueError("Message payload must be a JSON object")
+            if message_model is not None:
+                message = message_model.model_validate(message)
 
-        async with AsyncSessionLocal() as db:
-            if include_session:
-                await handler(message, db, self.session)  # type: ignore[call-arg]
-            else:
-                await handler(message, db)  # type: ignore[call-arg]
+            async with AsyncSessionLocal() as db:
+                if include_session:
+                    await handler(message, db, self.session)  # type: ignore[call-arg]
+                else:
+                    await handler(message, db)  # type: ignore[call-arg]
+        except Exception:
+            logger.exception("Zenoh message processing failed")
+            raise
 
     def close(self) -> None:
         for subscriber in self.subscribers:

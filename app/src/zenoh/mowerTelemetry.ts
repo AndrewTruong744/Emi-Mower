@@ -19,7 +19,7 @@ function asFiniteNumber(value: unknown, field: string): number {
 }
 
 function asDirection(value: unknown, field: string): -1 | 0 | 1 {
-  if (value == null) return 0;
+  if (value === undefined) return 0;
   if (value === -1 || value === 0 || value === 1) return value;
   throw new Error(`Telemetry ${field} must be -1, 0, or 1`);
 }
@@ -43,8 +43,12 @@ function parseRecord(record: TelemetryRecord): MowerTelemetryMessage {
   if (!record || typeof record.mower_id !== 'string' || !record.mower_id.trim()) {
     throw new Error('Telemetry mower_id is required');
   }
-  const timestamp = Date.parse(record.timestamp);
+  const timestamp = typeof record.timestamp === 'string' ? Date.parse(record.timestamp) : NaN;
   if (!Number.isFinite(timestamp)) throw new Error('Telemetry timestamp must be an ISO date');
+
+  if (record.slippage_detected !== undefined && typeof record.slippage_detected !== 'boolean') {
+    throw new Error('Telemetry slippage_detected must be a boolean');
+  }
 
   return {
     mowerId: record.mower_id,
@@ -54,17 +58,17 @@ function parseRecord(record: TelemetryRecord): MowerTelemetryMessage {
       longitude: asFiniteNumber(record.longitude, 'longitude'),
       batteryPercentage: asFiniteNumber(record.battery_percentage, 'battery_percentage'),
       leftMotorSpeed:
-        record.left_motor_speed == null
+        record.left_motor_speed === undefined
           ? 0
           : asFiniteNumber(record.left_motor_speed, 'left_motor_speed'),
       leftMotorDirection: asDirection(record.left_motor_direction, 'left_motor_direction'),
       rightMotorSpeed:
-        record.right_motor_speed == null
+        record.right_motor_speed === undefined
           ? 0
           : asFiniteNumber(record.right_motor_speed, 'right_motor_speed'),
       rightMotorDirection: asDirection(record.right_motor_direction, 'right_motor_direction'),
       cuttingMotorSpeed:
-        record.cutting_motor_speed == null
+        record.cutting_motor_speed === undefined
           ? 0
           : asFiniteNumber(record.cutting_motor_speed, 'cutting_motor_speed'),
       slippageDetected: record.slippage_detected ?? false,

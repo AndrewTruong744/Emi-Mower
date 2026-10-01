@@ -49,6 +49,7 @@ RUN rosdep update \
         src/emi_mower_livekit \
         src/emi_mower_control \
         src/emi_mower_zenoh_gateway \
+        src/emi_mower_bringup \
         --ignore-src --rosdistro jazzy -r -y \
         --skip-keys "ament_cargo ament_python depthai_ros_driver rclrs sllidar_ros2"
 

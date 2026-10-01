@@ -17,6 +17,7 @@ services:
     environment:
       MOWER_ID: ${MOWER_ID:?provision a mower or set MOWER_ID in nvidia_jetson/.env}
       MOWER_LAUNCH: ${MOWER_LAUNCH:-sim}
+      MUJOCO_BRIDGE_ENDPOINT: ${MUJOCO_BRIDGE_ENDPOINT:-host.docker.internal:8765}
       # backend/local-docker-compose.yml uses host networking. Docker Desktop
       # supplies this DNS name; extra_hosts adds the equivalent on Linux.
       ZENOH_ROUTER_ENDPOINT: ${ZENOH_ROUTER_ENDPOINT:-tls/host.docker.internal:7448}

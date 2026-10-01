@@ -1,29 +1,19 @@
 """Zenoh query listener for paged historical mower graph telemetry."""
 
+from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.exceptions import ValidationError
 from src.services.auth import verify_firebase_id_token
-from src.services.mower import get_telemetry_history_service
-from src.zenoh.generated import TelemetryHistoryRequest, TelemetryHistoryResponse
+from src.services.mower import get_telemetry_history_service, mower_route_params
+from src.zenoh.generated import (
+    TelemetryHistoryPoint,
+    TelemetryHistoryRequest,
+    TelemetryHistoryResponse,
+)
 from src.zenoh.generated.paths import mower_telemetry_history_path
 
 MOWER_TELEMETRY_HISTORY_KEY_EXPR = mower_telemetry_history_path("*", "*")
-
-
-def _telemetry_path_from_query_key(key_expr: str) -> tuple[str, str]:
-    """Extract mower ID and metric from mower/{id}/telemetry/{type}/old."""
-    parts = str(key_expr).split("/")
-    if (
-        len(parts) != 5
-        or parts[0] != "mower"
-        or not parts[1]
-        or parts[2] != "telemetry"
-        or not parts[3]
-        or parts[4] != "old"
-    ):
-        raise ValidationError("Invalid mower telemetry history query path")
-    return parts[1], parts[3]
 
 
 async def mower_telemetry_history(
@@ -32,7 +22,25 @@ async def mower_telemetry_history(
     """Verify Firebase identity and ownership before exposing graph history."""
     identity = await verify_firebase_id_token(payload.id_token)
     user_id = identity["user_id"]
-    mower_id, telemetry_type = _telemetry_path_from_query_key(key_expr)
-    return await get_telemetry_history_service(
+    mower_id, telemetry_type = mower_route_params(
+        key_expr, MOWER_TELEMETRY_HISTORY_KEY_EXPR
+    )
+    result = await get_telemetry_history_service(
         user_id, mower_id, telemetry_type, payload.cursor, db
+    )
+    return TelemetryHistoryResponse(
+        telemetry_type=result["telemetry_type"],
+        limit=result["limit"],
+        total=result["total"],
+        has_more=result["next_cursor"] is not None,
+        next_cursor=result["next_cursor"],
+        points=[
+            TelemetryHistoryPoint(
+                timestamp=timestamp.isoformat()
+                if isinstance(timestamp, datetime)
+                else timestamp,
+                value=value,
+            )
+            for timestamp, value in result["points"]
+        ],
     )

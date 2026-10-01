@@ -53,7 +53,7 @@ describe('useMowerCommand', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(mockedZenohQuery).toHaveBeenCalledWith(
       'mower/mower-1/command',
-      expect.objectContaining({ command_id: expect.any(String), type: 'emergency_stop' })
+      expect.objectContaining({ command_id: expect.any(String), type: 'emergency_stop' }),
     );
   });
 });

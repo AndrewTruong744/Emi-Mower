@@ -2,9 +2,21 @@
 
 **Authoritative source:** [`backend/zenoh_asyncapi.yaml`](../../backend/zenoh_asyncapi.yaml).
 
-This AsyncAPI document defines the native Zenoh routes and telemetry schemas
-used by the app, backend, and Jetson gateway. In particular, mower commands and
-telemetry are scoped by `mower_id`.
+This AsyncAPI document defines native Zenoh routes and wire payload shapes used
+by the app, backend, and Jetson gateway. Value checks such as joystick limits,
+date parsing, and URL safety belong to the functions handling those payloads.
+Mower commands and telemetry are scoped by `mower_id`.
+
+## Connection planes
+
+The router configuration files define three local connection planes: the
+app-router Zenoh WebSocket listener on 7447, the private mTLS router on 7448,
+and the TLS-only certificate renewal router on 7449. Router ACLs limit the two
+`bootstrap/` channels to the renewal plane. See
+[Zenoh routers](../backend/zenoh-routers.md) for the executable configuration.
+
+The mobile app uses the app router's separate remote-API WebSocket endpoint on
+port 10000. Its URL is configured through `EXPO_PUBLIC_ZENOH_URL`.
 
 ## Mower liveliness
 
@@ -20,7 +32,7 @@ Generated outputs are committed in the backend, app, and Jetson workspace. Do
 not edit them by hand. From `backend/`, regenerate them with:
 
 ```sh
-sh tools/generate_types.sh
+npm --prefix tools run generate
 ```
 
 Then run the backend telemetry contract tests and the affected app and Jetson

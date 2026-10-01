@@ -1,0 +1,12 @@
+{
+  "name": "emi-mower-zenoh-bindings",
+  "private": true,
+  "scripts": {
+    "generate": "cd .. && asyncapi validate zenoh_asyncapi.yaml && node tools/generate_zenoh_bindings.mjs",
+    "check": "cd .. && asyncapi validate zenoh_asyncapi.yaml && node tools/generate_zenoh_bindings.mjs --check"
+  },
+  "dependencies": {
+    "@asyncapi/cli": "6.0.2",
+    "js-yaml": "4.3.2"
+  }
+}

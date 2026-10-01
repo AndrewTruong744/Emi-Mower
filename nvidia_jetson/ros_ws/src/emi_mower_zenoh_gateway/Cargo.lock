@@ -797,6 +797,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "url",
  "zenoh",
 ]
 
@@ -4542,14 +4543,6 @@ name = "diagnostic_msgs"
 version = "5.3.8"
 
 [[patch.unused]]
-name = "emi_mower_control"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "emi_mower_zenoh_gateway"
-version = "0.1.0"
-
-[[patch.unused]]
 name = "example_interfaces"
 version = "0.12.1"
 
@@ -4607,7 +4600,7 @@ version = "2.0.4"
 
 [[patch.unused]]
 name = "tf2_msgs"
-version = "0.36.21"
+version = "0.36.22"
 
 [[patch.unused]]
 name = "trajectory_msgs"

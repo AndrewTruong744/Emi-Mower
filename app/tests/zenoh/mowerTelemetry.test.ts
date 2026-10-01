@@ -105,11 +105,11 @@ describe('mower telemetry Zenoh listener', () => {
       JSON.stringify([
         {
           ...backendRecord,
-          left_motor_speed: null,
-          left_motor_direction: null,
+          left_motor_speed: undefined,
+          left_motor_direction: undefined,
           right_motor_speed: undefined,
           right_motor_direction: undefined,
-          cutting_motor_speed: null,
+          cutting_motor_speed: undefined,
           slippage_detected: undefined,
         },
       ])
@@ -123,5 +123,8 @@ describe('mower telemetry Zenoh listener', () => {
       cuttingMotorSpeed: 0,
       slippageDetected: false,
     });
+    expect(() => parseMowerTelemetryPayload(
+      JSON.stringify([{ ...backendRecord, left_motor_speed: null }])
+    )).toThrow('left_motor_speed');
   });
 });

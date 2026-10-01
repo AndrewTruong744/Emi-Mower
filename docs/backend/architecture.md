@@ -48,3 +48,8 @@ opens the TLS-only bootstrap session, and declares only renewal handlers.
 Shutdown undeclares those resources and closes Zenoh, Valkey, and HTTP clients.
 The telemetry and credential-cleanup loops run as separate services so their
 work does not block request/reply handling.
+
+For Zenoh queries, services perform business work and return operation results.
+Query listeners map those results to the generated response models. The shared
+Zenoh query handler serializes the models and sends replies. One-way publication
+listeners do not return a reply.

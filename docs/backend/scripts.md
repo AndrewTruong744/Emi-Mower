@@ -29,10 +29,8 @@ substitute for monitoring failed work.
 
 | Tool                                      | Lifecycle                                                                                                                                                           |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tools/generate_types.sh`                 | Run after a native Zenoh AsyncAPI change. Validates the schema and regenerates committed paths/types.                                                               |
-| `tools/generate_zenoh_paths.mjs`          | Invoked by `generate_types.sh`; writes generated paths for backend, app, and the Jetson Zenoh gateway.                                                               |
-| `tools/generate_rust_zenoh_types.mjs`     | Invoked by `generate_types.sh`; writes the gateway's native Zenoh Rust types.                                                                                       |
-| `tools/generate_renewal_python_types.mjs` | Invoked by `generate_types.sh`; updates renewal types in backend and app generated files.                                                                           |
+| `npm --prefix tools run generate`         | Run after a native Zenoh AsyncAPI change. Validates the schema and regenerates committed paths/types.                                                               |
+| `tools/generate_zenoh_bindings.mjs`       | Invoked by the npm command; uses Modelina and the AsyncAPI schema to write all native Zenoh types and paths for backend, app, and gateway.                        |
 | `tools/refresh_service_certificates.sh`   | Runs only inside the dedicated step-ca container. Creates or refreshes backend and Zenoh-router leaf identities in their persistent volumes. |
 | `tools/ensure_step_ca.sh`                 | Runs only inside the dedicated step-ca container. Creates the local persistent CA root when no CA state exists and refuses to overwrite partial state. |
 | `tools/initialize_simulated_mower.sh`     | Local-only simulator setup. Creates per-mower swtpm state, provisions its public identity and certificate, then starts its ROS Compose project.                     |

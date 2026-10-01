@@ -25,9 +25,13 @@ export function useMap() {
   useLandscapeMap();
   const confirmCuttingArea = useCallback(async () => {
     if (points.length < 3) return;
-    await uploadCutout.mutateAsync({
-      imageUri: LOCAL_CUTTING_AREA_IMAGE_URI,
-    });
+    try {
+      await uploadCutout.mutateAsync({ imageUri: LOCAL_CUTTING_AREA_IMAGE_URI });
+    } catch {
+      // The mutation reports the error. Keep the drawing available for a retry.
+      setConfirmModalVisible(false);
+      return;
+    }
     startMowingSession(points, LOCAL_CUTTING_AREA_IMAGE_URI);
     setConfirmModalVisible(false);
     clear();

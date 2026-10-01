@@ -4,7 +4,7 @@ PACKAGE_ROOT = Path(__file__).parents[1]
 CONFIG = PACKAGE_ROOT / "config" / "zenoh_client.json5"
 REAL_LAUNCH = PACKAGE_ROOT / "launch" / "real.launch.py"
 SIM_LAUNCH = PACKAGE_ROOT / "launch" / "sim.launch.py"
-COMPOSE = PACKAGE_ROOT.parents[1] / "docker-compose.yml"
+COMPOSE = PACKAGE_ROOT.parents[2] / "docker-compose.yml"
 
 
 def test_zenoh_client_config_is_a_tls_client_template_fallback() -> None:
@@ -45,6 +45,9 @@ def test_real_uses_can_while_sim_uses_the_mujoco_command_topic() -> None:
     sim = SIM_LAUNCH.read_text()
     assert 'executable="stm32_bridge"' in real
     assert 'executable="sim_command_sink"' in sim
+    assert 'executable="sim_bridge"' in sim
+    assert '("/teleop/cmd_vel", teleop_topic)' in sim
+    assert '("/sim/cmd_vel", sim_topic)' in sim
     assert "depthai_ros_driver" not in sim
     assert "sllidar_ros2" not in sim
 

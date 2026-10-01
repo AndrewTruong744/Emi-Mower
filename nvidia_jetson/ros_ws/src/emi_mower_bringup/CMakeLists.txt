@@ -18,4 +18,10 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(
+  PROGRAMS emi_mower_bringup/sim_bridge.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME sim_bridge
+)
+
 ament_package()

@@ -11,6 +11,9 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zenoh::config::Config;
 
+use crate::generated::zenoh::{
+    MowerCertificateRenewChallengeResponse, MowerCertificateRenewCompleteResponse,
+};
 use crate::generated::zenoh_paths::{
     mower_certificate_renew_challenge_path, mower_certificate_renew_complete_path,
 };
@@ -37,11 +40,9 @@ pub async fn renew_certificate_if_needed(mower_id: &str) -> Result<bool> {
         .await
         .map_err(|error| anyhow::anyhow!("open bootstrap Zenoh session: {error}"))?;
     let challenge_path = mower_certificate_renew_challenge_path(mower_id);
-    let challenge = query_json(&session, &challenge_path, br#"{}"#).await?;
-    let nonce = challenge
-        .get("nonce")
-        .and_then(serde_json::Value::as_str)
-        .context("renewal challenge did not contain nonce")?;
+    let challenge: MowerCertificateRenewChallengeResponse =
+        serde_json::from_value(query_json(&session, &challenge_path, br#"{}"#).await?)?;
+    let nonce = &challenge.nonce;
 
     let (csr, new_key_path) = create_operational_csr(mower_id)?;
     let signature = sign_renewal_message(mower_id, nonce, &csr)?;
@@ -51,12 +52,12 @@ pub async fn renew_certificate_if_needed(mower_id: &str) -> Result<bool> {
         "csr_pem": csr,
         "tpm_signature": signature,
     });
-    let response = query_json(&session, &complete_path, request.to_string().as_bytes()).await?;
-    let certificate = response
-        .get("certificate_pem")
-        .and_then(serde_json::Value::as_str)
-        .context("renewal response did not contain certificate_pem")?;
-    install_credentials(&new_key_path, certificate)?;
+    let response: MowerCertificateRenewCompleteResponse = serde_json::from_value(
+        query_json(&session, &complete_path, request.to_string().as_bytes()).await?,
+    )?;
+    chrono::DateTime::parse_from_rfc3339(&response.expires_at)
+        .context("renewal response expiry must be an RFC 3339 date-time")?;
+    install_credentials(&new_key_path, &response.certificate_pem)?;
     session
         .close()
         .await

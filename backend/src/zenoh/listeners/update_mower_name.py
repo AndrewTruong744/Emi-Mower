@@ -2,26 +2,12 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.exceptions import ValidationError
 from src.services.auth import verify_firebase_id_token
-from src.services.mower import update_mower_name_service
+from src.services.mower import mower_route_params, update_mower_name_service
 from src.zenoh.generated import UpdateMowerNameRequest, UpdateMowerNameResponse
 from src.zenoh.generated.paths import update_mower_name_path
 
 UPDATE_MOWER_NAME_KEY_EXPR = update_mower_name_path("*")
-
-
-def _mower_id_from_query_key(key_expr: str) -> str:
-    """Extract the mower ID from ``mower/{mower_id}/update_name``."""
-    parts = str(key_expr).split("/")
-    if (
-        len(parts) != 3
-        or parts[0] != "mower"
-        or not parts[1]
-        or parts[2] != "update_name"
-    ):
-        raise ValidationError("Invalid mower name update query path")
-    return parts[1]
 
 
 async def update_mower_name(
@@ -30,7 +16,7 @@ async def update_mower_name(
     """Update a mower name after authenticating and authorizing its owner."""
     identity = await verify_firebase_id_token(payload.id_token)
     user_id = identity["user_id"]
-    mower_id = _mower_id_from_query_key(key_expr)
+    (mower_id,) = mower_route_params(key_expr, UPDATE_MOWER_NAME_KEY_EXPR)
 
     await update_mower_name_service(
         user_id=user_id,

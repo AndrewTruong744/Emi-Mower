@@ -12,6 +12,8 @@ mower/<mower_id>/joystick JSON -> /teleop/cmd_vel (geometry_msgs/TwistStamped)
 `MOWER_ID` is set once by the launch file. The gateway validates that identifier
 before constructing a route and injects it into telemetry records, so a ROS
 publisher cannot publish data as another mower.
+The joystick receive function checks that both axes are finite and within
+`[-1, 1]` before forwarding a command to ROS.
 
 The gateway also subscribes to the mower's native cutout-delivery route. It validates
 each `MowerCutoutDelivery` and publishes it as the typed ROS
@@ -21,7 +23,8 @@ native Zenoh session.
 
 The native Zenoh structs and route helpers in `src/generated/` are generated
 from `backend/zenoh_asyncapi.yaml`. Regenerate them from `backend/` with
-`backend/tools/generate_types.sh`; do not edit those Rust files manually. ROS
+`npm --prefix tools run generate` from `backend/`; do not edit those Rust files
+manually. ROS
 messages remain in `emi_mower_interfaces` because they are a separate ROS IDL
 contract.
 

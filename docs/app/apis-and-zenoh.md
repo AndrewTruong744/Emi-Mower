@@ -4,7 +4,7 @@
 [`backend/zenoh_asyncapi.yaml`](../../backend/zenoh_asyncapi.yaml). The app's
 generated TypeScript models and path helpers in `app/src/generated/` are
 derived from that contract. Regenerate them from `backend/` with
-`sh tools/generate_types.sh`; never edit them by hand.
+`npm --prefix tools run generate`; never edit them by hand.
 
 The app connects to the Zenoh remote-API WebSocket configured by
 `EXPO_PUBLIC_ZENOH_URL`. It serializes JSON and uses three transport helpers

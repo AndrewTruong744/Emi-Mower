@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import zenoh
 from src.exceptions import AuthenticationError, RepositoryError, TokenGenerationError
 from src.services import auth as auth_module
 from src.services import firebase_init as firebase_module
@@ -20,9 +21,10 @@ class Query:
     key_expr = "user/login"
 
     def __init__(self, payload=b"{}"):
-        self.payload = payload
+        self.payload = zenoh.ZBytes(payload)
         self.replies = []
         self.errors = []
+        self.drops = 0
 
     def reply(self, key_expr, payload):
         self.replies.append((str(key_expr), payload))
@@ -30,10 +32,13 @@ class Query:
     def reply_err(self, payload):
         self.errors.append(payload)
 
+    def drop(self):
+        self.drops += 1
+
 
 class Sample:
     def __init__(self, payload=b"{}"):
-        self.payload = payload
+        self.payload = zenoh.ZBytes(payload)
 
 
 async def test_auth_verification_normalizes_uid_to_user_id(monkeypatch):
@@ -107,13 +112,8 @@ def test_jwt_generation_handles_string_bytes_and_failures(monkeypatch):
 
 
 def test_payload_bytes_and_problem_mapping_cover_fallbacks():
-    class Payload:
-        def to_bytes(self):
-            return b"payload"
-
     assert handler_module._payload_bytes(None) == b""
-    assert handler_module._payload_bytes(Payload()) == b"payload"
-    assert handler_module._payload_bytes(bytearray(b"bytes")) == b"bytes"
+    assert handler_module._payload_bytes(zenoh.ZBytes(b"payload")) == b"payload"
 
     unknown_domain = _exception_problem(RepositoryError("repository"), "one")
     assert unknown_domain.status == 500
@@ -121,7 +121,7 @@ def test_payload_bytes_and_problem_mapping_cover_fallbacks():
     assert generic.code == "internal-error"
 
 
-def test_query_declaration_schedules_and_waits_for_callback(monkeypatch):
+def test_query_declaration_schedules_without_waiting_for_callback(monkeypatch):
     future = Mock()
     session = Mock()
     queryable = object()
@@ -141,58 +141,41 @@ def test_query_declaration_schedules_and_waits_for_callback(monkeypatch):
     callback(Query())
 
     schedule.assert_called_once()
-    future.result.assert_called_once_with(timeout=5)
+    future.result.assert_not_called()
+    future.add_done_callback.assert_not_called()
     assert handler.queryables == [queryable]
 
 
-def test_query_declaration_logs_callback_timeout(monkeypatch):
-    future = Mock()
-    future.result.side_effect = TimeoutError("slow")
+def test_query_declaration_logs_scheduling_failure(monkeypatch, caplog):
     session = Mock()
 
     def schedule(coroutine, _loop):
-        coroutine.close()
-        return future
+        raise RuntimeError("loop stopped")
 
     monkeypatch.setattr(handler_module.asyncio, "run_coroutine_threadsafe", schedule)
     handler = ZenohQueryHandler(session, Mock())
     handler.declare("user/login", AsyncMock())
     session.declare_queryable.call_args.args[1](Query())
-    future.result.assert_called_once()
+    assert "Failed to schedule Zenoh query for user/login" in caplog.text
 
 
-def test_message_declaration_schedules_and_logs_completion(monkeypatch):
-    futures = []
-
-    class Future:
-        def __init__(self, error=None):
-            self.error = error
-
-        def add_done_callback(self, callback):
-            callback(self)
-
-        def result(self):
-            if self.error:
-                raise self.error
-
+def test_message_declaration_schedules_without_waiting(monkeypatch):
+    future = Mock()
     session = Mock()
     session.declare_subscriber.return_value = object()
 
     def schedule(coroutine, _loop):
         coroutine.close()
-        futures.append(Future())
-        return futures[-1]
+        return future
 
+    schedule = Mock(side_effect=schedule)
     monkeypatch.setattr(handler_module.asyncio, "run_coroutine_threadsafe", schedule)
     handler = ZenohMessageHandler(session, Mock())
     handler.declare("mower/*", AsyncMock())
     session.declare_subscriber.call_args.args[1](Sample())
-    assert len(futures) == 1
-
-    handler_module.ZenohMessageHandler._log_failure(Future(), "mower/*")
-    handler_module.ZenohMessageHandler._log_failure(
-        Future(RuntimeError("failed")), "mower/*"
-    )
+    schedule.assert_called_once()
+    future.result.assert_not_called()
+    future.add_done_callback.assert_not_called()
 
 
 async def test_query_handler_maps_unhandled_handler_failure(monkeypatch):
@@ -214,17 +197,20 @@ async def test_query_handler_maps_unhandled_handler_failure(monkeypatch):
     await ZenohQueryHandler(Mock(), Mock())._process(query, fail, None)
 
     assert b'"code":"internal-error"' in query.errors[0]
+    assert query.drops == 1
 
 
 def test_message_declaration_returns_cleanly_when_scheduling_fails(monkeypatch):
     session = Mock()
     session.declare_subscriber.return_value = object()
+    scheduled = []
 
     def schedule(coroutine, _loop):
-        coroutine.close()
+        scheduled.append(coroutine)
         raise RuntimeError("loop stopped")
 
     monkeypatch.setattr(handler_module.asyncio, "run_coroutine_threadsafe", schedule)
     handler = ZenohMessageHandler(session, Mock())
     handler.declare("mower/*", AsyncMock())
     session.declare_subscriber.call_args.args[1](Sample())
+    assert scheduled[0].cr_frame is None

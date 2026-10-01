@@ -44,9 +44,7 @@ async def test_user_login_service_rejects_empty_token():
 
 
 async def test_user_login_service_rejects_identity_without_user_id(monkeypatch):
-    monkeypatch.setattr(
-        user, "verify_firebase_id_token", AsyncMock(return_value={})
-    )
+    monkeypatch.setattr(user, "verify_firebase_id_token", AsyncMock(return_value={}))
 
     with pytest.raises(AuthenticationError):
         await user.user_login_service(UserLoginRequest(id_token="token"), object())
@@ -85,7 +83,7 @@ async def test_user_login_service_creates_missing_user(monkeypatch):
 
     result = await user.user_login_service(UserLoginRequest(id_token="token"), object())
 
-    assert result.user_id == "user-1"
+    assert result["user_id"] == "user-1"
 
 
 async def test_update_user_email_service_rejects_missing_email_claim(monkeypatch):
@@ -196,7 +194,9 @@ async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatc
         "verify_firebase_id_token",
         AsyncMock(
             return_value={
-                "user_id": "user-1", "email": "one@example.test", "name": "One"
+                "user_id": "user-1",
+                "email": "one@example.test",
+                "name": "One",
             }
         ),
     )
@@ -221,8 +221,8 @@ async def test_user_login_service_configures_zenoh_and_records_expiry(monkeypatc
         UserLoginRequest(id_token="firebase-token"), object()
     )
 
-    assert result.user_id == "user-1"
-    assert result.token == "jwt"
+    assert result["user_id"] == "user-1"
+    assert result["token"] == "jwt"
     provision.assert_awaited_once_with(
         user_id="user-1",
         mower_ids=["mower-1"],

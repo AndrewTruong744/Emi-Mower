@@ -47,8 +47,8 @@ async def test_consume_service_mints_subscriber_token(monkeypatch):
     assert token.grants.room_join is True
     assert token.grants.can_publish is False
     assert token.grants.can_subscribe is True
-    assert result.token == "livekit-jwt"
-    assert result.url == "wss://livekit.test"
+    assert result["token"] == "livekit-jwt"
+    assert result["url"] == "wss://livekit.test"
 
 
 async def test_livekit_services_reject_empty_mower_ids():
@@ -70,7 +70,7 @@ async def test_upload_service_mints_publisher_token(monkeypatch):
     assert token.grants.room == "mower-1"
     assert token.grants.can_publish is True
     assert token.grants.can_subscribe is False
-    assert result.expires_in == livekit.LIVEKIT_TOKEN_TTL_SECONDS
+    assert result["expires_in"] == livekit.LIVEKIT_TOKEN_TTL_SECONDS
 
 
 async def test_livekit_token_generation_errors_are_domain_errors(monkeypatch):
