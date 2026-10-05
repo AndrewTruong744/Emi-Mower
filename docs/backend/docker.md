@@ -14,6 +14,8 @@ not treat either as a fleet deployment recipe.
 The local backend and worker services use `python:3.12-slim`, mount the working
 tree, install `uv`, and run `uv sync --frozen` at container start. That favors
 fast iteration; it is not an immutable production image.
+The container Python environment lives in the `backend-venv` volume, so
+container startup cannot overwrite the host's `backend/.venv`.
 
 The local Compose stack includes a dedicated `step-ca` service. It creates and
 retains its local CA state in the `step-ca-data` volume, then writes separate

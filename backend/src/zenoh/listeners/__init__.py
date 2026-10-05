@@ -8,7 +8,10 @@ from src.zenoh.listeners.cutout_upload_url import (
     CUTOUT_UPLOAD_URL_KEY_EXPR,
     cutout_upload_url,
 )
-from src.zenoh.listeners.cutout_uploaded import CUTOUT_UPLOADED_KEY_EXPR, cutout_uploaded
+from src.zenoh.listeners.cutout_uploaded import (
+    CUTOUT_UPLOADED_KEY_EXPR,
+    cutout_uploaded,
+)
 from src.zenoh.listeners.livekit_consume import (
     LIVEKIT_CONSUME_KEY_EXPR,
     livekit_consume,

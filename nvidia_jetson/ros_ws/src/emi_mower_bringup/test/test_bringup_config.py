@@ -5,6 +5,9 @@ CONFIG = PACKAGE_ROOT / "config" / "zenoh_client.json5"
 REAL_LAUNCH = PACKAGE_ROOT / "launch" / "real.launch.py"
 SIM_LAUNCH = PACKAGE_ROOT / "launch" / "sim.launch.py"
 COMPOSE = PACKAGE_ROOT.parents[2] / "docker-compose.yml"
+if not COMPOSE.is_file():
+    # The test container mounts ros_ws at /ws and Compose at /ws/docker-compose.yml.
+    COMPOSE = PACKAGE_ROOT.parents[1] / "docker-compose.yml"
 
 
 def test_zenoh_client_config_is_a_tls_client_template_fallback() -> None:
@@ -28,6 +31,22 @@ def test_local_ros_compose_verifies_the_host_router_certificate() -> None:
         "${ZENOH_BOOTSTRAP_VERIFY_NAME_ON_CONNECT:-true}"
     ) in text
     assert "host.docker.internal:host-gateway" in text
+
+
+def test_simulated_uuid_namespace_is_a_valid_ros_topic_token():
+    import runpy
+    from launch import LaunchContext
+    from launch.substitutions import LaunchConfiguration
+    from rclpy.validate_full_topic_name import validate_full_topic_name
+
+    mower_id = "0a35e3e0-ff31-4b58-bc88-31f6e288fdb2"
+    module = runpy.run_path(str(SIM_LAUNCH))
+    context = LaunchContext()
+    context.launch_configurations["mower_id"] = mower_id
+    namespace = module["ros_mower_namespace"](LaunchConfiguration("mower_id")).perform(context)
+    assert namespace == "mower_0a35e3e0_ff31_4b58_bc88_31f6e288fdb2"
+    validate_full_topic_name(f"/mower/{namespace}/teleop/cmd_vel")
+    assert context.launch_configurations["mower_id"] == mower_id
 
 
 def test_real_and_sim_launches_share_the_zenoh_ros_transport() -> None:

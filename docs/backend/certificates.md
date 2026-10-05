@@ -35,9 +35,10 @@ certificate's SAN. The local stack supplies `localhost`, `127.0.0.1`, and
 `host.docker.internal`; production must supply only its deployment endpoint
 names/IPs.
 
-The provisioner generates a mower-owned private key and CSR for initial
-enrollment, then submits that CSR to step-ca. During renewal the mower itself
-generates the CSR, so its replacement private key is never exported. See
+The provisioner generates an ECDSA P-256 mower-owned private key and SHA-256 CSR
+for initial enrollment, then submits that CSR to step-ca. During renewal the
+mower itself generates a fresh ECDSA P-256 key and SHA-256 CSR, so its replacement
+private key is never exported. See
 [mower initialization](mower-initialization.md) for the full identity lifecycle.
 
 ## Renewal architecture

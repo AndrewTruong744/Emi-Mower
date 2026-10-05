@@ -47,7 +47,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_cutout_mower_assignments_mower_id", table_name="cutout_mower_assignments")
+    op.drop_index(
+        "ix_cutout_mower_assignments_mower_id", table_name="cutout_mower_assignments"
+    )
     op.drop_table("cutout_mower_assignments")
     op.drop_index("ix_cutouts_status", table_name="cutouts")
     op.drop_index("ix_cutouts_owner_id", table_name="cutouts")

@@ -77,8 +77,8 @@ master provisioner:
 ```bash
 cd backend
 docker compose -f local-docker-compose.yml up -d postgres valkey zenoh-mtls zenoh-bootstrap backend
-./tools/initialize_simulated_mower.sh --nickname "Mower one"
-./tools/initialize_simulated_mower.sh --nickname "Mower two"
+uv run python -m src.scripts.provision_mower --simulated --nickname "Mower one"
+uv run python -m src.scripts.provision_mower --simulated --nickname "Mower two"
 ```
 
 Each mower receives its own UUID-named directory at
@@ -86,7 +86,17 @@ Each mower receives its own UUID-named directory at
 operational certificate bundle, and swtpm persistent state. The Compose project
 is named `mower-<first-8-uuid-characters>`, so the two ROS/swtpm pairs can run
 together. The device-root private key is created and retained by swtpm; only
-`device-root-public.pem` is sent to the backend during provisioning.
+`device-root-public.pem` is read by the host provisioner. To restart an existing
+simulator, reuse its UUID and saved environment file without provisioning again:
+
+```bash
+cd ../nvidia_jetson # from backend/ in the setup commands above
+mower_id=YOUR-MOWER-UUID
+mower_env="$PWD/.sim/mowers/$mower_id/mower.env"
+MOWER_ENV_FILE="$mower_env" docker compose \
+  --project-name "mower-${mower_id:0:8}" --env-file "$mower_env" \
+  -f docker-compose.yml -f docker-compose.sim-tpm.yml up -d ros
+```
 
 When the backend CA key is encrypted, configure its backend-only passphrase
 file before running this command; see the corresponding section in
@@ -97,12 +107,8 @@ For a one-off legacy simulation, copy `.env.example` to `.env` and place a
 development certificate bundle in `certs/`. `docker-compose.yml` uses the
 selected `MOWER_ENV_FILE` (default `.env`), so Rust and Python processes share
 the same `MOWER_ID`. For a non-default mower file, pass it to Compose as well
-so volume interpolation uses the same values:
-
-```bash
-docker compose --env-file .sim/mowers/<uuid>/mower.env \
-  -f docker-compose.yml -f docker-compose.sim-tpm.yml up -d
-```
+so volume interpolation uses the same values, as shown in the restart command
+above.
 
 ### Certificate renewal
 
@@ -223,7 +229,9 @@ prebuild the workspace. Compose bind-mounts your checkout at runtime, so an
 edit to a test or source file does not rebuild the image. The suite is offline:
 it does not start Zenoh, access a camera, or open the STM32 CAN interface.
 
-The launcher performs the equivalent of:
+The launcher first builds `emi_mower_interfaces` and registers installed Rust
+message crates for colcon's prefix lookup. This supplies the `rust_packages`
+index entries missing from Jazzy's binary message packages. It then runs:
 
 ```bash
 colcon build --packages-select emi_mower_interfaces emi_mower_boundary emi_mower_control emi_mower_zenoh_gateway emi_mower_livekit

@@ -32,20 +32,21 @@ specific host interface if the workstation is on an untrusted network.
 ## ROS bindings
 
 In a Jetson simulation container, the app joystick reaches the gateway and
-then `/mower/<MOWER_ID>/teleop/cmd_vel`. The existing simulation command sink
-forwards it to `/mower/<MOWER_ID>/sim/cmd_vel`; the ROS bridge sends linear and
+then `/mower/<ROS_MOWER_ID>/teleop/cmd_vel`. `ROS_MOWER_ID` is `mower_` followed
+by the mower UUID with hyphens replaced by underscores. The simulation command
+sink forwards it to `/mower/<ROS_MOWER_ID>/sim/cmd_vel`; the ROS bridge sends linear and
 angular velocity to MuJoCo. It clamps both axes to 1 m/s and 1 rad/s, mixes
 them to wheel speeds using the 0.68 m track width and 0.16 m wheel radius, and
 stops drive motors when commands are older than 200 ms. The server also stops
 motors if bridge updates stop for 300 ms.
 
 Publish `std_msgs/msg/Bool` at 10 Hz or faster to
-`/mower/<MOWER_ID>/sim/blade_enable` to turn the simulated blade motor on.
+`/mower/<ROS_MOWER_ID>/sim/blade_enable` to turn the simulated blade motor on.
 Blade enable expires after 200 ms without an update. Example inside that
 Jetson ROS container:
 
 ```bash
-ros2 topic pub -r 10 /mower/<MOWER_ID>/sim/blade_enable std_msgs/msg/Bool '{data: true}'
+ros2 topic pub -r 10 /mower/<ROS_MOWER_ID>/sim/blade_enable std_msgs/msg/Bool '{data: true}'
 ```
 
 This topic is simulation only. It does not issue a physical blade command.

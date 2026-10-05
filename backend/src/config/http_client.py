@@ -1,4 +1,5 @@
 import logging
+
 import httpx
 
 logger = logging.getLogger("config.http_client")

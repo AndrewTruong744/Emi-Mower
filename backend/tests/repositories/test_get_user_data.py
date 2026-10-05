@@ -1,7 +1,7 @@
 import pytest
 
-from src.repositories.get_user_data import get_user_data
 from src.exceptions import UserNotFoundError
+from src.repositories.get_user_data import get_user_data
 from src.schemas.valkey import UserDataCache, user_data_key
 
 pytestmark = pytest.mark.repository

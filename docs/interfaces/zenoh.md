@@ -18,6 +18,14 @@ and the TLS-only certificate renewal router on 7449. Router ACLs limit the two
 The mobile app uses the app router's separate remote-API WebSocket endpoint on
 port 10000. Its URL is configured through `EXPO_PUBLIC_ZENOH_URL`.
 
+## ROS transport
+
+Inside a mower container, ROS discovery and message traffic use a separate
+Zenoh router bound to loopback. The native gateway connects to the backend's
+mTLS router using the canonical mower UUID. Simulated ROS topics use the token
+`mower_{uuid with hyphens replaced by underscores}` under `/mower/`; this meets
+ROS topic-name rules without changing native Zenoh keys or certificate names.
+
 ## Mower liveliness
 
 The Rust mower gateway declares the payload-less token

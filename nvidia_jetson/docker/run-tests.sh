@@ -7,6 +7,8 @@ set -u
 
 # Build the small, simulator-safe package set. This generates the custom ROS
 # interfaces and makes them available to the Rust bindings before Cargo tests.
+colcon build --merge-install --symlink-install --packages-select emi_mower_interfaces
+python3 /usr/local/bin/register-rust-packages.py /opt/ros/${ROS_DISTRO} /ws/install
 colcon build --merge-install --symlink-install --packages-select \
   emi_mower_interfaces \
   emi_mower_boundary \

@@ -55,7 +55,7 @@ services:
 
   zenoh-mtls:
     image: eclipse/zenoh:1.9.0
-    command: ["-c", "/workspace/zenoh-router-mtls.json5"]
+    command: ["-c", "/workspace/${ZENOH_MTLS_CONFIG_FILE:-zenoh-router-mtls.json5}"]
     network_mode: host
     working_dir: /workspace
     volumes:
@@ -102,6 +102,7 @@ services:
     volumes:
       - ./:/workspace
       - uv-cache:/root/.cache/uv
+      - backend-venv:/workspace/.venv
       - backend-identity:/run/emi-mower/identity:ro
       - step-ca-issuer:/run/emi-mower/issuer:ro
     environment:
@@ -117,6 +118,9 @@ services:
       ZENOH_MTLS_REST_URL: ${ZENOH_MTLS_REST_URL:-http://127.0.0.1:8002}
       ZENOH_BOOTSTRAP_ENDPOINT: ${ZENOH_BOOTSTRAP_ENDPOINT:-tls/127.0.0.1:7449}
       STEP_CA_URL: https://localhost:9000
+      ZENOH_CA_CERT: /run/emi-mower/identity/root_ca.pem
+      ZENOH_FASTAPI_CERT: /run/emi-mower/identity/current/fastapi.crt
+      ZENOH_FASTAPI_KEY: /run/emi-mower/identity/current/fastapi.key
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-emi-mower}
       GCS_CUTOUT_BUCKET: ${GCS_CUTOUT_BUCKET:-emi-mower-cutouts-sandbox}
     command:
@@ -155,6 +159,7 @@ services:
     volumes:
       - ./:/workspace
       - uv-cache:/root/.cache/uv
+      - backend-venv:/workspace/.venv
     environment:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
@@ -181,6 +186,7 @@ services:
     volumes:
       - ./:/workspace
       - uv-cache:/root/.cache/uv
+      - backend-venv:/workspace/.venv
     environment:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: ${LOCAL_POSTGRES_PORT:-15432}
@@ -209,6 +215,7 @@ services:
     volumes:
       - ./:/workspace
       - uv-cache:/root/.cache/uv
+      - backend-venv:/workspace/.venv
     environment:
       VALKEY_HOST: 127.0.0.1
       VALKEY_PORT: ${VALKEY_PORT:-6379}
@@ -228,6 +235,7 @@ volumes:
   postgres-data:
   valkey-data:
   uv-cache:
+  backend-venv:
   step-ca-data:
   step-ca-issuer:
   backend-identity:

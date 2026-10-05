@@ -77,18 +77,34 @@ fn certificate_valid_beyond(path: &Path, seconds: u64) -> Result<bool> {
 fn create_operational_csr(mower_id: &str) -> Result<(String, String)> {
     let key_path = "/tmp/emi-mower-renewal.key";
     let csr_path = "/tmp/emi-mower-renewal.csr";
+    let csr = create_operational_csr_at(mower_id, Path::new(key_path), Path::new(csr_path))?;
+    Ok((csr, key_path.to_owned()))
+}
+
+fn create_operational_csr_at(mower_id: &str, key_path: &Path, csr_path: &Path) -> Result<String> {
     let subject = format!("/C=US/O=EmiSamaTechnologies/CN=mower:{mower_id}");
     let status = Command::new("openssl")
         .args([
-            "req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", key_path, "-out", csr_path,
-            "-subj", &subject,
+            "req",
+            "-new",
+            "-newkey",
+            "ec",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+            "-sha256",
+            "-nodes",
+            "-keyout",
         ])
+        .arg(key_path)
+        .arg("-out")
+        .arg(csr_path)
+        .args(["-subj", &subject])
         .status()
         .context("create operational certificate request")?;
     if !status.success() {
         bail!("openssl could not create renewal CSR");
     }
-    Ok((fs::read_to_string(csr_path)?, key_path.to_owned()))
+    Ok(fs::read_to_string(csr_path)?)
 }
 
 fn sign_renewal_message(mower_id: &str, nonce: &str, csr: &str) -> Result<String> {
@@ -103,18 +119,20 @@ fn sign_renewal_message(mower_id: &str, nonce: &str, csr: &str) -> Result<String
     let signature_path = "/tmp/emi-mower-renewal-signature";
     fs::write(message_path, message)?;
     let handle = env::var("TPM_DEVICE_ROOT_HANDLE").unwrap_or_else(|_| "0x81000001".to_owned());
+    // tpm2-tools calls OpenSSL-compatible ECDSA DER output "plain".
     let status = Command::new("tpm2_sign")
         .args([
             "-c",
             &handle,
             "-g",
             "sha256",
-            "-m",
-            message_path,
+            "-s",
+            "ecdsa",
             "-f",
-            "der",
+            "plain",
             "-o",
             signature_path,
+            message_path,
         ])
         .status()
         .context("ask TPM to sign renewal request")?;
@@ -147,13 +165,19 @@ fn install_credentials(new_key_path: &str, certificate: &str) -> Result<()> {
     let status = Command::new("openssl")
         .args(["verify", "-CAfile"])
         .arg(staged.join("root_ca.pem"))
+        // The issuer returns the leaf followed by its intermediate certificates.
+        // Intermediates help build the chain; only the installed root is trusted.
+        .arg("-untrusted")
+        .arg(staged.join("mower.crt"))
         .arg(staged.join("mower.crt"))
         .status()
         .context("verify renewed mower certificate against the installed CA")?;
     if !status.success() {
         bail!("renewal response certificate is not signed by the installed CA");
     }
-    fs::rename(new_key_path, staged.join("mower.key"))?;
+    // /tmp and the persistent credential mount can be different filesystems.
+    fs::copy(new_key_path, staged.join("mower.key"))?;
+    fs::remove_file(new_key_path)?;
     fs::create_dir_all(&versions)?;
     let version_dir = versions.join(&version);
     fs::rename(staged, &version_dir)?;
@@ -192,8 +216,46 @@ async fn query_json(
 
 #[cfg(test)]
 mod tests {
-    use super::activate_credentials_version;
+    use super::{activate_credentials_version, create_operational_csr_at};
     use std::fs;
+    use std::process::Command;
+
+    #[test]
+    fn renewal_generates_a_valid_p256_csr_matching_its_private_key() {
+        let directory =
+            std::env::temp_dir().join(format!("emi-mower-renewal-csr-test-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let key = directory.join("mower.key");
+        let csr = directory.join("mower.csr");
+        let mower_id = "0a35e3e0-ff31-4b58-bc88-31f6e288fdb2";
+        create_operational_csr_at(mower_id, &key, &csr).unwrap();
+
+        let inspected = Command::new("openssl")
+            .args(["req", "-verify", "-noout", "-text", "-in"])
+            .arg(&csr)
+            .output()
+            .unwrap();
+        assert!(inspected.status.success());
+        let text = String::from_utf8(inspected.stdout).unwrap();
+        assert!(text.contains(&format!("CN = mower:{mower_id}")));
+        assert!(text.contains("ASN1 OID: prime256v1"));
+        assert!(text.contains("ecdsa-with-SHA256"));
+
+        let key_public = Command::new("openssl")
+            .args(["pkey", "-pubout", "-in"])
+            .arg(&key)
+            .output()
+            .unwrap();
+        let csr_public = Command::new("openssl")
+            .args(["req", "-pubkey", "-noout", "-in"])
+            .arg(&csr)
+            .output()
+            .unwrap();
+        assert!(key_public.status.success());
+        assert!(csr_public.status.success());
+        assert_eq!(key_public.stdout, csr_public.stdout);
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn credential_activation_switches_the_current_symlink() {

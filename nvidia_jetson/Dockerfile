@@ -15,6 +15,7 @@ RUN apt-get update \
         git \
         libclang-dev \
         libudev-dev \
+        openssl \
         pkg-config \
         procps \
         python3-colcon-common-extensions \
@@ -40,6 +41,8 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages \
 COPY ros_ws/src /ws/src
 COPY docker/zenoh_client.json5.in /opt/emi-mower/zenoh_client.json5.in
 COPY docker/zenoh_bootstrap_client.json5.in /opt/emi-mower/zenoh_bootstrap_client.json5.in
+COPY docker/register-rust-packages.py /usr/local/bin/register-rust-packages.py
+COPY docker/ros_client.json5 docker/ros_router.json5 /opt/emi-mower/
 
 RUN rosdep init 2>/dev/null || true
 RUN rosdep update \
@@ -58,6 +61,8 @@ RUN rosdep update \
 # ament_cargo leaves Cargo intermediates beside the source. They are only useful
 # while compiling; installed executables remain in /ws/install.
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+    && colcon build --merge-install --symlink-install --packages-select emi_mower_interfaces \
+    && python3 /usr/local/bin/register-rust-packages.py /opt/ros/${ROS_DISTRO} /ws/install \
     && if [ "${BUILD_PHYSICAL_DRIVERS}" = "1" ]; then \
          git clone --depth 1 --branch kilted https://github.com/luxonis/depthai-core.git src/depthai-core \
          && git -C src/depthai-core submodule update --init --recursive \

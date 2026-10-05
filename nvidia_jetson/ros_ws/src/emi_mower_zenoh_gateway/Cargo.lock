@@ -4543,6 +4543,14 @@ name = "diagnostic_msgs"
 version = "5.3.8"
 
 [[patch.unused]]
+name = "emi_mower_control"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "emi_mower_zenoh_gateway"
+version = "0.1.0"
+
+[[patch.unused]]
 name = "example_interfaces"
 version = "0.12.1"
 

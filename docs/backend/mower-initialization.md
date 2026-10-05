@@ -21,8 +21,8 @@ is idempotent for the same mower UUID. It performs this sequence:
    `mowers.device_key_fingerprint`. The private half never leaves the mower.
 3. Configure the mTLS-router ACL subject for `CN=mower:{uuid}` and restrict it
    to `mower/{uuid}/**`.
-4. Generate a separate operational mTLS key and CSR on the trusted
-   provisioner, submit that CSR to step-ca, and write the resulting 90-day
+4. Generate a separate ECDSA P-256 operational mTLS key and SHA-256 CSR on the
+   trusted provisioner, submit that CSR to step-ca, and write the resulting 90-day
    certificate bundle to the protected mower credential directory. The CA
    private key is not read by the provisioning process.
 5. Write a mode-600 Jetson Compose environment file with the mower UUID,
@@ -36,7 +36,8 @@ after a partial failure instead of creating a second mower record.
 
 ## Local TPM simulation flow
 
-[`tools/initialize_simulated_mower.sh`](../../backend/tools/initialize_simulated_mower.sh)
+The `--simulated` mode of
+[`src/scripts/provision_mower.py`](../../backend/src/scripts/provision_mower.py)
 creates a self-contained local simulator under
 `nvidia_jetson/.sim/mowers/{uuid}/`. For each simulated mower it:
 
@@ -44,16 +45,22 @@ creates a self-contained local simulator under
    credential directory, swtpm state directory, and Compose project name.
 2. Starts the `swtpm` sidecar and runs the TPM initializer, which creates the
    device-root key inside the emulator and exports only its public key.
-3. Calls the backend provisioner with that public key, simulation mode, and
-   local non-production TLS-name verification disabled.
+3. Registers that public key through the same backend provisioning logic used
+   for physical mowers, with simulation launch mode and TLS-name verification
+   enabled. Initial certificate signing runs through the local `step-ca`
+   container; its issuance credential and CA private keys remain in its volumes.
+   The provisioner writes a scoped local router configuration and recreates
+   the mTLS router because Zenoh 1.9 cannot update ACLs at runtime. Existing
+   local clients reconnect after this brief router interruption.
 4. Starts the ROS simulator container after the operational credentials and ACL
    have been created.
 
 Start the local backend dependencies, including PostgreSQL, Valkey, mTLS and
-bootstrap routers, and FastAPI before running the simulator tool. Each simulator
+bootstrap routers, and FastAPI before running the simulator mode. Each simulator
 has its own state, credentials, and Compose project, so multiple local mowers
 can coexist. Stopping its project preserves local simulator state unless its
-directories are explicitly removed.
+directories are explicitly removed. Use the mode only to create a new simulator;
+restart an existing one with its saved Compose project and environment file.
 
 ## Renewal after initialization
 

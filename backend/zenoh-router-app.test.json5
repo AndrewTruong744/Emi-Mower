@@ -7,11 +7,8 @@
     timeout_ms: 10000
   },
   transport: {
-    auth: {
-      usrpwd: {
-        dictionary_file: "zenoh-router-users.txt"
-      }
-    },
+    // These tests exercise application token validation. Transport passwords
+    // belong to the production app-router configuration, not this test plane.
     link: {
       tls: {
         root_ca_certificate: "/run/emi-mower/identity/root_ca.pem",

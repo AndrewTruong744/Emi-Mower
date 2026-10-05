@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from subprocess import CompletedProcess
 from unittest.mock import Mock
 
 from cryptography import x509
@@ -40,6 +41,7 @@ def test_step_ca_issuer_signs_a_csr_without_a_ca_key(monkeypatch, tmp_path):
         .public_bytes(Encoding.PEM)
         .decode()
     )
+
     def write_certificate(command, **_):
         Path(command[-1]).write_text(certificate)
 
@@ -60,3 +62,31 @@ def test_step_ca_issuer_signs_a_csr_without_a_ca_key(monkeypatch, tmp_path):
     assert "/issuer/password" in command
     assert str(root) in command
     assert not any("ca.key" in part for part in command)
+
+    compose_run = Mock(
+        side_effect=[
+            CompletedProcess([], 0, stdout=certificate),
+            CompletedProcess([], 0, stdout="public root"),
+        ]
+    )
+    monkeypatch.setattr(step_ca.subprocess, "run", compose_run)
+    compose_file = tmp_path / "local-docker-compose.yml"
+    issued, chain = step_ca.ComposeStepCaIssuer(compose_file).sign_csr(csr)
+
+    assert issued == certificate
+    assert chain == "public root"
+    sign_call, root_call = compose_run.call_args_list
+    assert sign_call.args[0][:8] == [
+        "docker",
+        "compose",
+        "-f",
+        str(compose_file),
+        "exec",
+        "-T",
+        "step-ca",
+        "sh",
+    ]
+    assert sign_call.kwargs["input"] == csr
+    assert sign_call.kwargs["capture_output"] is True
+    assert "/credentials/issuer/provisioner-password" in sign_call.args[0][-1]
+    assert root_call.args[0][-2:] == ["cat", "/home/step/certs/root_ca.crt"]

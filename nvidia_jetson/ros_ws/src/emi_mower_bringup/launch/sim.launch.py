@@ -4,17 +4,23 @@ from pathlib import Path
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
-from launch.substitutions import EnvironmentVariable, LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+
+
+def ros_mower_namespace(mower_id):
+    """Use ROS-compatible topic tokens while retaining the native mower UUID."""
+    return PythonExpression(["'mower_' + '", mower_id, "'.replace('-', '_')"])
 
 
 def generate_launch_description():
     mower_id = LaunchConfiguration("mower_id")
-    teleop_topic = ["/mower/", mower_id, "/teleop/cmd_vel"]
-    sim_topic = ["/mower/", mower_id, "/sim/cmd_vel"]
-    blade_topic = ["/mower/", mower_id, "/sim/blade_enable"]
-    telemetry_topic = ["/mower/", mower_id, "/telemetry"]
-    cutout_topic = ["/mower/", mower_id, "/boundary_cutout/download"]
+    ros_id = ros_mower_namespace(mower_id)
+    teleop_topic = ["/mower/", ros_id, "/teleop/cmd_vel"]
+    sim_topic = ["/mower/", ros_id, "/sim/cmd_vel"]
+    blade_topic = ["/mower/", ros_id, "/sim/blade_enable"]
+    telemetry_topic = ["/mower/", ros_id, "/telemetry"]
+    cutout_topic = ["/mower/", ros_id, "/boundary_cutout/download"]
     default_config = str(Path(__file__).parents[1] / "config" / "zenoh_client.json5")
     config = EnvironmentVariable("ZENOH_SESSION_CONFIG_URI", default_value=default_config)
 

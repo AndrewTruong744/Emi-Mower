@@ -9,3 +9,5 @@ certs/*.crt
 certs/*.csr
 certs/*.srl
 .git/
+.sim/
+.env

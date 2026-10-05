@@ -14,6 +14,7 @@ pytestmark = pytest.mark.zenoh_integration
 def _query_invalid_token(key_expr: str, payload: dict) -> dict:
     """Query a Compose-hosted backend route and decode its error reply."""
     config = zenoh.Config()
+    config.insert_json5("mode", '"client"')
     config.insert_json5("connect/endpoints", '["tcp/127.0.0.1:17447"]')
 
     session = zenoh.open(config)

@@ -164,3 +164,4 @@ agents/
 
 # Zenoh
 dump.rdb
+.sim/
