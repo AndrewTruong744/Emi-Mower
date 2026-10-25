@@ -1,30 +1,20 @@
 import { useMutation } from '@tanstack/react-query';
-import { updateEmail } from '@react-native-firebase/auth';
-import { firebaseAuth, getFirebaseIdToken } from '@/config/firebase';
 import type { UpdateUserEmailRequest, UpdateUserEmailResponse } from '@/generated/zenoh';
 import { updateUserEmailPath } from '@/generated/zenohPaths';
 import { zenohQuery } from '@/config/zenohClient';
 
 interface PatchUserEmailParams {
+  originalIdToken: string;
   newIdToken: string;
-  newEmail: string;
 }
 
-export const usePatchUserEmail = () => {
-  return useMutation({
-    mutationFn: async ({ newIdToken, newEmail }: PatchUserEmailParams) => {
-      const firebaseUser = firebaseAuth.currentUser;
-      if (!firebaseUser) {
-        throw new Error('No authenticated Firebase user found');
-      }
-      if (!newEmail) {
-        throw new Error('A new email address is required');
-      }
-
-      await updateEmail(firebaseUser, newEmail);
-      const idToken = await getFirebaseIdToken(true);
+export const usePatchUserEmail = () =>
+  useMutation({
+    mutationFn: async ({ originalIdToken, newIdToken }: PatchUserEmailParams) => {
+      if (!originalIdToken || !newIdToken)
+        throw new Error('Both Google accounts must be authenticated.');
       const request: UpdateUserEmailRequest = {
-        id_token: idToken,
+        id_token: originalIdToken,
         new_id_token: newIdToken,
       };
       return zenohQuery<UpdateUserEmailResponse>(updateUserEmailPath(), request);
@@ -32,4 +22,3 @@ export const usePatchUserEmail = () => {
     retry: false,
     gcTime: 0,
   });
-};

@@ -10,6 +10,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 
 pub mod generated;
 pub mod renewal;
+pub mod sim_commands;
 
 use generated::zenoh::{ImuTelemetry, MowerCutoutDelivery, TelemetryRecord};
 
@@ -98,7 +99,7 @@ pub fn joystick_to_velocity(
     max_linear_mps: f64,
     max_angular_radps: f64,
 ) -> (f64, f64) {
-    (command.y * max_linear_mps, command.x * max_angular_radps)
+    (command.y * max_linear_mps, -command.x * max_angular_radps)
 }
 
 pub fn validate_mower_id(mower_id: &str) -> Result<()> {

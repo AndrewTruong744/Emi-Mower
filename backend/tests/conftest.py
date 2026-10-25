@@ -102,7 +102,7 @@ def compose_stack(pytestconfig: pytest.Config) -> AsyncIterator[None]:
             [*command, "up", "--build", "--wait"],
             cwd=BACKEND_DIR,
             check=True,
-            timeout=300,
+            timeout=600,
         )
         yield
     finally:

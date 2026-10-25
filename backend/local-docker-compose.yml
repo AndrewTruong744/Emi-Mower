@@ -1,4 +1,10 @@
 services:
+  zenoh-admin-init:
+    image: alpine:3.22
+    volumes:
+      - zenoh-admin:/admin
+    command: ["sh", "-c", "umask 077 && if [ ! -s /admin/token ]; then head -c 48 /dev/urandom | base64 > /admin/token; fi"]
+
   step-ca:
     build:
       context: .
@@ -54,42 +60,55 @@ services:
       retries: 12
 
   zenoh-mtls:
-    image: eclipse/zenoh:1.9.0
+    build:
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     command: ["-c", "/workspace/${ZENOH_MTLS_CONFIG_FILE:-zenoh-router-mtls.json5}"]
     network_mode: host
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-mtls-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
 
   zenoh-app:
     build:
-      context: .
-      dockerfile: Dockerfile.zenoh-app
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     command: ["-c", "/workspace/zenoh-router-app.json5"]
     network_mode: host
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-app-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
       zenoh-mtls:
         condition: service_started
 
   zenoh-bootstrap:
-    image: eclipse/zenoh:1.9.0
+    build:
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     command: ["-c", "/workspace/zenoh-router-bootstrap.json5"]
     network_mode: host
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-mtls-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
 
@@ -104,6 +123,7 @@ services:
       - uv-cache:/root/.cache/uv
       - backend-venv:/workspace/.venv
       - backend-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
       - step-ca-issuer:/run/emi-mower/issuer:ro
     environment:
       POSTGRES_HOST: 127.0.0.1
@@ -132,6 +152,8 @@ services:
         uv run alembic upgrade head &&
         uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
       postgres:
@@ -184,6 +206,7 @@ services:
     working_dir: /workspace
     network_mode: host
     volumes:
+      - zenoh-admin:/run/emi-mower/admin:ro
       - ./:/workspace
       - uv-cache:/root/.cache/uv
       - backend-venv:/workspace/.venv
@@ -208,30 +231,9 @@ services:
       backend:
         condition: service_healthy
 
-  remove-usrpwds:
-    image: python:3.12-slim
-    working_dir: /workspace
-    network_mode: host
-    volumes:
-      - ./:/workspace
-      - uv-cache:/root/.cache/uv
-      - backend-venv:/workspace/.venv
-    environment:
-      VALKEY_HOST: 127.0.0.1
-      VALKEY_PORT: ${VALKEY_PORT:-6379}
-      ZENOH_APP_REST_URL: ${ZENOH_APP_REST_URL:-http://127.0.0.1:8001}
-    command:
-      - sh
-      - -c
-      - >-
-        pip install --disable-pip-version-check uv >/dev/null &&
-        uv sync --frozen &&
-        uv run python -m src.scripts.remove_usrpwds_from_zenoh
-    depends_on:
-      backend:
-        condition: service_healthy
 
 volumes:
+  zenoh-admin:
   postgres-data:
   valkey-data:
   uv-cache:

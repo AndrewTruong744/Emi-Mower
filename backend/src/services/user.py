@@ -4,6 +4,7 @@ import string
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.zenoh_client import ZenohAdminClient
 from src.exceptions import (
     AuthenticationError,
     ForbiddenError,
@@ -13,17 +14,19 @@ from src.exceptions import (
 from src.repositories import (
     create_user,
     find_user_by_email,
-    get_mowers_of_user,
     get_user_data,
     update_user_email,
     update_user_name,
 )
+from src.repositories.account_switch import (
+    invalidate_account_switch_cache,
+    stage_account_switch,
+    user_authorization_snapshot,
+)
 from src.services.auth import verify_firebase_id_token
-from src.services.temp_jwt import generate_jwt_token
-from src.services.zenoh_credentials import provision_zenoh_credential
 from src.zenoh.generated import UserLoginRequest
 
-ZENOH_JWT_TTL_SECONDS = 5 * 60
+ZENOH_SESSION_TTL_SECONDS = 5 * 60
 
 logger = logging.getLogger("services.user")
 
@@ -56,8 +59,10 @@ async def create_user_service(id_token: dict, db: AsyncSession) -> dict:
     return await create_user(user_id=user_id, email=email, name=name, db=db)
 
 
-async def user_login_service(payload: UserLoginRequest, db: AsyncSession) -> dict:
-    """Authenticate the user and provision a temporary Zenoh credential."""
+async def user_login_service(
+    payload: UserLoginRequest, db: AsyncSession, connection_context: dict | None = None
+) -> dict:
+    """Authenticate the user and authorize the captured connection."""
     firebase_token = payload.id_token
     if not firebase_token:
         raise ValidationError("The login payload must contain a non-empty id_token")
@@ -68,23 +73,23 @@ async def user_login_service(payload: UserLoginRequest, db: AsyncSession) -> dic
         raise AuthenticationError("Authenticated identity does not contain a user id")
 
     try:
-        user_data = await get_user_data(user_id, db=db)
+        user_data, mower_ids = await user_authorization_snapshot(user_id, db)
     except UserNotFoundError:
-        user_data = await create_user_service(decoded_identity, db=db)
-
-    mower_ids = await get_mowers_of_user(user_id, db=db)
+        await create_user_service(decoded_identity, db=db)
+        user_data, mower_ids = await user_authorization_snapshot(user_id, db)
     user_data = {**user_data, "mowers": mower_ids}
-    token = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
-    await provision_zenoh_credential(
-        user_id=user_id,
-        mower_ids=mower_ids,
-        password=token,
-        ttl_seconds=ZENOH_JWT_TTL_SECONDS,
+    if not connection_context:
+        raise AuthenticationError("Login requires router-captured connection context")
+    admin = ZenohAdminClient()
+    await admin.configure_user_app(user_id, mower_ids)
+    await admin.authorize_connection(
+        user_id, connection_context, ZENOH_SESSION_TTL_SECONDS
     )
+    await db.commit()  # Release the account lock after policy publication.
     return {
         "user_id": user_id,
-        "token": token,
-        "expires_in": ZENOH_JWT_TTL_SECONDS,
+        "authorized": True,
+        "expires_in": ZENOH_SESSION_TTL_SECONDS,
         "user_data": user_data,
     }
 
@@ -100,74 +105,76 @@ async def get_user_data_service(user_id: str, db: AsyncSession) -> dict:
 
 async def update_user_email_service(
     user_id: str, new_id_token: str, db: AsyncSession
-) -> str:
-    """
-    Service to update the email of a user.
-    Verifies the new_id_token using verify_firebase_id_token,
-    then updates the current user's email. The new token may have a different
-    Firebase UID; its email must not already belong to a database user.
-    Raises ForbiddenError, ValidationError, UserNotFoundError, or RepositoryError.
-    """
-    logger.info(f"update_user_email_service called for user: {user_id}")
-
-    try:
-        decoded_token = await verify_firebase_id_token(new_id_token)
-    except Exception as verify_err:
-        logger.warning(f"Failed to verify ID token for user email update: {verify_err}")
-        raise ForbiddenError(
-            "Not allowed: ID token verification failed"
-        ) from verify_err
-
-    new_email = decoded_token.get("email")
-    if not new_email:
-        logger.error("Verified ID token lacks 'email' claim")
-        raise ValidationError("Verified ID token lacks 'email' claim")
-
-    existing_user_id = await find_user_by_email(new_email, db=db)
-    if existing_user_id is not None:
-        logger.warning(
-            "Email %s is already registered to user %s", new_email, existing_user_id
+) -> dict:
+    """Verify the destination Google identity and atomically transfer the account."""
+    identity = await verify_firebase_id_token(new_id_token)
+    target_id, new_email = identity.get("user_id"), identity.get("email")
+    if not target_id or not new_email:
+        raise ValidationError(
+            "The replacement Google identity is missing its UID or email"
         )
-        raise ValidationError("The email address is already in use")
+    if (
+        not identity.get("email_verified")
+        or identity.get("firebase", {}).get("sign_in_provider") != "google.com"
+    ):
+        raise ForbiddenError("Use a verified Google account for the replacement login")
+    if target_id == user_id:
+        existing = await find_user_by_email(new_email, db=db)
+        if existing is not None and existing != user_id:
+            raise ValidationError("The email address is already in use")
+        await update_user_email(user_id, new_email, db=db)
+        return {"user_id": user_id, "new_email": new_email}
 
-    await update_user_email(user_id, new_email, db=db)
-    return new_email
+    admin = ZenohAdminClient()
+    retired = False
+    try:
+        mower_ids = await stage_account_switch(user_id, target_id, new_email, db)
+        # Revoke every old connection's application permissions immediately.
+        # Only this already-running operation's reply may leave the old router
+        # transport. No query, command, telemetry or subscription remains allowed.
+        await admin.retire_user(user_id)
+        retired = True
+        await invalidate_account_switch_cache(user_id, target_id, mower_ids)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        if retired:
+            # Restore only the ownership that still exists after rollback,
+            # serialized against another switch/login. Otherwise stay denied.
+            try:
+                _, owned = await user_authorization_snapshot(user_id, db)
+                await admin.configure_user_app(user_id, owned)
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                logger.warning("Account switch failed; old session needs a fresh login")
+        raise
+    # New login independently builds its policy from PostgreSQL. Do not authorize
+    # another identity on the old connection; Firebase handoff opens a new one.
+    return {"user_id": target_id, "new_email": new_email}
 
 
 async def update_user_name_service(
     user_id: str, new_user_name: str, db: AsyncSession
-) -> None:
+) -> str:
     """
     Service to update the nickname/user name of a user.
-    Verifies that the new name is alphanumeric and non-empty.
+    Accepts a non-empty, single-line display name up to 64 characters.
     Raises ValidationError, UserNotFoundError, or RepositoryError.
     """
     logger.info(
         f"update_user_name_service called for user: {user_id}, name: {new_user_name}"
     )
 
-    if not new_user_name or not new_user_name.isalnum():
-        logger.warning(
-            f"User name update rejected: '{new_user_name}' is not alphanumeric."
+    new_user_name = new_user_name.strip()
+    if (
+        not new_user_name
+        or len(new_user_name) > 64
+        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in new_user_name)
+    ):
+        raise ValidationError(
+            "Display name must be 1–64 characters without control characters"
         )
-        raise ValidationError(f"User name '{new_user_name}' is not alphanumeric")
 
     await update_user_name(user_id, new_user_name, db=db)
-
-
-async def get_zenoh_jwt_service(user_id: str, db: AsyncSession) -> str:
-    """
-    Generates a JWT token for the user.
-    Returns the JWT token string or raises TokenGenerationError.
-    """
-    logger.info(f"get_zenoh_jwt_service called for user: {user_id}")
-
-    mower_ids = await get_mowers_of_user(user_id, db=db)
-    jwt_value = generate_jwt_token(user_id, exp_seconds=ZENOH_JWT_TTL_SECONDS)
-    await provision_zenoh_credential(
-        user_id=user_id,
-        mower_ids=mower_ids,
-        password=jwt_value,
-        ttl_seconds=ZENOH_JWT_TTL_SECONDS,
-    )
-    return jwt_value
+    return new_user_name

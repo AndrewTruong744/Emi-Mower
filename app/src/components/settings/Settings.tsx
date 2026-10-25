@@ -17,12 +17,13 @@ interface FormValues {
 
 function validate(values: FormValues) {
   const errors: { displayName?: string } = {};
-  if (!values.displayName) {
+  const name = values.displayName.trim();
+  if (!name) {
     errors.displayName = 'Name is required';
-  } else if (!/^[a-zA-Z0-9_]+$/.test(values.displayName)) {
-    errors.displayName = 'Name must be alphanumeric';
-  } else if (values.displayName.length > 32) {
-    errors.displayName = 'Name must be at most 32 characters';
+  } else if (/[\u0000-\u001f\u007f-\u009f]/.test(name)) {
+    errors.displayName = 'Name must not contain control characters';
+  } else if (name.length > 64) {
+    errors.displayName = 'Name must be at most 64 characters';
   }
   return errors;
 }
@@ -45,10 +46,12 @@ export function Settings() {
     changeEmail,
     logout,
     isUpdatingUsername,
+    nameUpdateFeedback,
     isUpdatingEmail,
     isLoggingOut,
   } = useSettings();
-  const showLoadingOverlay = isUpdatingUsername || isUpdatingEmail || isLoggingOut;
+  const showLoadingOverlay = isUpdatingEmail || isLoggingOut;
+  const isBusy = isUpdatingUsername || showLoadingOverlay;
 
   return (
     <View style={styles.container}>
@@ -96,7 +99,7 @@ export function Settings() {
             initialValues={{ displayName: user.displayName || '' }}
             enableReinitialize
             validate={validate}
-            onSubmit={(values) => updateUsername(values.displayName)}
+            onSubmit={(values) => updateUsername(values.displayName.trim())}
           >
             {({
               handleChange,
@@ -112,7 +115,9 @@ export function Settings() {
                 <TextInput
                   mode="outlined"
                   label="Display Name"
+                  textColor="#000000"
                   value={values.displayName}
+                  editable={!isBusy}
                   onChangeText={handleChange('displayName')}
                   onBlur={handleBlur('displayName')}
                   error={touched.displayName && !!errors.displayName}
@@ -128,29 +133,44 @@ export function Settings() {
                 <Button
                   mode="contained"
                   onPress={() => handleSubmit()}
-                  disabled={!isValid || !dirty || isUpdatingUsername}
+                  disabled={!isValid || !dirty || isBusy}
                   loading={isUpdatingUsername}
                   style={[styles.button, styles.updateButton]}
                   labelStyle={styles.buttonLabel}
                 >
-                  Update Username
+                  {isUpdatingUsername ? 'Saving name…' : 'Update Name'}
                 </Button>
+                {nameUpdateFeedback && !isUpdatingUsername && (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={[
+                      styles.nameFeedback,
+                      nameUpdateFeedback.type === 'error' && styles.nameFeedbackError,
+                    ]}
+                  >
+                    {nameUpdateFeedback.message}
+                  </Text>
+                )}
               </View>
             )}
           </Formik>
+          <Text variant="bodyMedium">
+            Switch Google login and move all your mowers to the selected account. The previous
+            account and its access will be removed.
+          </Text>
           <Button
             mode="outlined"
             onPress={changeEmail}
-            disabled={isUpdatingEmail}
+            disabled={isBusy}
             loading={isUpdatingEmail}
             style={[styles.button, styles.emailButton]}
           >
-            Change Email
+            Change Google Account
           </Button>
           <Button
             mode="contained"
             onPress={logout}
-            disabled={isLoggingOut}
+            disabled={isBusy}
             loading={isLoggingOut}
             style={[styles.button, styles.logoutButton]}
             labelStyle={styles.buttonLabel}
@@ -181,10 +201,12 @@ const styles = StyleSheet.create({
   userEmailSubtitle: { fontSize: 14, marginTop: 4 },
   formCard: { borderRadius: 16, marginBottom: 20, padding: 20 },
   cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  input: { marginBottom: 4 },
+  input: { backgroundColor: '#FFFFFF', marginBottom: 4 },
   inputDisabled: { marginBottom: 16 },
   helperText: { marginBottom: 12 },
   helperSpacer: { height: 16 },
+  nameFeedback: { marginBottom: 16 },
+  nameFeedbackError: { color: '#ba1a1a' },
   button: { borderRadius: 8, marginBottom: 16, marginTop: 8, paddingVertical: 4 },
   updateButton: { backgroundColor: '#2563eb' },
   emailButton: { borderColor: '#2563eb' },

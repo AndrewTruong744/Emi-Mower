@@ -41,7 +41,8 @@ export function RenameMowerModal({ visible, currentName, onDismiss, onRename }: 
           value={name}
           onChangeText={setName}
           error={Boolean(error)}
-          textColor="#FFFFFF"
+          textColor="#000000"
+          style={styles.input}
           outlineColor="#6B7280"
           activeOutlineColor="#4CAF50"
           testID="rename-mower-name"
@@ -62,6 +63,7 @@ export function RenameMowerModal({ visible, currentName, onDismiss, onRename }: 
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end', marginTop: 6 },
+  input: { backgroundColor: '#FFFFFF' },
   modal: { backgroundColor: '#1E1E1E', borderRadius: 18, margin: 24, padding: 20 },
   title: { color: '#FFFFFF', fontWeight: '700', marginBottom: 14 },
 });

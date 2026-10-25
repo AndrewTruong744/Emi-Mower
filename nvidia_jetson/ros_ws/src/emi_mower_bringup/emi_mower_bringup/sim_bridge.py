@@ -15,6 +15,8 @@ from std_msgs.msg import Bool
 
 
 COMMAND_TIMEOUT = 0.2
+MAX_LINEAR_MPS = 5.0
+MAX_ANGULAR_RADPS = 5.0
 
 
 class SimBridge(Node):
@@ -41,8 +43,8 @@ class SimBridge(Node):
         if not math.isfinite(linear) or not math.isfinite(angular):
             return
         with self.lock:
-            self.linear = max(-1.0, min(1.0, linear))
-            self.angular = max(-1.0, min(1.0, angular))
+            self.linear = max(-MAX_LINEAR_MPS, min(MAX_LINEAR_MPS, linear))
+            self.angular = max(-MAX_ANGULAR_RADPS, min(MAX_ANGULAR_RADPS, angular))
             self.last_command = time.monotonic()
 
     def on_blade(self, message):

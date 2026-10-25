@@ -3,10 +3,9 @@ services:
     build: .
     image: emi-mower-mujoco:local
     init: true
-    environment:
-      MUJOCO_GL: osmesa
     ports:
-      - "${MUJOCO_VIEWER_BIND:-127.0.0.1}:8080:8080"
+      # Native desktop viewer reads state through the host loopback port.
+      - "127.0.0.1:8080:8080"
       # Jetson containers reach this published port through host.docker.internal.
       - "${MUJOCO_BRIDGE_BIND:-0.0.0.0}:8765:8765"
     healthcheck:

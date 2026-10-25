@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Surface } from 'react-native-paper';
 import { useMowers } from '@/hooks/mowers/useMowers';
+import { useBoundStore } from '@/store/useBoundStore';
 import { MowerSelector } from '@/components/mowers/MowerSelector';
 import Controls from './Controls';
 import { Livestream } from './Livestream';
@@ -8,6 +9,9 @@ import { Livestream } from './Livestream';
 /** Composes mower selection, secure livestream access, and control inputs. */
 export function ControllerDashboard() {
   const { activeMower, mowerIds, selectedMowerUuid, selectMower } = useMowers();
+  const connection = useBoundStore((state) =>
+    selectedMowerUuid ? state.mowerDetails[selectedMowerUuid]?.connection : null
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -21,7 +25,7 @@ export function ControllerDashboard() {
       </View>
 
       <Surface elevation={1} style={styles.controlsCard}>
-        <Controls mowerId={selectedMowerUuid} />
+        <Controls key={`${selectedMowerUuid}:${connection}`} mowerId={selectedMowerUuid} />
       </Surface>
     </ScrollView>
   );

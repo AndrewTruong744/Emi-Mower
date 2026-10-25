@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Run connected ROS mowers in MuJoCo and serve a browser view."""
+"""Run connected ROS mowers in MuJoCo and serve state to the native viewer."""
 
-import io
 import json
 import os
 import re
@@ -11,9 +10,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import mujoco
-from PIL import Image
 
-from world import BLADE_SPEED, build_world, wheel_speeds
+from world import BLADE_SPEED, apply_drive_brake, apply_drive_control, build_world, wheel_speeds
 
 
 class Fleet:
@@ -21,7 +19,7 @@ class Fleet:
         self.lock = threading.Lock()
         self.clients = {}
         self.revision = 0
-        self.frame = b""
+        self.state = {"mowers": [], "qpos": [], "qvel": []}
 
     def attach(self, mower_id, connection):
         with self.lock:
@@ -90,43 +88,22 @@ class BridgeServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
 
 
-PAGE = b"""<!doctype html><html><head><meta charset='utf-8'><title>Emi MuJoCo</title>
-<style>body{background:#17201b;color:#f0f4ed;font:16px system-ui;margin:24px}img{width:100%;max-width:1280px;border:1px solid #617362}code{color:#abd6b5}</style>
-</head><body><h1>Emi Mower simulation</h1><p id='fleet'>Connecting...</p>
-<img src='/stream' alt='Live MuJoCo world'><script>
-async function update(){try{let r=await fetch('/status');let s=await r.json();
-document.getElementById('fleet').textContent=s.mowers.length+' online mower(s): '+s.mowers.join(', ')}catch(e){}}
-setInterval(update,1000);update();</script></body></html>"""
-
-
-class ViewerHandler(BaseHTTPRequestHandler):
+class StateHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(PAGE)
-        elif self.path == "/status":
+        if self.path == "/status":
             _, clients = fleet.snapshot()
             payload = json.dumps({"mowers": sorted(clients)}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(payload)
-        elif self.path == "/stream":
+        elif self.path == "/state":
+            with fleet.lock:
+                payload = json.dumps(fleet.state).encode()
             self.send_response(200)
-            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Content-Type", "application/json")
             self.end_headers()
-            try:
-                while True:
-                    with fleet.lock:
-                        frame = fleet.frame
-                    if frame:
-                        self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n")
-                        self.wfile.flush()
-                    time.sleep(0.1)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
+            self.wfile.write(payload)
         else:
             self.send_error(404)
 
@@ -149,50 +126,59 @@ def transfer_state(old_model, old_data, model, data):
 
 
 def run_simulation():
-    model = data = renderer = None
+    model = data = None
     revision = -1
-    next_frame = 0.0
+    root_joints = []
+    spawn_slots = {}
     while True:
         started = time.monotonic()
         current_revision, clients = fleet.snapshot()
+        ids = sorted(clients)
         if current_revision != revision:
-            ids = sorted(clients)
-            new_model = mujoco.MjModel.from_xml_string(build_world(ids))
+            for mower_id in ids:
+                if mower_id not in spawn_slots:
+                    spawn_slots[mower_id] = len(spawn_slots)
+            new_model = mujoco.MjModel.from_xml_string(build_world(ids, spawn_slots))
             new_data = mujoco.MjData(new_model)
             transfer_state(model, data, new_model, new_data)
-            if renderer is not None:
-                renderer.close()
             model, data = new_model, new_data
-            renderer = mujoco.Renderer(model, height=720, width=1280)
+            root_joints = [
+                joint_id
+                for joint_id in range(model.njnt)
+                if model.jnt_type[joint_id] == mujoco.mjtJoint.mjJNT_FREE
+            ]
             revision = current_revision
             print(f"MuJoCo mowers online: {', '.join(ids) or 'none'}", flush=True)
         now = time.monotonic()
+        drive_commands = []
         for index, mower_id in enumerate(sorted(clients)):
             client = clients[mower_id]
             command = client["command"] if now - client["received"] < 0.3 else {}
-            data.ctrl[index * 3] = command.get("left", 0.0)
-            data.ctrl[index * 3 + 1] = command.get("right", 0.0)
+            left = command.get("left", 0.0)
+            right = command.get("right", 0.0)
+            apply_drive_control(model, data, index * 3, root_joints[index], left, right)
+            drive_commands.append((root_joints[index], left, right))
             data.ctrl[index * 3 + 2] = BLADE_SPEED if command.get("blade", False) else 0.0
         mujoco.mj_step(model, data)
-        if now >= next_frame:
-            renderer.update_scene(data, camera="overview")
-            image = Image.fromarray(renderer.render())
-            output = io.BytesIO()
-            image.save(output, format="JPEG", quality=80)
-            with fleet.lock:
-                fleet.frame = output.getvalue()
-            next_frame = now + 0.1
+        for root_joint, left, right in drive_commands:
+            apply_drive_brake(model, data, root_joint, left, right)
+        with fleet.lock:
+            fleet.state = {
+                "mowers": ids,
+                "qpos": data.qpos.tolist(),
+                "qvel": data.qvel.tolist(),
+            }
         time.sleep(max(0.0, model.opt.timestep - (time.monotonic() - started)))
 
 
 def main():
     bridge_port = int(os.environ.get("MUJOCO_BRIDGE_PORT", "8765"))
-    viewer_port = int(os.environ.get("MUJOCO_VIEWER_PORT", "8080"))
+    state_port = int(os.environ.get("MUJOCO_STATE_PORT", "8080"))
     bridge = BridgeServer(("0.0.0.0", bridge_port), BridgeHandler)
-    viewer = ThreadingHTTPServer(("0.0.0.0", viewer_port), ViewerHandler)
+    state_server = ThreadingHTTPServer(("0.0.0.0", state_port), StateHandler)
     threading.Thread(target=bridge.serve_forever, daemon=True).start()
-    threading.Thread(target=viewer.serve_forever, daemon=True).start()
-    print(f"MuJoCo viewer: http://localhost:{viewer_port}", flush=True)
+    threading.Thread(target=state_server.serve_forever, daemon=True).start()
+    print(f"MuJoCo native viewer state: http://localhost:{state_port}/state", flush=True)
     run_simulation()
 
 

@@ -11,10 +11,20 @@ motion. The STM32 independently validates motor commands and watchdog timing.
   and sign-out session.
 - View the mowers returned for the authenticated account, select a mower, and
   inspect its session telemetry, status, battery, position, and charts.
+- Add a registered, active, unassigned mower by UUID. The backend verifies its
+  existence and ownership before the app adds it to the displayed fleet.
+- Remove an owned mower from the account or transfer it to an existing app
+  account using the recipient's User ID (UID) from Settings. Confirmation is
+  required. Removal unassigns the mower; it preserves its records and telemetry.
+  Ownership changes update live Zenoh permissions and preserve unrelated traffic.
+  **Refresh fleet** reloads the authoritative list, including received transfers
+  and removal of any old local-only entries, without signing out.
 - Request paginated historical metrics for the selected mower, including motor
   and IMU values where telemetry is available.
-- Use the controller screen to publish normalized joystick input and send
-  one-off power, autonomy, and emergency-stop commands. The command route
+- Use the controller screen to publish normalized joystick input every 50 ms
+  while held away from center, with speed proportional to joystick distance,
+  and a 3% zero band on each axis for straight driving and in-place turns,
+  and send one-off power, autonomy, and emergency-stop commands. The command route
   returns an acceptance result; the UI must not be treated as proof of physical
   motion or safety-state execution.
 - Request short-lived LiveKit viewer credentials for a selected mower. The
@@ -32,11 +42,9 @@ motion. The STM32 independently validates motor commands and watchdog timing.
 
 ## Current UI-only behavior
 
-The Add Mower and Rename Mower dialogs currently update the local Zustand
-store. They do not call the generated `user/add_mower` or
-`mower/{mower_id}/update_name` routes, so those changes are not persisted
-through the backend and reset on sign-out/session reset. Treat these controls
-as local UI behavior until their API hooks are implemented.
+The Rename Mower dialog currently updates the local Zustand store. It does not
+call `mower/{mower_id}/update_name`, so mower nicknames edited there reset on
+sign-out/session reset. Account display-name updates use the backend.
 
 ## Important boundaries
 

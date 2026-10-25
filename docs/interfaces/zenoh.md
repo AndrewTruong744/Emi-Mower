@@ -6,17 +6,29 @@ This AsyncAPI document defines native Zenoh routes and wire payload shapes used
 by the app, backend, and Jetson gateway. Value checks such as joystick limits,
 date parsing, and URL safety belong to the functions handling those payloads.
 Mower commands and telemetry are scoped by `mower_id`.
+Joystick `x` is rotation (`+x` right, `-x` left); `y` is translation (`+y`
+forward, `-y` backward). The gateway converts right rotation to negative ROS
+angular z, following the counterclockwise-positive ROS convention.
 
 ## Connection planes
 
 The router configuration files define three local connection planes: the
-app-router Zenoh WebSocket listener on 7447, the private mTLS router on 7448,
+app-router native TLS listener on 7447, the private mTLS router on 7448,
 and the TLS-only certificate renewal router on 7449. Router ACLs limit the two
 `bootstrap/` channels to the renewal plane. See
 [Zenoh routers](../backend/zenoh-routers.md) for the executable configuration.
 
-The mobile app uses the app router's separate remote-API WebSocket endpoint on
-port 10000. Its URL is configured through `EXPO_PUBLIC_ZENOH_URL`.
+The mobile app connects directly with native Rust Zenoh to port 7447. Its
+`tls/host:port` endpoint is configured through `EXPO_PUBLIC_ZENOH_URL`. Login
+authorizes the captured transport before returning `authorized: true`; it does
+not issue a router password or replace the app session.
+
+The app's ownership queries are `user/add_mower`, `user/remove_mower`, and
+`user/transfer_mower`. Each carries a Firebase ID token and mower UUID; transfer
+also carries the recipient's existing Firebase UID as `new_owner_id`. The
+backend derives the caller from the verified token and checks PostgreSQL
+ownership. Removal unassigns the mower, while transfer changes its owner and
+both accounts' live route permissions. Neither operation deletes mower data.
 
 ## ROS transport
 

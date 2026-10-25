@@ -1,0 +1,29 @@
+[package]
+name = "emi-zenoh-native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[lib]
+crate-type = ["cdylib", "rlib"]
+[features]
+# Exercise the Android JNI adapter in a desktop JVM without an emulator.
+jni-tests = ["jni/invocation"]
+# Desktop-only runner for the Python backend integration tests.
+test-driver = []
+
+[[example]]
+name = "test-driver"
+path = "examples/test_driver.rs"
+required-features = ["test-driver"]
+
+[dependencies]
+jni = "0.21.1"
+zenoh = { path = "../../../../../zenoh/zenoh", default-features = false, features = ["transport_tcp", "transport_tls","unstable"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync"] }
+zenoh = { path = "../../../../../zenoh/zenoh", default-features = false, features = ["internal", "unstable", "transport_tcp", "transport_tls"] }

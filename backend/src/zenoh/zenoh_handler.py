@@ -114,9 +114,16 @@ class ZenohQueryHandler:
         *,
         request_model: type[BaseModel] | None = None,
         include_query_key: bool = False,
+        include_connection_context: bool = False,
     ) -> Any:
         def on_query(query: zenoh.Query) -> None:
-            coroutine = self._process(query, handler, request_model, include_query_key)
+            coroutine = self._process(
+                query,
+                handler,
+                request_model,
+                include_query_key,
+                include_connection_context,
+            )
             try:
                 asyncio.run_coroutine_threadsafe(coroutine, self.loop)
             except Exception:
@@ -134,6 +141,7 @@ class ZenohQueryHandler:
         handler: QueryFunction | KeyedQueryFunction,
         request_model: type[BaseModel] | None,
         include_query_key: bool = False,
+        include_connection_context: bool = False,
     ) -> None:
         instance = str(query.key_expr)
         try:
@@ -147,7 +155,21 @@ class ZenohQueryHandler:
                 request = request_model.model_validate(request)
 
             async with AsyncSessionLocal() as db:
-                if include_query_key:
+                if include_connection_context:
+                    from src.exceptions import AuthenticationError
+
+                    try:
+                        context = json.loads(_payload_bytes(query.attachment))[
+                            "zenoh_connection"
+                        ]
+                        if not isinstance(context, dict):
+                            raise ValueError("Invalid connection context")
+                    except (ValueError, KeyError, TypeError, AttributeError) as error:
+                        raise AuthenticationError(
+                            "Missing router connection context"
+                        ) from error
+                    response = await handler(request, db, context)
+                elif include_query_key:
                     response = await handler(request, db, instance)  # type: ignore[call-arg]
                 else:
                     response = await handler(request, db)  # type: ignore[call-arg]

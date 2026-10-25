@@ -6,37 +6,34 @@ import { AddMowerModal } from './AddMowerModal';
 import { MowerDetailsContent } from './MowerDetailsContent';
 import { MowerSelector } from './MowerSelector';
 import { RenameMowerModal } from './RenameMowerModal';
+import { useMowerOwnership, type OwnershipResult } from '@/hooks/mowers/useMowerOwnership';
+import { MowerOwnershipModal, type OwnershipSelection } from './MowerOwnershipModal';
 
 export function Mowers() {
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isRenameModalVisible, setRenameModalVisible] = useState(false);
   const mowerIds = useBoundStore((state) => state.mowers);
   const selectedMowerUuid = useBoundStore((state) => state.selectedMowerUuid);
-  const addMowerToStore = useBoundStore((state) => state.addMower);
+  const ownership = useMowerOwnership();
+  const [ownershipSelection, setOwnershipSelection] = useState<OwnershipSelection | null>(null);
+  const [feedback, setFeedback] = useState<OwnershipResult | null>(null);
   const renameMowerInStore = useBoundStore((state) => state.renameMower);
   const selectMower = useBoundStore((state) => state.selectMower);
   // Only read the name while its form is visible; telemetry updates must not
   // cause the surrounding page and selector to render.
   const activeMowerName = useBoundStore((state) =>
     isRenameModalVisible && selectedMowerUuid
-      ? state.mowerDetails[selectedMowerUuid]?.name ?? ''
+      ? (state.mowerDetails[selectedMowerUuid]?.name ?? '')
       : ''
   );
 
-  const addMower = useCallback(
-    (uuid: string) => {
-      const normalizedUuid = uuid.trim();
-      if (!normalizedUuid) return { success: false, error: 'A mower UUID is required.' };
-      if (mowerIds.includes(normalizedUuid)) {
-        selectMower(normalizedUuid);
-        return { success: false, error: 'That mower is already in your fleet.' };
-      }
-
-      addMowerToStore(normalizedUuid);
-      return { success: true };
-    },
-    [addMowerToStore, mowerIds, selectMower]
-  );
+  const showOwnership = (action: OwnershipSelection['action']) => {
+    if (!selectedMowerUuid) return;
+    const name =
+      useBoundStore.getState().mowerDetails[selectedMowerUuid]?.name ?? selectedMowerUuid;
+    setFeedback(null);
+    setOwnershipSelection({ action, mowerId: selectedMowerUuid, name });
+  };
 
   const renameActiveMower = useCallback(
     (name: string) => {
@@ -62,16 +59,61 @@ export function Mowers() {
               Monitor your mower fleet and its active session.
             </Text>
           </View>
-          <Button mode="contained" icon="plus" onPress={() => setAddModalVisible(true)} style={styles.addButton}>
+          <Button
+            mode="outlined"
+            icon="refresh"
+            disabled={ownership.isPending}
+            onPress={async () => setFeedback(await ownership.refreshFleet())}
+          >
+            Refresh fleet
+          </Button>
+          <Button
+            mode="contained"
+            icon="plus"
+            disabled={ownership.isPending}
+            onPress={() => {
+              setFeedback(null);
+              setAddModalVisible(true);
+            }}
+            style={styles.addButton}
+          >
             Add mower
           </Button>
         </View>
+
+        {feedback && (
+          <Text accessibilityLiveRegion="polite" style={styles.feedback}>
+            {feedback.success ? feedback.message : feedback.error}
+          </Text>
+        )}
 
         <MowerSelector
           mowerIds={mowerIds}
           selectedMowerUuid={selectedMowerUuid}
           onSelect={selectMower}
         />
+
+        {selectedMowerUuid && (
+          <View style={styles.ownershipActions}>
+            <Button
+              mode="outlined"
+              disabled={ownership.isPending}
+              onPress={() => showOwnership('transfer')}
+              testID="transfer-mower"
+            >
+              Transfer mower
+            </Button>
+            <Button
+              mode="outlined"
+              textColor="#ba1a1a"
+              disabled={ownership.isPending}
+              onPress={() => showOwnership('remove')}
+              testID="remove-mower"
+            >
+              Remove mower
+            </Button>
+          </View>
+        )}
 
         {mowerIds.length === 0 ? (
           <Surface elevation={1} style={styles.emptyState}>
@@ -93,7 +135,25 @@ export function Mowers() {
       <AddMowerModal
         visible={isAddModalVisible}
         onDismiss={() => setAddModalVisible(false)}
-        onAddMower={addMower}
+        isPending={ownership.isPending}
+        onAddMower={async (id) => {
+          const result = await ownership.addMower(id);
+          if (result.success) setFeedback(result);
+          return result;
+        }}
+      />
+      <MowerOwnershipModal
+        selection={ownershipSelection}
+        isPending={ownership.isPending}
+        onDismiss={() => setOwnershipSelection(null)}
+        onConfirm={async (selection, recipient) => {
+          const result =
+            selection.action === 'remove'
+              ? await ownership.removeMower(selection.mowerId)
+              : await ownership.transferMower(selection.mowerId, recipient);
+          if (result.success) setFeedback(result);
+          return result;
+        }}
       />
       <RenameMowerModal
         visible={isRenameModalVisible}
@@ -108,6 +168,8 @@ export function Mowers() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   addButton: { alignSelf: 'flex-start', marginTop: 14 },
+  feedback: { marginBottom: 16 },
+  ownershipActions: { gap: 8, marginTop: 12 },
   emptyState: { borderRadius: 16, padding: 20 },
   emptyStateMessage: { marginTop: 6, opacity: 0.65 },
   emptyStateTitle: { fontWeight: '700' },

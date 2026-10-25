@@ -7,3 +7,7 @@ __pycache__/
 .env
 .sim/
 service-account.json
+
+tools/node_modules/
+.coverage
+coverage.xml

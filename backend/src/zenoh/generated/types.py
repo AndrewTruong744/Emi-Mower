@@ -27,6 +27,30 @@ class AddMowerToUserResponse(ZenohModel):
     mower_id: str
 
 
+class RemoveMowerFromUserRequest(ZenohModel):
+    id_token: str
+    mower_id: str
+
+
+class RemoveMowerFromUserResponse(ZenohModel):
+    message: str
+    user_id: str
+    mower_id: str
+
+
+class TransferMowerRequest(ZenohModel):
+    id_token: str
+    mower_id: str
+    new_owner_id: str
+
+
+class TransferMowerResponse(ZenohModel):
+    message: str
+    user_id: str
+    mower_id: str
+    new_owner_id: str
+
+
 class UpdateUserNameRequest(ZenohModel):
     id_token: str
     new_user_name: str
@@ -70,7 +94,7 @@ class UserData(ZenohModel):
 
 class UserLoginResponse(ZenohModel):
     user_id: str
-    token: str
+    authorized: Literal[True]
     expires_in: int
     user_data: UserData
 

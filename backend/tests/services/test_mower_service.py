@@ -1,4 +1,4 @@
-from unittest.mock import ANY, AsyncMock
+from unittest.mock import ANY, AsyncMock, Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -9,6 +9,17 @@ from src.zenoh.generated import TelemetryRecord
 
 MOWER_ID = str(uuid4())
 MOWER_UUID = UUID(MOWER_ID)
+
+
+@pytest.fixture
+def admin(monkeypatch):
+    client = Mock(revoke_user=AsyncMock(), configure_user_app=AsyncMock())
+    monkeypatch.setattr(mower, "ZenohAdminClient", lambda: client)
+    monkeypatch.setattr(mower, "invalidate_mower_ownership", AsyncMock())
+    monkeypatch.setattr(
+        mower, "user_authorization_snapshot", AsyncMock(return_value=({}, []))
+    )
+    return client
 
 
 async def test_get_mower_data_service_returns_only_requested_mower(monkeypatch):
@@ -99,27 +110,89 @@ async def test_update_mower_name_service_validates_then_delegates(monkeypatch):
         await mower.update_mower_name_service("user-1", MOWER_ID, "Valid", object())
 
 
-async def test_update_mower_ownership_requires_actual_owner_match(monkeypatch):
-    set_owner = AsyncMock()
-    monkeypatch.setattr(mower, "set_mower_owner", set_owner)
-    monkeypatch.setattr(
-        mower, "check_mower_ownership", AsyncMock(return_value="owner-1")
-    )
-
+async def test_ownership_requires_backend_validation_before_policy_changes(
+    monkeypatch, admin
+):
+    stage = AsyncMock(side_effect=OwnershipError("not owner"))
+    monkeypatch.setattr(mower, "stage_mower_ownership", stage)
+    db = AsyncMock()
     with pytest.raises(OwnershipError):
-        await mower.update_mower_ownership_service(
-            "wrong", "owner-2", MOWER_ID, object()
-        )
-
-    await mower.update_mower_ownership_service("owner-1", "owner-2", MOWER_ID, object())
-    set_owner.assert_awaited_once_with("owner-2", MOWER_UUID, db=ANY)
+        await mower.update_mower_ownership_service("wrong", "new", MOWER_ID, db)
+    admin.configure_user_app.assert_not_awaited()
+    db.commit.assert_not_awaited()
+    db.rollback.assert_awaited_once()
 
 
-async def test_update_mower_ownership_assigns_unowned_mower(monkeypatch):
-    set_owner = AsyncMock()
-    monkeypatch.setattr(mower, "set_mower_owner", set_owner)
-    monkeypatch.setattr(mower, "check_mower_ownership", AsyncMock(return_value=None))
+async def test_ownership_narrows_only_source_before_commit_and_grants_destination_after(
+    monkeypatch, admin
+):
+    stage = AsyncMock(return_value={"old": ["unrelated"], "new": [MOWER_ID]})
+    monkeypatch.setattr(mower, "stage_mower_ownership", stage)
+    order = []
 
-    await mower.update_mower_ownership_service(None, "new-owner", MOWER_ID, object())
+    async def configure(owner, ids):
+        order.append((owner, ids))
 
-    set_owner.assert_awaited_once_with("new-owner", MOWER_UUID, db=ANY)
+    db = AsyncMock()
+    db.commit.side_effect = lambda: order.append(("commit", None))
+    admin.configure_user_app.side_effect = configure
+    monkeypatch.setattr(
+        mower, "user_authorization_snapshot", AsyncMock(return_value=({}, [MOWER_ID]))
+    )
+    await mower.update_mower_ownership_service("old", "new", MOWER_ID, db)
+    assert order == [
+        ("old", ["unrelated"]),
+        ("commit", None),
+        ("new", [MOWER_ID]),
+        ("commit", None),
+    ]
+    admin.revoke_user.assert_not_awaited()
+
+
+async def test_claim_does_not_grant_permissions_until_database_commit(
+    monkeypatch, admin
+):
+    stage = AsyncMock(return_value={"new": [MOWER_ID]})
+    monkeypatch.setattr(mower, "stage_mower_ownership", stage)
+    db = AsyncMock()
+
+    async def configure(owner, ids):
+        assert db.commit.await_count == 1
+
+    admin.configure_user_app.side_effect = configure
+    await mower.update_mower_ownership_service(None, "new", MOWER_ID, db)
+    stage.assert_awaited_once_with(None, "new", MOWER_UUID, db)
+
+
+async def test_failed_revocation_rolls_back_and_restores_from_authoritative_snapshot(
+    monkeypatch, admin
+):
+    monkeypatch.setattr(
+        mower,
+        "stage_mower_ownership",
+        AsyncMock(return_value={"old": [], "new": [MOWER_ID]}),
+    )
+    monkeypatch.setattr(
+        mower, "user_authorization_snapshot", AsyncMock(return_value=({}, [MOWER_ID]))
+    )
+    admin.configure_user_app.side_effect = [RuntimeError("router unavailable"), None]
+    db = AsyncMock()
+    with pytest.raises(RuntimeError, match="router unavailable"):
+        await mower.update_mower_ownership_service("old", "new", MOWER_ID, db)
+    db.rollback.assert_awaited_once()
+    assert admin.configure_user_app.call_args_list[-1].args == ("old", [MOWER_ID])
+    admin.revoke_user.assert_not_awaited()
+
+
+async def test_postcommit_access_failure_reports_saved_ownership(monkeypatch, admin):
+    from src.exceptions import ExternalServiceError
+
+    monkeypatch.setattr(
+        mower,
+        "stage_mower_ownership",
+        AsyncMock(return_value={"old": [], "new": [MOWER_ID]}),
+    )
+    admin.configure_user_app.side_effect = [None, RuntimeError("router unavailable")]
+    with pytest.raises(ExternalServiceError, match="Ownership was saved"):
+        await mower.update_mower_ownership_service("old", "new", MOWER_ID, AsyncMock())
+    assert admin.configure_user_app.await_count == 2

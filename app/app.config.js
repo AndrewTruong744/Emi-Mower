@@ -1,3 +1,5 @@
+require('@expo/env').load(__dirname);
+
 function required(value, name) {
   const trimmedValue = value?.trim();
   if (!trimmedValue) {
@@ -7,21 +9,8 @@ function required(value, name) {
 }
 
 function validateZenohUrl(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must be a valid ws:// or wss:// URL');
-  }
-
-  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must use ws:// or wss://');
-  }
-  if (!url.hostname) {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must include a host');
-  }
-  if (url.username || url.password) {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must not include credentials');
+  if (!/^(tls|tcp)\/[^\s/@]+:\d+$/.test(value)) {
+    throw new Error('EXPO_PUBLIC_ZENOH_URL must be a native tls/ or tcp/ endpoint');
   }
 }
 

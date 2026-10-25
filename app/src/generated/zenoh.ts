@@ -15,6 +15,30 @@ export interface AddMowerToUserResponse {
   mower_id: string;
 }
 
+export interface RemoveMowerFromUserRequest {
+  id_token: string;
+  mower_id: string;
+}
+
+export interface RemoveMowerFromUserResponse {
+  message: string;
+  user_id: string;
+  mower_id: string;
+}
+
+export interface TransferMowerRequest {
+  id_token: string;
+  mower_id: string;
+  new_owner_id: string;
+}
+
+export interface TransferMowerResponse {
+  message: string;
+  user_id: string;
+  mower_id: string;
+  new_owner_id: string;
+}
+
 export interface UpdateUserNameRequest {
   id_token: string;
   new_user_name: string;
@@ -58,7 +82,7 @@ export interface UserData {
 
 export interface UserLoginResponse {
   user_id: string;
-  token: string;
+  authorized: true;
   expires_in: number;
   user_data: UserData;
 }

@@ -16,7 +16,7 @@ async def test_login_listener_maps_service_result_to_wire_response(monkeypatch):
     service = AsyncMock(
         return_value={
             "user_id": "user-1",
-            "token": "jwt",
+            "authorized": True,
             "expires_in": 300,
             "user_data": {
                 "id": "user-1",
@@ -30,12 +30,13 @@ async def test_login_listener_maps_service_result_to_wire_response(monkeypatch):
     request = UserLoginRequest(id_token="firebase-token")
     db = Mock()
 
-    response = await listener.user_login(request, db)
+    context = {"id": "a" * 32, "nonce": "b" * 32}
+    response = await listener.user_login(request, db, context)
 
-    service.assert_awaited_once_with(request, db)
+    service.assert_awaited_once_with(request, db, context)
     assert isinstance(response, UserLoginResponse)
     assert response.user_data.id == "user-1"
-    assert response.token == "jwt"
+    assert response.authorized is True
 
 
 async def test_cutout_listener_maps_service_result_to_wire_response(monkeypatch):

@@ -1,8 +1,9 @@
 use emi_mower_zenoh_gateway::generated::zenoh::TelemetryRecord;
 use emi_mower_zenoh_gateway::generated::zenoh_paths::{
-    mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path,
+    mower_command_path, mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path,
     MOWER_CUTOUT_DELIVERY_ADDRESS, MOWER_JOYSTICK_ADDRESS, MOWER_LIVELINESS_ADDRESS,
 };
+use emi_mower_zenoh_gateway::sim_commands::{Command, SimCommandState};
 use emi_mower_zenoh_gateway::{
     joystick_to_velocity, parse_cutout_delivery, parse_joystick_payload, telemetry_payload,
     validate_mower_id, RosImuTelemetry, RosTelemetryRecord,
@@ -75,10 +76,42 @@ fn generated_joystick_contract_drives_the_ros_velocity_convention() {
     let joystick = parse_joystick_payload(br#"{"x":0.5,"y":-0.25}"#).unwrap();
     assert_eq!(MOWER_JOYSTICK_ADDRESS, "mower/{mower_id}/joystick");
     assert_eq!(mower_joystick_path("mower-01"), "mower/mower-01/joystick");
-    assert_eq!(joystick_to_velocity(joystick, 2.0, 1.5), (-0.5, 0.75));
+    assert_eq!(joystick_to_velocity(joystick, 2.0, 1.5), (-0.5, -0.75));
+    let opposite = parse_joystick_payload(br#"{"x":-1.0,"y":1.0}"#).unwrap();
+    assert_eq!(joystick_to_velocity(opposite, 2.0, 1.5), (2.0, 1.5));
     assert!(parse_joystick_payload(br#"{"x":1.1,"y":0.0}"#).is_err());
     assert!(parse_joystick_payload(br#"{"x":0.0,"y":0.0,"extra":true}"#).is_ok());
     assert!(validate_mower_id("mower/01").is_err());
+}
+
+#[test]
+fn simulation_commands_gate_manual_motion_and_latch_stop() {
+    assert_eq!(mower_command_path("mower-01"), "mower/mower-01/command");
+    let mut state = SimCommandState::default();
+    assert!(!state.accepts_joystick());
+    let (reply, stop) = state.apply(
+        serde_json::from_str::<Command>(r#"{"command_id":"1","type":"set_power","enabled":true}"#)
+            .unwrap(),
+    );
+    assert_eq!(reply.status, "accepted");
+    assert!(!stop);
+    assert!(state.accepts_joystick());
+    let (reply, stop) = state.apply(
+        serde_json::from_str::<Command>(r#"{"command_id":"2","type":"set_mode","mode":"auto"}"#)
+            .unwrap(),
+    );
+    assert_eq!(reply.status, "accepted");
+    assert!(stop);
+    assert!(!state.accepts_joystick());
+    state.apply(
+        serde_json::from_str::<Command>(r#"{"command_id":"3","type":"emergency_stop"}"#).unwrap(),
+    );
+    let (reply, _) = state.apply(
+        serde_json::from_str::<Command>(r#"{"command_id":"4","type":"set_power","enabled":true}"#)
+            .unwrap(),
+    );
+    assert_eq!(reply.status, "rejected");
+    assert!(!state.accepts_joystick());
 }
 
 #[test]

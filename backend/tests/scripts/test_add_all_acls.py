@@ -8,7 +8,7 @@ from src.scripts import add_all_acls
 
 @pytest.mark.asyncio
 async def test_add_all_acls_configures_every_user_and_mower(monkeypatch):
-    db = object()
+    db = AsyncMock()
 
     @asynccontextmanager
     async def fake_session():
@@ -29,16 +29,18 @@ async def test_add_all_acls_configures_every_user_and_mower(monkeypatch):
         ),
     )
     monkeypatch.setattr(add_all_acls, "ZenohAdminClient", Mock(return_value=client))
-    close = AsyncMock()
-    monkeypatch.setattr(add_all_acls, "close_http_client", close)
 
+    monkeypatch.setattr(
+        add_all_acls,
+        "user_authorization_snapshot",
+        AsyncMock(return_value=({}, ["mower-1"])),
+    )
     await add_all_acls.add_all_acls()
 
     client.configure_user_app.assert_awaited_once_with(
         user_id="user-1", mower_ids=["mower-1"]
     )
     client.configure_mower_device.assert_awaited_once_with("mower-1")
-    close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -57,18 +59,15 @@ async def test_add_all_acls_is_noop_when_database_has_no_users_or_mowers(monkeyp
         AsyncMock(return_value={"users": [], "mowers": []}),
     )
     monkeypatch.setattr(add_all_acls, "ZenohAdminClient", Mock(return_value=client))
-    close = AsyncMock()
-    monkeypatch.setattr(add_all_acls, "close_http_client", close)
 
     await add_all_acls.add_all_acls()
 
     client.configure_user_app.assert_not_awaited()
     client.configure_mower_device.assert_not_awaited()
-    close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_add_all_acls_closes_http_client_when_database_loading_fails(monkeypatch):
+async def test_add_all_acls_propagates_database_loading_failures(monkeypatch):
     @asynccontextmanager
     async def fake_session():
         yield object()
@@ -79,9 +78,6 @@ async def test_add_all_acls_closes_http_client_when_database_loading_fails(monke
         "get_all_mowers_and_users",
         AsyncMock(side_effect=RuntimeError("database unavailable")),
     )
-    close = AsyncMock()
-    monkeypatch.setattr(add_all_acls, "close_http_client", close)
 
     with pytest.raises(RuntimeError):
         await add_all_acls.add_all_acls()
-    close.assert_awaited_once()

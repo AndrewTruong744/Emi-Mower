@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import subprocess
@@ -12,16 +11,13 @@ from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from sqlalchemy import select
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import zenoh
 from src.config.database import AsyncSessionLocal
 from src.config.http_client import close_http_client
 from src.config.settings import settings
 from src.config.zenoh_client import ZenohAdminClient
-from src.models.mower import MowerModel
 from src.repositories.create_mower import create_mower
 from src.repositories.mower_identity import register_mower_identity
 from src.services.step_ca import ComposeStepCaIssuer, StepCaIssuer
@@ -151,15 +147,9 @@ async def provision_mower(
     logger.info("Mower record ready: %s", mower.id)
 
     try:
-        if getattr(args, "simulated", False):
-            async with session_factory() as db:
-                result = await db.execute(select(MowerModel.id).order_by(MowerModel.id))
-                mower_ids = [str(value) for value in result.scalars().all()]
-            configure_simulated_router_acl(mower_ids)
-        else:
-            await ZenohAdminClient().configure_mower_device(
-                str(mower_id), certificate_common_name
-            )
+        await ZenohAdminClient().configure_mower_device(
+            str(mower_id), certificate_common_name
+        )
         certificate_options = {}
         if getattr(args, "certificate_issuer", None) is not None:
             certificate_options["issuer"] = args.certificate_issuer
@@ -187,75 +177,6 @@ async def provision_mower(
         "Provisioned mower %s with certificate CN %s", mower_id, certificate_common_name
     )
     return mower_id
-
-
-def configure_simulated_router_acl(mower_ids: list[str]) -> None:
-    """Load local mower ACLs at startup; Zenoh 1.9 cannot change them at runtime."""
-    config = json.loads(
-        str(zenoh.Config.from_file(str(BACKEND_ROOT / "zenoh-router-mtls.json5")))
-    )
-    acl = config["access_control"]
-    for mower_id in sorted(set(mower_ids)):
-        rule_id = f"rule_mower_{mower_id}"
-        subject_id = f"subject_mower_{mower_id}"
-        acl["rules"].append(
-            {
-                "id": rule_id,
-                "permission": "allow",
-                "flows": ["ingress", "egress"],
-                "messages": [
-                    "put",
-                    "declare_subscriber",
-                    "liveliness_token",
-                    "declare_queryable",
-                    "query",
-                    "reply",
-                    "delete",
-                ],
-                "key_exprs": [f"mower/{mower_id}/**"],
-            }
-        )
-        acl["subjects"].append(
-            {"id": subject_id, "cert_common_names": [f"mower:{mower_id}"]}
-        )
-        acl["policies"].append(
-            {
-                "id": f"policy_mower_{mower_id}",
-                "subjects": [subject_id],
-                "rules": [rule_id],
-            }
-        )
-    text = json.dumps(config, indent=2) + "\n"
-    zenoh.Config.from_json5(text)
-    local_config = BACKEND_ROOT / ".sim" / "zenoh-router-mtls.json5"
-    local_config.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary = local_config.with_suffix(".tmp")
-    temporary.write_text(text)
-    temporary.chmod(0o600)
-    temporary.replace(local_config)
-    env_file = BACKEND_ROOT / ".env"
-    lines = [
-        line
-        for line in env_file.read_text().splitlines()
-        if not line.startswith("ZENOH_MTLS_CONFIG_FILE=")
-    ]
-    lines.append("ZENOH_MTLS_CONFIG_FILE=.sim/zenoh-router-mtls.json5")
-    env_file.write_text("\n".join(lines) + "\n")
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BACKEND_ROOT / "local-docker-compose.yml"),
-            "up",
-            "-d",
-            "--force-recreate",
-            "--no-deps",
-            "zenoh-mtls",
-        ],
-        check=True,
-        env={**os.environ, "ZENOH_MTLS_CONFIG_FILE": ".sim/zenoh-router-mtls.json5"},
-    )
 
 
 async def provision_with_local_database(args: argparse.Namespace) -> uuid.UUID:

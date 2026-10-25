@@ -13,7 +13,7 @@ LiveKit viewer credentials.
   and mutations
 - MapLibre for the map UI
 - Native Firebase Authentication with Google Sign-In
-- Zenoh TypeScript over the remote-API WebSocket
+- Native Rust Zenoh through a local Expo module
 - Jest, React Native Testing Library, ESLint, Prettier, and TypeScript
 
 ## Prerequisites
@@ -38,27 +38,52 @@ local SDK paths.
 
 ## Required environment variables
 
-Create a local `app/.env` file with the remote-API WebSocket URL and Google
-web OAuth client ID:
+Create `app/.env` with the native router endpoint and Google OAuth client ID:
 
 ```env
-EXPO_PUBLIC_ZENOH_URL=ws://10.0.2.2:10000
+EXPO_PUBLIC_ZENOH_URL=tls/zenoh.example.com:7447
 EXPO_PUBLIC_WEB_CLIENT_ID=your-google-web-client-id
 ```
 
-`EXPO_PUBLIC_ZENOH_URL` must use `ws://` or `wss://` and must not contain
-credentials. Android emulators can reach the host through `10.0.2.2`; on a
-physical Android device, use the development computer's LAN IP, for example
-`ws://192.168.1.73:10000`. Port `10000` is the Zenoh remote-API WebSocket. Do
-not use `0.0.0.0` (a server bind address) or the normal router port `7447`.
-
-The app signs in with Firebase, queries `user/login` using the Firebase ID
-token, then reconnects Zenoh with the short-lived user-scoped credentials it
-receives. Never put Zenoh credentials or private keys in `.env`. See
-[authentication](authentication.md) and [APIs and Zenoh routes](apis-and-zenoh.md)
-for the full flow.
+For local Android use `adb reverse tcp:7447 tcp:7447` and
+`tls/localhost:7447`, with the local CA's public root PEM in
+`EXPO_PUBLIC_ZENOH_CA_PEM`. Emulators can use `10.0.2.2` if the server certificate
+includes that address in its SAN. Native TCP is available for isolated tests.
+Port 7447 is the native app listener. The app authenticates and renews permissions
+on the same session. See [authentication](authentication.md) and
+[native module build](zenoh-wasm-react-native.md).
 
 ## Run the app
+
+For this checkout's local macOS backend and Android emulator, run from the
+repository root:
+
+```sh
+./scripts/dev.sh start
+```
+
+The launcher starts the Docker backend and its dependencies, selects the canonical
+fork router configuration, starts `Medium_Phone` if necessary, forwards Android
+ports, supplies the local public CA certificate, and builds/opens the native app.
+Keep its terminal open for Metro. It uses the existing `backend/.env`, `app/.env`,
+and Google Application Default Credentials at
+`~/.config/gcloud/application_default_credentials.json`. Docker Desktop host
+networking must be enabled. Set `GOOGLE_ADC_FILE`, `ANDROID_HOME`, `JAVA_HOME`
+(Java 17), or `ANDROID_AVD` to override machine-specific defaults.
+
+Run the services separately with `./scripts/dev.sh backend` and
+`./scripts/dev.sh android`. Use `./scripts/dev.sh logs` for backend/router logs,
+`./scripts/dev.sh status` for containers, and `./scripts/dev.sh stop` to stop
+the local containers while preserving their data. Close the emulator window
+separately. Google login still requires the Firebase Android app and debug
+signing fingerprint to be configured.
+
+The launcher maintains a marked block in ignored `app/.env.local` containing
+the local Zenoh endpoint and public CA certificate. This keeps Expo's development
+environment module consistent with the shell exports; other local settings are
+preserved. Remove that block when switching back to another router environment.
+
+For the regular Expo commands from `app/`:
 
 ```sh
 npm run start

@@ -1,7 +1,13 @@
 import React from 'react';
 import { jest } from '@jest/globals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
+import {
+  mockFirebaseAuth,
+  mockFirebaseUser,
+  firebaseApp,
+  mockSecondaryAuth,
+  mockSecondaryUser,
+} from '../mocks/firebase';
 import { mockGoogleSignin } from '../mocks/google-signin';
 import { useBoundStore } from '@/store/useBoundStore';
 import { closeZenoh, zenohPut, zenohQuery } from '@/config/zenohClient';
@@ -43,6 +49,11 @@ export function resetHookState() {
   jest.clearAllMocks();
   queryClient.clear();
   mockFirebaseUser.getIdToken.mockResolvedValue('firebase-token');
+  mockSecondaryUser.uid = 'replacement-user';
+  mockSecondaryUser.email = 'replacement@example.com';
+  mockSecondaryUser.getIdToken.mockResolvedValue('replacement-token');
+  mockSecondaryAuth.signInWithCredential.mockResolvedValue({ user: mockSecondaryUser });
+  mockSecondaryAuth.signOut.mockResolvedValue(undefined);
   mockFirebaseUser.updateEmail.mockResolvedValue(undefined);
   mockFirebaseAuth.currentUser = mockFirebaseUser;
   mockFirebaseAuth.signInWithCredential.mockResolvedValue({ user: mockFirebaseUser });
@@ -51,6 +62,10 @@ export function resetHookState() {
     type: 'success',
     data: { serverAuthCode: 'server-auth-code' },
   });
+  mockGoogleSignin.signOut.mockResolvedValue(undefined);
+  delete firebaseApp.options.databaseURL;
+  delete firebaseApp.options.storageBucket;
+  delete firebaseApp.options.messagingSenderId;
   mockGoogleSignin.getTokens.mockResolvedValue({
     idToken: 'google-id-token',
     accessToken: 'access-token',

@@ -13,15 +13,13 @@ UPDATE_USER_EMAIL_KEY_EXPR = update_user_email_path()
 async def update_user_email(
     payload: UpdateUserEmailRequest, db: AsyncSession
 ) -> UpdateUserEmailResponse:
-    """Update a user's email using their original and new Google ID tokens."""
+    """Verify both Google identities and transfer the account and its mowers."""
     identity = await verify_firebase_id_token(payload.id_token)
     user_id = identity["user_id"]
 
-    new_email = await update_user_email_service(
-        user_id, payload.new_id_token, db=db
-    )
+    result = await update_user_email_service(user_id, payload.new_id_token, db=db)
     return UpdateUserEmailResponse(
-        message="User email updated successfully",
-        user_id=user_id,
-        new_email=new_email,
+        message="Google account switched successfully",
+        user_id=result["user_id"],
+        new_email=result["new_email"],
     )

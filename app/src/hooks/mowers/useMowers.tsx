@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useBoundStore } from '@/store/useBoundStore';
+import { useMowerOwnership } from './useMowerOwnership';
 
 export interface MowerOption {
   uuid: string;
@@ -13,35 +14,23 @@ export function useMowers() {
   const mowerNames = useBoundStore(
     useShallow((state) => state.mowers.map((uuid) => state.mowerDetails[uuid]?.name ?? uuid))
   );
-  const addMowerToStore = useBoundStore((state) => state.addMower);
+  const ownership = useMowerOwnership();
   const renameMowerInStore = useBoundStore((state) => state.renameMower);
   const selectMowerInStore = useBoundStore((state) => state.selectMower);
 
   const activeMower = useMemo<MowerOption | null>(
     () =>
       selectedMowerUuid
-        ? { uuid: selectedMowerUuid, name: mowerNames[mowerIds.indexOf(selectedMowerUuid)] ?? selectedMowerUuid }
+        ? {
+            uuid: selectedMowerUuid,
+            name: mowerNames[mowerIds.indexOf(selectedMowerUuid)] ?? selectedMowerUuid,
+          }
         : null,
     [mowerIds, mowerNames, selectedMowerUuid]
   );
   const mowerOptions = useMemo(
     () => mowerIds.map((uuid, index) => ({ uuid, name: mowerNames[index] ?? uuid })),
     [mowerIds, mowerNames]
-  );
-
-  const addMower = useCallback(
-    (uuid: string) => {
-      const normalizedUuid = uuid.trim();
-      if (!normalizedUuid) return { success: false, error: 'A mower UUID is required.' };
-      if (mowerIds.includes(normalizedUuid)) {
-        selectMowerInStore(normalizedUuid);
-        return { success: false, error: 'That mower is already in your fleet.' };
-      }
-
-      addMowerToStore(normalizedUuid);
-      return { success: true };
-    },
-    [addMowerToStore, mowerIds, selectMowerInStore]
   );
 
   const renameActiveMower = useCallback(
@@ -58,7 +47,7 @@ export function useMowers() {
 
   return {
     activeMower,
-    addMower,
+    ...ownership,
     mowerIds,
     mowerOptions,
     renameActiveMower,

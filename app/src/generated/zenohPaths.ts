@@ -12,6 +12,18 @@ export function addMowerToUserPath(): string {
   return ADD_MOWER_TO_USER_ADDRESS;
 }
 
+export const REMOVE_MOWER_FROM_USER_ADDRESS = "user/remove_mower" as const;
+
+export function removeMowerFromUserPath(): string {
+  return REMOVE_MOWER_FROM_USER_ADDRESS;
+}
+
+export const TRANSFER_MOWER_ADDRESS = "user/transfer_mower" as const;
+
+export function transferMowerPath(): string {
+  return TRANSFER_MOWER_ADDRESS;
+}
+
 export const UPDATE_USER_NAME_ADDRESS = "user/update_name" as const;
 
 export function updateUserNamePath(): string {

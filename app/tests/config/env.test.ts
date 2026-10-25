@@ -17,12 +17,12 @@ afterEach(() => {
 });
 
 describe('environment configuration', () => {
-  it('accepts a credential-free WebSocket URL and Google client ID', () => {
-    process.env.EXPO_PUBLIC_ZENOH_URL = 'wss://zenoh.example.com/ws';
+  it('accepts a native TLS endpoint and Google client ID', () => {
+    process.env.EXPO_PUBLIC_ZENOH_URL = 'tls/zenoh.example.com:7447';
     process.env.EXPO_PUBLIC_WEB_CLIENT_ID = 'google-client-id';
 
     expect(loadEnv()).toEqual({
-      zenohUrl: 'wss://zenoh.example.com/ws',
+      zenohUrl: 'tls/zenoh.example.com:7447',
       googleWebClientId: 'google-client-id',
     });
   });
@@ -36,6 +36,6 @@ describe('environment configuration', () => {
   it('rejects an invalid Zenoh locator', () => {
     process.env.EXPO_PUBLIC_ZENOH_URL = 'https://zenoh.example.com';
 
-    expect(loadEnv).toThrow('EXPO_PUBLIC_ZENOH_URL must use ws:// or wss://');
+    expect(loadEnv).toThrow('EXPO_PUBLIC_ZENOH_URL must be a native tls/ or tcp/ endpoint');
   });
 });

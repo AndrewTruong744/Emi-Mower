@@ -42,6 +42,7 @@ async def test_lifespan_initializes_and_closes_all_dependencies(monkeypatch):
     monkeypatch.setattr(main.settings, "validate_startup", validate_settings)
     monkeypatch.setattr(main, "init_http_client", Mock())
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
+    monkeypatch.setattr(main, "add_all_acls", AsyncMock())
     monkeypatch.setattr(main, "get_zenoh_config", Mock(return_value="config"))
     monkeypatch.setattr(
         main, "get_zenoh_bootstrap_config", Mock(return_value="bootstrap-config")
@@ -97,6 +98,7 @@ async def test_lifespan_survives_dependency_startup_failures(monkeypatch):
     monkeypatch.setattr(main.settings, "validate_startup", Mock())
     monkeypatch.setattr(main, "init_http_client", Mock())
     monkeypatch.setattr(main, "initialize_backend_auth", Mock())
+    monkeypatch.setattr(main, "add_all_acls", AsyncMock())
     monkeypatch.setattr(
         main, "get_zenoh_config", Mock(side_effect=FileNotFoundError("cert"))
     )

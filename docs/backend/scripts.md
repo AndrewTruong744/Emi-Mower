@@ -9,7 +9,7 @@ appropriate environment approval.
 
 | Script                         | When to run it                                                   | Why it exists                                                                                                                   |
 | ------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `src.scripts.add_all_acls`     | After router recreation, database restore, or ACL loss           | Reconciles users/mowers in PostgreSQL into runtime Zenoh ACL configuration. It does not provision user passwords.               |
+| `src.scripts.add_all_acls`     | After router recreation, database restore, or ACL loss           | Reconciles users/mowers in PostgreSQL into runtime Zenoh ACL configuration. Backend startup also invokes this reconciler; connection authorization remains login-bound.               |
 | `src.scripts.provision_mower`  | A trusted provisioning operation for one mower; use `--simulated` for a new local simulator | Creates/reuses mower identity, configures mower ACL, issues an operational certificate, and writes the Jetson environment file. The simulator mode also manages its swtpm and ROS Compose project. |
 | `src.scripts.clear_all_data`   | An explicitly approved local reset                               | Truncates all public application tables except `alembic_version` and flushes the configured Valkey database. It is destructive. |
 
@@ -18,7 +18,6 @@ appropriate environment approval.
 | Script                                  | Compose service    | Loop and responsibility                                                                                                                                                                                                  |
 | --------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `src.scripts.upload_telemetry_data`     | `upload-telemetry` | Every 60 seconds, schedules the telemetry-buffer service, which atomically moves active mower telemetry lists to temporary keys, persists valid records to PostgreSQL, and deletes only successfully saved batches. Leftover temporary keys are retried after a crash. |
-| `src.scripts.remove_usrpwds_from_zenoh` | `remove-usrpwds`   | Every 60 seconds, removes expired dynamic app-router passwords and their Valkey expiry entries.                                                                                                                          |
 
 These workers are separate from FastAPI so request handling does not perform
 long-lived batch persistence or credential cleanup. Start them when their

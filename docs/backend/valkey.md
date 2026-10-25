@@ -43,12 +43,10 @@ and do not use the one-day `setex` TTL.
 
 ## Zenoh credential-expiry key
 
-`user:zenoh_tokens` is a Valkey HASH mapping user ID to a Unix expiry time. On
-successful `user/login`, the backend records the five-minute router-password
-expiry. The `remove_usrpwds_from_zenoh` worker checks it every 60 seconds,
-deletes expired router passwords through the app-router admin API, and removes
-the corresponding hash field. It is an expiry registry, not a token store: do
-not put the actual JWT/password in Valkey.
+Login authorization expiry is enforced per connection inside the forked router.
+The historical `user:zenoh_tokens` helpers are no longer called by login or a
+background worker. Existing records are inert; no persistent fleet data is deleted.
+
 
 ## Certificate-renewal nonce keys
 

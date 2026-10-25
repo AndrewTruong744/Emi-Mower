@@ -1,7 +1,7 @@
-"""Client for dynamically managing Zenoh credentials and ACLs."""
+"""Authenticated management API for the sibling Zenoh fork's live ACLs."""
 
-import json
-import logging
+from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -9,23 +9,32 @@ from src.config.http_client import get_http_client
 from src.config.settings import settings
 from src.exceptions import ExternalServiceError
 
-logger = logging.getLogger("config.zenoh_client")
+
+def _rule(identifier: str, keys: list[str], messages: list[str], flow: str) -> dict:
+    return {
+        "id": identifier,
+        "permission": "allow",
+        "key_exprs": keys,
+        "messages": messages,
+        "flows": [flow],
+    }
 
 
 class ZenohAdminClient:
-    """Manage Zenoh ACLs and credentials through the admin REST API."""
-
     def __init__(
         self,
         app_base_url: str | None = None,
         mower_base_url: str | None = None,
         http_client: httpx.AsyncClient | None = None,
+        *,
+        admin_token: str | None = None,
     ):
         self.app_base_url = (app_base_url or settings.ZENOH_APP_REST_URL).rstrip("/")
         self.mower_base_url = (mower_base_url or settings.ZENOH_MTLS_REST_URL).rstrip(
             "/"
         )
         self._http_client = http_client
+        self._admin_token = admin_token
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -33,151 +42,191 @@ class ZenohAdminClient:
             return self._http_client
         return get_http_client()
 
-    async def _put(self, base_url: str, path: str, payload: dict | str) -> None:
+    async def _request(
+        self, method: str, base: str, path: str, payload=None
+    ) -> httpx.Response:
         try:
-            if isinstance(payload, str):
-                response = await self.client.put(
-                    f"{base_url}{path}",
-                    content=payload,
-                    headers={"Content-Type": "application/json"},
-                )
-            else:
-                response = await self.client.put(f"{base_url}{path}", json=payload)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as err:
-            logger.error("Zenoh REST PUT %s failed: %s", path, err.response.text)
-            raise ExternalServiceError(
-                f"Zenoh API error (HTTP {err.response.status_code})"
-            ) from err
-        except httpx.HTTPError as err:
-            logger.error("Zenoh REST request failed for %s: %s", path, err)
-            raise ExternalServiceError(
-                "Failed to communicate with Zenoh router"
-            ) from err
-
-    async def _delete(self, base_url: str, path: str) -> None:
-        try:
-            response = await self.client.delete(f"{base_url}{path}")
-            if response.status_code not in (200, 204, 404):
-                response.raise_for_status()
-        except httpx.HTTPError as err:
-            logger.error("Zenoh REST DELETE %s failed: %s", path, err)
-            raise ExternalServiceError(
-                "Failed to communicate with Zenoh router"
-            ) from err
-
-    async def _apply_acl_triad(
-        self,
-        *,
-        subject_username: str | None = None,
-        subject_cert_common_name: str | None = None,
-        rule_id: str,
-        subject_id: str,
-        policy_id: str,
-        key_exprs: list[str],
-        messages: list[str],
-        base_url: str,
-    ) -> None:
-        if (subject_username is None) == (subject_cert_common_name is None):
-            raise ValueError("configure exactly one Zenoh subject identity")
-
-        await self._put(
-            base_url,
-            f"/@/config/access_control/rules/{rule_id}",
-            {
-                "id": rule_id,
-                "permission": "allow",
-                "flows": ["ingress", "egress"],
-                "messages": messages,
-                "key_exprs": key_exprs,
-            },
-        )
-        subject: dict[str, str | list[str]] = {"id": subject_id}
-        if subject_username is not None:
-            subject["usernames"] = [subject_username]
-        if subject_cert_common_name is not None:
-            subject["cert_common_names"] = [subject_cert_common_name]
-        await self._put(
-            base_url,
-            f"/@/config/access_control/subjects/{subject_id}",
-            subject,
-        )
-        await self._put(
-            base_url,
-            f"/@/config/access_control/policies/{policy_id}",
-            {
-                "id": policy_id,
-                "subjects": [subject_id],
-                "rules": [rule_id],
-            },
-        )
-
-    async def configure_user_app(
-        self,
-        user_id: str,
-        mower_ids: list[str],
-        password: str | None = None,
-    ) -> None:
-        """Configure a user's ACL and optionally provision its password.
-
-        ``password`` is intentionally optional so ACL bootstrap never creates
-        preset user credentials. Runtime login supplies the five-minute JWT as
-        the Zenoh password.
-        """
-        if password is not None:
-            await self._put(
-                self.app_base_url,
-                f"/@/config/transport/auth/usrpwd/dictionary/{user_id}",
-                json.dumps(password),
+            token = (
+                self._admin_token
+                or Path(settings.ZENOH_ADMIN_TOKEN_FILE).read_text().strip()
             )
+            if len(token) < 32:
+                raise ValueError("Missing or invalid Zenoh management credential")
+            response = await self.client.request(
+                method,
+                f"{base}/@/runtime{path}",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if method != "DELETE" or response.status_code != 404:
+                response.raise_for_status()
+            return response
+        except (httpx.HTTPError, OSError, ValueError) as error:
+            # Do not expose credentials, request payloads or router error bodies.
+            raise ExternalServiceError("Zenoh runtime administration failed") from error
 
-        key_exprs = ["user/**"]
+    async def captured_connections(self) -> list[dict]:
+        response = await self._request("GET", self.app_base_url, "/connections")
+        return response.json()
+
+    async def configure_user_app(self, user_id: str, mower_ids: list[str]) -> None:
+        # Operation-specific flows: an app cannot publish telemetry, create mower
+        # liveliness tokens, or declare a queryable impersonating the backend.
+        rules = [
+            _rule("cutout-upload", ["user/cutouts/uploaded"], ["put"], "ingress"),
+            _rule("backend-query", ["user/**"], ["query"], "ingress"),
+            _rule("backend-reply", ["user/**"], ["reply"], "egress"),
+            # Routing announcements carry no application payload. Native clients
+            # need the backend's wildcard subscriber/queryable declarations.
+            _rule(
+                "routing-announcements",
+                ["user/**", "mower/**"],
+                ["declare_subscriber", "declare_queryable"],
+                "egress",
+            ),
+        ]
         if mower_ids:
-            key_exprs.extend(f"mower/{mower_id}/**" for mower_id in mower_ids)
-        else:
-            key_exprs.append(f"unassigned/{user_id}/deny")
-        await self._apply_acl_triad(
-            subject_username=user_id,
-            rule_id=f"rule_{user_id}",
-            subject_id=f"subject_{user_id}",
-            policy_id=f"policy_{user_id}",
-            key_exprs=key_exprs,
-            messages=[
-                "put",
-                "declare_subscriber",
-                "declare_liveliness_subscriber",
-                "liveliness_token",
-                "query",
-                "reply",
-                "delete",
-            ],
-            base_url=self.app_base_url,
+            telemetry = [f"mower/{m}/telemetry" for m in mower_ids]
+            liveliness = [f"mower/{m}/liveliness" for m in mower_ids]
+            queries = [
+                f"mower/{m}/{suffix}"
+                for m in mower_ids
+                for suffix in (
+                    "command",
+                    "update_name",
+                    "telemetry/*/old",
+                    "livekit/consume",
+                )
+            ]
+            commands = [f"mower/{m}/joystick" for m in mower_ids]
+            rules.extend(
+                [
+                    _rule(
+                        "telemetry-subscribe",
+                        telemetry,
+                        ["declare_subscriber"],
+                        "ingress",
+                    ),
+                    _rule("telemetry-read", telemetry, ["put"], "egress"),
+                    _rule(
+                        "liveliness-subscribe",
+                        liveliness,
+                        ["declare_liveliness_subscriber", "liveliness_query"],
+                        "ingress",
+                    ),
+                    _rule(
+                        "liveliness-read", liveliness, ["liveliness_token"], "egress"
+                    ),
+                    _rule("mower-query", queries, ["query"], "ingress"),
+                    _rule("mower-reply", queries, ["reply"], "egress"),
+                    _rule("joystick", commands, ["put"], "ingress"),
+                ]
+            )
+        await self._request(
+            "PUT",
+            self.app_base_url,
+            f"/principals/{quote(user_id, safe='')}",
+            {"rules": rules},
+        )
+
+    async def authorize_connection(
+        self, user_id: str, context: dict, ttl_seconds: int
+    ) -> None:
+        identifier, nonce = context.get("id", ""), context.get("nonce", "")
+        if any(
+            not isinstance(value, str)
+            or len(value) != 32
+            or any(c not in "0123456789abcdef" for c in value)
+            for value in (identifier, nonce)
+        ):
+            raise ValueError("Invalid router connection context")
+        await self._request(
+            "PUT",
+            self.app_base_url,
+            f"/connections/{identifier}/authorization",
+            {"principal": user_id, "nonce": nonce, "ttl_seconds": ttl_seconds},
+        )
+
+    async def revoke_connection(self, connection_id: str) -> None:
+        await self._request(
+            "DELETE",
+            self.app_base_url,
+            f"/connections/{quote(connection_id, safe='')}/authorization",
+        )
+
+    async def retire_user(self, user_id: str) -> None:
+        """Deny old sessions while letting the account-switch reply finish."""
+        await self._request(
+            "PUT",
+            self.app_base_url,
+            f"/principals/{quote(user_id, safe='')}",
+            {
+                "rules": [
+                    _rule(
+                        "account-switch-reply",
+                        ["user/update_email"],
+                        ["reply"],
+                        "egress",
+                    )
+                ]
+            },
+        )
+
+    async def revoke_user(self, user_id: str) -> None:
+        await self._request(
+            "DELETE", self.app_base_url, f"/principals/{quote(user_id, safe='')}"
         )
 
     async def configure_mower_device(
         self, mower_id: str, certificate_common_name: str | None = None
     ) -> None:
-        """Authorize one mTLS mower certificate on only its own routes."""
-        await self._apply_acl_triad(
-            subject_cert_common_name=certificate_common_name or f"mower:{mower_id}",
-            rule_id=f"rule_mower_{mower_id}",
-            subject_id=f"subject_mower_{mower_id}",
-            policy_id=f"policy_mower_{mower_id}",
-            key_exprs=[f"mower/{mower_id}/**"],
-            messages=[
-                "put",
-                "declare_subscriber",
-                "liveliness_token",
-                "declare_queryable",
-                "query",
-                "reply",
-                "delete",
-            ],
-            base_url=self.mower_base_url,
+        keys = [f"mower/{mower_id}/**"]
+        rules = [
+            _rule(
+                "mower",
+                keys,
+                [
+                    "put",
+                    "declare_subscriber",
+                    "liveliness_token",
+                    "declare_queryable",
+                    "query",
+                    "reply",
+                    "delete",
+                ],
+                flow,
+            )
+            for flow in ("ingress", "egress")
+        ]
+        # IDs must be unique within an ACL snapshot.
+        for rule, flow in zip(rules, ("ingress", "egress")):
+            rule["id"] += f"-{flow}"
+        rules.append(
+            _rule(
+                "routing-announcements",
+                ["mower/**"],
+                ["declare_subscriber", "declare_queryable"],
+                "egress",
+            )
+        )
+        await self._request(
+            "PUT",
+            self.mower_base_url,
+            f"/policies/{quote('mower-' + mower_id, safe='')}",
+            {
+                "subject": {
+                    "id": mower_id,
+                    "cert_common_names": [
+                        certificate_common_name or f"mower:{mower_id}"
+                    ],
+                },
+                "rules": rules,
+            },
         )
 
-    async def delete_user_password(self, user_id: str) -> None:
-        """Remove one runtime credential, never the startup dictionary file."""
-        await self._delete(
-            self.app_base_url, f"/@/config/transport/auth/usrpwd/dictionary/{user_id}"
+    async def remove_mower_permissions(self, mower_id: str) -> None:
+        await self._request(
+            "DELETE",
+            self.mower_base_url,
+            f"/policies/{quote('mower-' + mower_id, safe='')}",
         )

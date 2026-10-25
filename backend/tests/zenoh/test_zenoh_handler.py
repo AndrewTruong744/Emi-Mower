@@ -223,3 +223,36 @@ async def test_message_handler_accepts_root_model_lists(monkeypatch):
 
     callback.assert_awaited_once()
     assert callback.await_args.args[0].root[0].mower_id == "mower-1"
+
+
+@pytest.mark.parametrize(
+    "attachment", [None, b"not-json", b"{}", b'{"zenoh_connection": "forged"}']
+)
+async def test_login_handler_requires_router_context(monkeypatch, attachment):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    query = FakeQuery(b'{"id_token":"token"}')
+    query.attachment = zenoh.ZBytes(attachment) if attachment else None
+    callback = AsyncMock()
+    await ZenohQueryHandler(Mock(), Mock())._process(
+        query, callback, UserLoginRequest, include_connection_context=True
+    )
+    callback.assert_not_awaited()
+    assert b'"status":401' in query.errors[0]
+
+
+async def test_login_handler_passes_context_separately_from_user_payload(monkeypatch):
+    import src.zenoh.zenoh_handler as handlers
+
+    monkeypatch.setattr(handlers, "AsyncSessionLocal", fake_db_session)
+    query = FakeQuery(b'{"id_token":"token"}')
+    query.attachment = zenoh.ZBytes(
+        b'{"zenoh_connection":{"id":"router-id","nonce":"one-time"}}'
+    )
+    callback = AsyncMock(return_value={"authorized": True})
+    await ZenohQueryHandler(Mock(), Mock())._process(
+        query, callback, UserLoginRequest, include_connection_context=True
+    )
+    assert callback.await_args.args[2] == {"id": "router-id", "nonce": "one-time"}
+    assert query.errors == []

@@ -3,6 +3,12 @@ name: emi-mower-test
 # Disposable integration-test stack.  It deliberately has no volumes and uses
 # bridge networking, so it cannot share or erase a developer's local data.
 services:
+  zenoh-admin-init:
+    image: alpine:3.22
+    volumes:
+      - zenoh-admin:/admin
+    command: ["sh", "-c", "umask 077 && if [ ! -s /admin/token ]; then head -c 48 /dev/urandom | base64 > /admin/token; fi"]
+
   step-ca:
     build:
       context: .
@@ -50,46 +56,58 @@ services:
       retries: 30
 
   zenoh-mtls:
-    image: eclipse/zenoh:1.9.0
+    build:
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-mtls-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     command: ["-c", "/workspace/zenoh-router-mtls.test.json5"]
     ports:
       - "18002:8002"
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
 
   zenoh-bootstrap:
-    image: eclipse/zenoh:1.9.0
+    build:
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     command: ["-c", "/workspace/zenoh-router-bootstrap.json5"]
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-mtls-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
 
   zenoh-app:
     build:
-      context: .
-      dockerfile: Dockerfile.zenoh-app
+      context: ../../zenoh
+      dockerfile: ci/Dockerfile.runtime-access
     working_dir: /workspace
     volumes:
       - ./:/workspace:ro
       - zenoh-app-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
     command: ["-c", "/workspace/zenoh-router-app.test.json5"]
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
       zenoh-mtls:
         condition: service_started
     ports:
       - "17447:7447"
-      - "11000:10000"
       - "18001:8001"
 
   backend:
@@ -118,6 +136,8 @@ services:
         uv run alembic upgrade head &&
         uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
     depends_on:
+      zenoh-admin-init:
+        condition: service_completed_successfully
       step-ca:
         condition: service_healthy
       postgres:
@@ -132,6 +152,7 @@ services:
         condition: service_started
     volumes:
       - backend-identity:/run/emi-mower/identity:ro
+      - zenoh-admin:/run/emi-mower/admin:ro
       - step-ca-issuer:/run/emi-mower/issuer:ro
     ports:
       - "18000:8000"
@@ -142,6 +163,7 @@ services:
       retries: 30
 
 volumes:
+  zenoh-admin:
   step-ca-data:
   step-ca-issuer:
   backend-identity:

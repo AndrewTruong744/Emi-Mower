@@ -14,6 +14,18 @@ pub fn add_mower_to_user_path() -> String {
     ADD_MOWER_TO_USER_ADDRESS.to_owned()
 }
 
+pub const REMOVE_MOWER_FROM_USER_ADDRESS: &str = "user/remove_mower";
+
+pub fn remove_mower_from_user_path() -> String {
+    REMOVE_MOWER_FROM_USER_ADDRESS.to_owned()
+}
+
+pub const TRANSFER_MOWER_ADDRESS: &str = "user/transfer_mower";
+
+pub fn transfer_mower_path() -> String {
+    TRANSFER_MOWER_ADDRESS.to_owned()
+}
+
 pub const UPDATE_USER_NAME_ADDRESS: &str = "user/update_name";
 
 pub fn update_user_name_path() -> String {

@@ -14,12 +14,22 @@ from src.schemas.valkey import VALKEY_CACHE_TTL_SECONDS, MowerDataCache, mower_d
 logger = logging.getLogger("repositories.check_mower_ownership")
 
 
-async def check_mower_ownership(mower_id: uuid.UUID, db: AsyncSession) -> str | None:
+async def check_mower_ownership(
+    mower_id: uuid.UUID, db: AsyncSession, *, for_update: bool = False
+) -> str | None:
     """Return a mower's owner from ``mower:{id}:data`` or PostgreSQL.
 
     A mower's data entry already contains ``owner_id``. Reusing it prevents a
     second owner-only Valkey projection from becoming stale independently.
     """
+    if for_update:
+        # Mutations must lock the actual row and ignore cached ownership.
+        result = await db.execute(
+            select(MowerModel.owner_id)
+            .where(MowerModel.id == mower_id)
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
     cache_key = mower_data_key(str(mower_id))
     try:
         async with get_valkey_client() as v_client:

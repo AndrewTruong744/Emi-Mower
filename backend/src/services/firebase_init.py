@@ -18,5 +18,8 @@ def initialize_backend_auth():
         # overlay points at its read-only mounted ADC file. It also supports
         # local gcloud credentials and attached workload identity in deployment.
         return firebase_admin.initialize_app(
-            credential=credentials.ApplicationDefault()
+            credential=credentials.ApplicationDefault(),
+            # User ADC mounted into a container can lack a discoverable project.
+            # Token audience/issuer checks must use this backend's Firebase project.
+            options={"projectId": settings.GCP_PROJECT_ID},
         )

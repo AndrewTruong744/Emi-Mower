@@ -8,8 +8,10 @@ from src.zenoh.generated import (
     LiveKitUploadRequest,
     MowerCertificateRenewChallengeRequest,
     MowerCertificateRenewCompleteRequest,
+    RemoveMowerFromUserRequest,
     TelemetryHistoryRequest,
     TelemetryList,
+    TransferMowerRequest,
     UpdateMowerNameRequest,
     UpdateUserEmailRequest,
     UpdateUserNameRequest,
@@ -45,6 +47,12 @@ from src.zenoh.listeners.mower_certificate_renewal import (
     mower_certificate_renew_challenge,
     mower_certificate_renew_complete,
 )
+from src.zenoh.listeners.mower_ownership import (
+    REMOVE_MOWER_KEY_EXPR,
+    TRANSFER_MOWER_KEY_EXPR,
+    remove_mower,
+    transfer_mower,
+)
 from src.zenoh.zenoh_handler import ZenohMessageHandler, ZenohQueryHandler
 
 
@@ -56,11 +64,18 @@ def register_handlers(
         LOGIN_KEY_EXPR,
         user_login,
         request_model=UserLoginRequest,
+        include_connection_context=True,
     )
     query_handler.declare(
         ADD_MOWER_TO_USER_KEY_EXPR,
         add_mower_to_user,
         request_model=AddMowerToUserRequest,
+    )
+    query_handler.declare(
+        REMOVE_MOWER_KEY_EXPR, remove_mower, request_model=RemoveMowerFromUserRequest
+    )
+    query_handler.declare(
+        TRANSFER_MOWER_KEY_EXPR, transfer_mower, request_model=TransferMowerRequest
     )
     query_handler.declare(
         UPDATE_USER_NAME_KEY_EXPR,

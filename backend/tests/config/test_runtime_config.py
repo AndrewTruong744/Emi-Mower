@@ -118,7 +118,8 @@ def test_get_zenoh_config_requires_all_certificates(monkeypatch, tmp_path):
     result = get_zenoh_config()
 
     assert result is config
-    assert config.insert_json5.call_count == 6
+    config.insert_json5.assert_any_call("scouting/multicast/enabled", "false")
+    config.insert_json5.assert_any_call("scouting/gossip/enabled", "false")
     config.insert_json5.assert_any_call("mode", '"client"')
     config.insert_json5.assert_any_call("connect/endpoints", "['tls/127.0.0.1:7448']")
     config.insert_json5.assert_any_call("transport/link/tls/enable_mtls", "true")

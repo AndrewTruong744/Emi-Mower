@@ -14,6 +14,12 @@ before constructing a route and injects it into telemetry records, so a ROS
 publisher cannot publish data as another mower.
 The joystick receive function checks that both axes are finite and within
 `[-1, 1]` before forwarding a command to ROS.
+Normalized `+x` turns right, `-x` turns left, `+y` drives forward, and `-y`
+drives backward. Right turn is negative ROS angular z.
+Simulation defaults to 5 m/s linear and 5 rad/s angular output at full
+deflection; real mower defaults remain 1 m/s and 1 rad/s. Both axes scale
+linearly with joystick displacement, and `MAX_LINEAR_MPS` and
+`MAX_ANGULAR_RADPS` can override the defaults.
 
 The gateway also subscribes to the mower's native cutout-delivery route. It validates
 each `MowerCutoutDelivery` and publishes it as the typed ROS

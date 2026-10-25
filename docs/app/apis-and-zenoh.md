@@ -6,7 +6,7 @@ generated TypeScript models and path helpers in `app/src/generated/` are
 derived from that contract. Regenerate them from `backend/` with
 `npm --prefix tools run generate`; never edit them by hand.
 
-The app connects to the Zenoh remote-API WebSocket configured by
+The app connects to the native Rust Zenoh TCP/TLS endpoint configured by
 `EXPO_PUBLIC_ZENOH_URL`. It serializes JSON and uses three transport helpers
 from [`zenohClient.ts`](../../app/src/config/zenohClient.ts):
 
@@ -22,9 +22,12 @@ ultimately enforced by the authenticated Zenoh session's ACL, not by UI checks.
 
 | Route                                             | Direction | App use                                                                                   |
 | ------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| `user/login`                                      | Query     | Exchanges the Firebase ID token for user data and short-lived Zenoh credentials.          |
+| `user/login`                                      | Query     | Exchanges the Firebase ID token for user data and a short-lived authorization on the same native connection.          |
+| `user/add_mower`                                  | Query     | Claims a registered, active, unassigned mower after backend validation. |
+| `user/remove_mower`                               | Query     | Unassigns an owned mower and revokes that mower's app access. |
+| `user/transfer_mower`                              | Query     | Transfers an owned mower to an existing recipient User ID (Firebase UID). |
 | `user/update_name`                                | Query     | Updates the signed-in user's display name.                                                |
-| `user/update_email`                               | Query     | Synchronizes an email change after Firebase updates the identity.                         |
+| `user/update_email`                               | Query     | Verifies both Google logins, transfers mower ownership and removes the source backend account.                         |
 | `mower/{mower_id}/joystick`                       | Put       | Publishes normalized `x`/`y` joystick input.                                              |
 | `mower/{mower_id}/command`                        | Query     | Sends one state-changing command with a command ID and waits for acceptance or rejection. |
 | `mower/{mower_id}/telemetry/{telemetry_type}/old` | Query     | Fetches cursor-paginated telemetry history for charts.                                    |
@@ -34,7 +37,7 @@ ultimately enforced by the authenticated Zenoh session's ACL, not by UI checks.
 | `user/cutouts/upload-url`                         | Query     | Requests a short-lived signed upload URL for a cutting-area image.                        |
 | `user/cutouts/uploaded`                           | Put       | Supplies upload status plus the opaque object key so the backend can verify and deliver it. |
 
-Generated helpers also expose routes for assigning and renaming mowers,
+Generated helpers also expose routes for renaming mowers,
 cutout delivery, LiveKit publishing, and mower certificate renewal. They are
 not currently invoked by the mobile app. Certificate-renewal bootstrap routes
 are mower infrastructure routes, not app routes.

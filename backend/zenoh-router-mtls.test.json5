@@ -1,16 +1,89 @@
 {
-  mode: "router",
-  listen: { endpoints: ["tls/0.0.0.0:7448"] },
-  transport: {
-    link: {
-      tls: {
-        root_ca_certificate: "/run/emi-mower/identity/root_ca.pem",
-        listen_certificate: "/run/emi-mower/identity/current/router.crt",
-        listen_private_key: "/run/emi-mower/identity/current/router.key",
-        enable_mtls: true
+  "mode": "router",
+  "scouting": {
+    "multicast": {
+      "enabled": false
+    }
+  },
+  "listen": {
+    "endpoints": [
+      "tls/0.0.0.0:7448"
+    ]
+  },
+  "transport": {
+    "unicast": {
+      "max_links": 1
+    },
+    "link": {
+      "tls": {
+        "root_ca_certificate": "/run/emi-mower/identity/root_ca.pem",
+        "listen_certificate": "/run/emi-mower/identity/current/router.crt",
+        "listen_private_key": "/run/emi-mower/identity/current/router.key",
+        "enable_mtls": true
       }
     }
   },
-  adminspace: { permissions: { read: true, write: true } },
-  plugins: { rest: { http_port: "0.0.0.0:8002" } }
+  "adminspace": {
+    "permissions": {
+      "read": false,
+      "write": false
+    }
+  },
+  "plugins": {
+    "rest": {
+      "http_port": "0.0.0.0:8002",
+      "runtime_access_control": {
+        "token_file": "/run/emi-mower/admin/token",
+        "capture_query_keys": []
+      }
+    }
+  },
+  "access_control": {
+    "enabled": true,
+    "default_permission": "deny",
+    "rules": [
+      {
+        "id": "trusted",
+        "permission": "allow",
+        "flows": [
+          "ingress",
+          "egress"
+        ],
+        "messages": [
+          "put",
+          "delete",
+          "query",
+          "reply",
+          "declare_subscriber",
+          "declare_queryable",
+          "declare_liveliness_subscriber",
+          "liveliness_token",
+          "liveliness_query"
+        ],
+        "key_exprs": [
+          "**"
+        ]
+      }
+    ],
+    "subjects": [
+      {
+        "id": "mesh",
+        "cert_common_names": [
+          "Emi Mower Backend",
+          "Emi Mower Zenoh App"
+        ]
+      }
+    ],
+    "policies": [
+      {
+        "id": "mesh",
+        "subjects": [
+          "mesh"
+        ],
+        "rules": [
+          "trusted"
+        ]
+      }
+    ]
+  }
 }

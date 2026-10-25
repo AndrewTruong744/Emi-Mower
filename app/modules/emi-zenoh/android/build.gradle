@@ -1,0 +1,25 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.emizenoh'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.emizenoh'
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    consumerProguardFiles "consumer-rules.pro"
+    minSdkVersion 24
+    ndk { abiFilters 'arm64-v8a', 'x86_64' }
+  }
+  sourceSets.main.jniLibs.srcDir(new File(buildDir, 'rustJniLibs'))
+}
+
+def buildRust = tasks.register('buildZenohRust', Exec) {
+  workingDir projectDir.parentFile
+  commandLine 'python3', 'build_native.py', '--android', '--output', new File(buildDir, 'rustJniLibs').absolutePath
+}
+tasks.configureEach { task ->
+  if (task.name == 'preBuild') task.dependsOn(buildRust)
+}

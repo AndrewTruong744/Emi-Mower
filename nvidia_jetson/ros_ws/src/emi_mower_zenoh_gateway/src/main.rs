@@ -3,9 +3,11 @@
 use anyhow::{Context, Result};
 use emi_mower_interfaces::msg::{CutoutDownload, TelemetryBatch};
 use emi_mower_zenoh_gateway::generated::zenoh_paths::{
-    mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path, mower_telemetry_path,
+    mower_command_path, mower_cutout_delivery_path, mower_joystick_path, mower_liveliness_path,
+    mower_telemetry_path,
 };
 use emi_mower_zenoh_gateway::renewal::renew_certificate_if_needed;
+use emi_mower_zenoh_gateway::sim_commands::{Command, SimCommandState};
 use emi_mower_zenoh_gateway::{
     joystick_to_velocity, parse_cutout_delivery, parse_joystick_payload, telemetry_payload,
     validate_mower_id, RosImuTelemetry, RosTelemetryRecord, CUTOUT_DOWNLOAD_TOPIC, TELEMETRY_TOPIC,
@@ -23,6 +25,7 @@ const MAX_RETRY: Duration = Duration::from_secs(30);
 const CERTIFICATE_RENEWAL_CHECK_PERIOD: Duration = Duration::from_secs(6 * 60 * 60);
 
 struct GatewayKeys<'a> {
+    command: &'a str,
     joystick: &'a str,
     telemetry: &'a str,
     cutout_delivery: &'a str,
@@ -32,14 +35,17 @@ struct GatewayKeys<'a> {
 struct GatewaySettings {
     max_linear_mps: f64,
     max_angular_radps: f64,
+    simulation: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let mower_id =
         env::var("MOWER_ID").context("set MOWER_ID in the provisioned Jetson environment")?;
-    let max_linear_mps = env_number("MAX_LINEAR_MPS", 1.0)?;
-    let max_angular_radps = env_number("MAX_ANGULAR_RADPS", 1.0)?;
+    let simulation = env::var("MOWER_LAUNCH").as_deref() == Ok("sim");
+    let default_speed_limit = if simulation { 5.0 } else { 1.0 };
+    let max_linear_mps = env_number("MAX_LINEAR_MPS", default_speed_limit)?;
+    let max_angular_radps = env_number("MAX_ANGULAR_RADPS", default_speed_limit)?;
     if !max_linear_mps.is_finite()
         || !max_angular_radps.is_finite()
         || max_linear_mps <= 0.0
@@ -54,6 +60,7 @@ async fn main() -> Result<()> {
         Err(error) => eprintln!("certificate renewal was unavailable: {error}"),
     }
     let joystick_key = mower_joystick_path(&mower_id);
+    let command_key = mower_command_path(&mower_id);
     let telemetry_key = mower_telemetry_path(&mower_id);
     let cutout_delivery_key = mower_cutout_delivery_path(&mower_id);
     let liveliness_key = mower_liveliness_path(&mower_id);
@@ -93,6 +100,7 @@ async fn main() -> Result<()> {
     run_gateway(
         &mower_id,
         GatewayKeys {
+            command: &command_key,
             joystick: &joystick_key,
             telemetry: &telemetry_key,
             cutout_delivery: &cutout_delivery_key,
@@ -101,6 +109,7 @@ async fn main() -> Result<()> {
         GatewaySettings {
             max_linear_mps,
             max_angular_radps,
+            simulation,
         },
         velocity_publisher,
         cutout_download_publisher,
@@ -151,6 +160,18 @@ async fn run_gateway(
                 continue;
             }
         };
+        let command_queryable = if settings.simulation {
+            Some(
+                session
+                    .declare_queryable(keys.command)
+                    .await
+                    .map_err(|error| {
+                        anyhow::anyhow!("declare simulation command queryable: {error}")
+                    })?,
+            )
+        } else {
+            None
+        };
         let cutout_subscriber = match session.declare_subscriber(keys.cutout_delivery).await {
             Ok(subscriber) => subscriber,
             Err(error) => {
@@ -184,6 +205,7 @@ async fn run_gateway(
             keys.joystick, keys.telemetry, keys.cutout_delivery, keys.liveliness,
         );
         retry_delay = INITIAL_RETRY;
+        let mut sim_state = SimCommandState::default();
         let mut certificate_renewal_check = tokio::time::interval_at(
             tokio::time::Instant::now() + CERTIFICATE_RENEWAL_CHECK_PERIOD,
             CERTIFICATE_RENEWAL_CHECK_PERIOD,
@@ -196,6 +218,9 @@ async fn run_gateway(
                         let payload = sample.payload().to_bytes();
                         match parse_joystick_payload(payload.as_ref()) {
                             Ok(joystick) => {
+                                if settings.simulation && !sim_state.accepts_joystick() {
+                                    continue;
+                                }
                                 let (linear_mps, angular_radps) = joystick_to_velocity(
                                     joystick, settings.max_linear_mps, settings.max_angular_radps,
                                 );
@@ -212,6 +237,39 @@ async fn run_gateway(
                     Err(error) => {
                         eprintln!("Zenoh joystick subscription ended: {error}");
                         break;
+                    }
+                },
+                query = async { command_queryable.as_ref().unwrap().recv_async().await }, if command_queryable.is_some() => {
+                    match query {
+                        Ok(query) => {
+                            let command = query.payload().and_then(|payload| serde_json::from_slice::<Command>(payload.to_bytes().as_ref()).ok());
+                            match command {
+                                Some(command) => {
+                                    let (reply, stop_motion) = sim_state.apply(command);
+                                    if stop_motion {
+                                        let zero = TwistStamped::default();
+                                        if let Err(error) = velocity_publisher.publish(zero) {
+                                            eprintln!("failed to stop simulated mower: {error}");
+                                        }
+                                    }
+                                    match serde_json::to_vec(&reply) {
+                                        Ok(payload) => {
+                                            if let Err(error) = query.reply(keys.command, payload).await {
+                                                eprintln!("failed to reply to simulation command: {error}");
+                                            }
+                                        }
+                                        Err(error) => eprintln!("failed to encode simulation command reply: {error}"),
+                                    }
+                                }
+                                None => {
+                                    let _ = query.reply_err("Invalid simulation command").await;
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!("simulation command queryable ended: {error}");
+                            break;
+                        }
                     }
                 },
                 payload = telemetry_rx.recv() => match payload {

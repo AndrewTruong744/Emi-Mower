@@ -14,7 +14,7 @@ today; the app and mower use native Zenoh as the operational interface.
   expiry metadata
 - Eclipse Zenoh Python client plus router REST admin API
 - Firebase Admin for ID-token verification
-- PyJWT for short-lived app-router passwords
+- Protected REST management of forked Zenoh runtime permissions
 - Google Cloud Storage signed URLs for cutouts
 - LiveKit API for room-scoped publisher/viewer credentials
 - Pytest, pytest-asyncio, pytest-cov, Testcontainers, Docker Compose, and Ruff

@@ -32,7 +32,7 @@ exercise:
 - `tests/components/` for rendered UI and interaction behavior;
 - `tests/hooks/` for feature and API hooks;
 - `tests/store/` for Zustand slice behavior and resets;
-- `tests/zenoh/` for session, telemetry, and compatibility-shim behavior; and
+- `tests/zenoh/` for session, telemetry, and native transport lifecycle behavior; and
 - `tests/config/` for configuration validation.
 
 `tests/mocks/` replaces native Firebase, Google Sign-In, MapLibre, gesture,
@@ -42,7 +42,7 @@ real Zenoh router, Firebase project, or device service in the Jest suite.
 ## Coverage
 
 The Jest configuration collects coverage from hooks, store code, Zenoh code,
-the Zenoh client and compatibility shims, and most components. Generated files
+the Zenoh client and native facade, and most components. Generated files
 and selected platform-only or purely typed files are excluded. The enforced
 global threshold is 80% for branches, functions, lines, and statements.
 

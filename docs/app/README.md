@@ -2,7 +2,7 @@
 
 The Expo/React Native app provides user authentication, mower views, controls,
 telemetry presentation, boundaries, and media features. Its Zenoh client uses
-the remote API WebSocket; setup and local connection configuration are
+a native Rust transport through a local Expo module; setup and local connection configuration are
 documented in [development](development.md).
 
 ## App guides
@@ -21,8 +21,7 @@ documented in [development](development.md).
   presentation of operational errors.
 - [Testing and code coverage](testing.md) — test layout, coverage thresholds,
   and local quality commands.
-- [Zenoh WASM compatibility](zenoh-wasm-react-native.md) — maintaining the
-  TypeScript shims that allow Zenoh to run in React Native.
+- [Native Rust Zenoh](zenoh-wasm-react-native.md) — building and testing the Android native transport.
 
 Before changing mower commands or telemetry handling, read the
 [Zenoh interface contract](../interfaces/zenoh.md). The app must preserve the

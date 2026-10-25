@@ -3,21 +3,26 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.zenoh_client import ZenohAdminClient
 from src.exceptions import (
+    ExternalServiceError,
     MowerNotFoundError,
     OwnershipError,
     ValidationError,
 )
 from src.repositories import (
     add_telemetry_to_cache,
-    check_mower_ownership,
     get_mower_data_for_user,
     get_telemetry_history,
-    set_mower_owner,
     update_mower_name,
     verify_ownership,
 )
+from src.repositories.account_switch import user_authorization_snapshot
 from src.repositories.get_telemetry_history import TELEMETRY_PAGE_SIZE
+from src.repositories.mower_ownership import (
+    invalidate_mower_ownership,
+    stage_mower_ownership,
+)
 from src.zenoh.generated import TelemetryRecord
 
 logger = logging.getLogger("services.mower_service")
@@ -163,16 +168,47 @@ async def update_mower_ownership_service(
     )
     mower_uuid = _parse_mower_id(mower_id)
 
-    actual_owner = await check_mower_ownership(mower_uuid, db=db)
-
-    if actual_owner is not None and current_owner_id != actual_owner:
-        logger.warning(
-            "Transfer rejected: specified owner %s != actual %s",
-            current_owner_id,
-            actual_owner,
+    admin = ZenohAdminClient()
+    narrowed = False
+    committed = False
+    owners = sorted({owner for owner in (current_owner_id, new_owner_id) if owner})
+    try:
+        policies = await stage_mower_ownership(
+            current_owner_id, new_owner_id, mower_uuid, db
         )
-        raise OwnershipError(
-            f"Current user {current_owner_id} is not actual owner {actual_owner}"
-        )
-
-    await set_mower_owner(new_owner_id, mower_uuid, db=db)
+        if current_owner_id:
+            # Revoke only this mower before ownership changes become visible.
+            # Keep user/** replies and unrelated mower traffic on live sessions.
+            narrowed = True
+            await admin.configure_user_app(current_owner_id, policies[current_owner_id])
+        await invalidate_mower_ownership(mower_uuid, owners)
+        await db.commit()
+        committed = True
+        # Clear entries that concurrent cache readers could have repopulated
+        # from the previous committed database state.
+        await invalidate_mower_ownership(mower_uuid, owners)
+        if new_owner_id:
+            # Publish grants only after commit, under a fresh account lock.
+            # Concurrent login/transfer must never restore an obsolete snapshot.
+            _, mower_ids = await user_authorization_snapshot(new_owner_id, db)
+            await admin.configure_user_app(new_owner_id, mower_ids)
+            await db.commit()
+    except Exception as error:
+        await db.rollback()
+        if committed:
+            raise ExternalServiceError(
+                "Ownership was saved, but access refresh failed. "
+                "Refresh your fleet or sign in again."
+            ) from error
+        if narrowed and current_owner_id:
+            # Restore from SQL after rollback, never from an earlier cached list.
+            try:
+                _, mower_ids = await user_authorization_snapshot(current_owner_id, db)
+                await admin.configure_user_app(current_owner_id, mower_ids)
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                logger.exception(
+                    "Ownership rollback needs a fresh user login to restore permissions"
+                )
+        raise

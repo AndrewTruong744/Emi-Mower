@@ -3,25 +3,18 @@ import { loginUser } from '@/zenoh/UserLogin';
 import { getFirebaseIdToken } from '@/config/firebase';
 import { mockFirebaseAuth, mockFirebaseUser } from '../mocks/firebase';
 import { closeZenoh } from '@/config/zenohClient';
-import { open } from '@eclipse-zenoh/zenoh-ts';
+import { open } from '@/config/nativeZenoh';
 import { useBoundStore } from '@/store/useBoundStore';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;
 
 function loginReply() {
-  return {
-    result: () => ({
-      payload: () => ({
-        toString: () =>
-          JSON.stringify({
-            user_id: 'user-1',
-            token: 'zenoh-token',
-            expires_in: 300,
-            user_data: { id: 'user-1', email: 'u@example.com', name: 'U', mowers: ['mower-1'] },
-          }),
-      }),
-    }),
-  };
+  return JSON.stringify({
+    user_id: 'user-1',
+    authorized: true,
+    expires_in: 300,
+    user_data: { id: 'user-1', email: 'u@example.com', name: 'U', mowers: ['mower-1'] },
+  });
 }
 
 describe('UserLogin', () => {
@@ -33,11 +26,7 @@ describe('UserLogin', () => {
 
   it('calls the login route and establishes the returned user Zenoh session', async () => {
     const session = {
-      get: jest.fn<(...args: any[]) => any>().mockImplementation(() =>
-        (async function* () {
-          yield loginReply();
-        })()
-      ),
+      query: jest.fn<(...args: any[]) => any>().mockResolvedValue(loginReply()),
       close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
     };
     mockedOpen.mockResolvedValue(session);
@@ -47,12 +36,13 @@ describe('UserLogin', () => {
       name: 'U',
       mowers: ['mower-1'],
     });
-    expect(session.get).toHaveBeenCalledWith(
+    expect(session.query).toHaveBeenCalledWith(
       'user/login',
-      expect.objectContaining({ payload: expect.any(String) })
+      JSON.stringify({ id_token: 'firebase-token' }),
+      5000
     );
-    expect(mockedOpen).toHaveBeenCalledTimes(2);
-    expect(mockedOpen.mock.calls[1][0].locator).toContain('user-1:zenoh-token@');
+    expect(mockedOpen).toHaveBeenCalledTimes(1);
+    expect(session.close).not.toHaveBeenCalled();
   });
 
   it('validates Firebase login inputs and retrieves Firebase tokens', async () => {
@@ -63,4 +53,33 @@ describe('UserLogin', () => {
     await expect(getFirebaseIdToken()).resolves.toBe('firebase-token');
   });
 
+  it('does not reuse a pending login when Firebase identity changes', async () => {
+    let signalStarted!: () => void;
+    let finishOldQuery!: (value: any) => void;
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
+    });
+    const pending = new Promise<any>((resolve) => {
+      finishOldQuery = resolve;
+    });
+    const old = {
+      query: jest.fn(() => {
+        signalStarted();
+        return pending;
+      }),
+      close: jest.fn<() => Promise<void>>().mockResolvedValue(),
+    };
+    const replacement = {
+      query: jest.fn(async () => loginReply()),
+      close: jest.fn<() => Promise<void>>().mockResolvedValue(),
+    };
+    mockedOpen.mockResolvedValueOnce(old).mockResolvedValueOnce(replacement);
+    const previous = loginUser().catch((error) => error);
+    await started;
+    useBoundStore.getState().startZenohSession();
+    await expect(loginUser()).resolves.toMatchObject({ id: 'user-1' });
+    finishOldQuery(loginReply());
+    expect((await previous).name).toBe('OperationCancelled');
+    expect(mockedOpen).toHaveBeenCalledTimes(2);
+  });
 });

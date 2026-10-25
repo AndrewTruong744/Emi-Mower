@@ -1,10 +1,83 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { act, renderHook } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { useController } from '@/hooks/controller/useController';
 import { __mockGesture } from '../../mocks/gesture-handler';
 
 describe('useController', () => {
+  afterEach(() => { jest.useRealTimers(); });
+
+  it('replaces a held left turn with forward and zeros a small horizontal offset', async () => {
+    jest.useFakeTimers();
+    const onMove = jest.fn();
+    const { result, unmount } = renderHook(() => useController({ onMove }));
+    await act(async () => { await result.current.handlePower(); });
+    const move = (translationX: number, translationY: number) => {
+      (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+        translationX, translationY,
+      });
+    };
+    act(() => { move(-100, 0); jest.advanceTimersByTime(100); });
+    expect(onMove).toHaveBeenLastCalledWith({ x: -1, y: 0 });
+    onMove.mockClear();
+    act(() => { move(2, -100); jest.advanceTimersByTime(200); });
+    expect(onMove).toHaveBeenCalledTimes(5);
+    for (const [command] of onMove.mock.calls) {
+      expect(command).toEqual({ x: 0, y: expect.closeTo(1, 3) });
+    }
+    unmount();
+  });
+
+  it('publishes a held vector until release and stops immediately at center', async () => {
+    jest.useFakeTimers();
+    const onMove = jest.fn();
+    const { result, unmount } = renderHook(() => useController({ onMove }));
+    await act(async () => {
+      await result.current.handlePower();
+    });
+
+    act(() => {
+      (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+        translationX: 100,
+        translationY: 0,
+      });
+      jest.advanceTimersByTime(500);
+    });
+    expect(onMove).toHaveBeenCalledTimes(11);
+    expect(onMove).toHaveBeenLastCalledWith({ x: 1, y: 0 });
+
+    act(() => {
+      (__mockGesture.endCallback as unknown as () => void)();
+      jest.advanceTimersByTime(500);
+    });
+    expect(onMove).toHaveBeenCalledTimes(12);
+    expect(onMove).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+    unmount();
+  });
+
+  it('sends zero and stops repeating if power is switched off while held', async () => {
+    jest.useFakeTimers();
+    const onMove = jest.fn();
+    const { result, unmount } = renderHook(() => useController({ onMove }));
+    await act(async () => {
+      await result.current.handlePower();
+    });
+    act(() => {
+      (__mockGesture.updateCallback as unknown as (event: { translationX: number; translationY: number }) => void)({
+        translationX: 0,
+        translationY: -50,
+      });
+    });
+    expect(onMove).toHaveBeenLastCalledWith({ x: 0, y: 0.5 });
+    await act(async () => {
+      await result.current.handlePower();
+    });
+    act(() => jest.advanceTimersByTime(500));
+    expect(onMove).toHaveBeenCalledTimes(2);
+    expect(onMove).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+    unmount();
+  });
+
   it('keeps configuration state together and emergency stop turns off power', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
     const { result } = renderHook(() => useController());

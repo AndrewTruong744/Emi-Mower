@@ -19,14 +19,9 @@ from src.services.temp_jwt import generate_jwt_token
 from src.services.user import (
     create_user_service,
     get_user_data_service,
-    get_zenoh_jwt_service,
     update_user_email_service,
     update_user_name_service,
     user_login_service,
-)
-from src.services.zenoh_credentials import (
-    provision_zenoh_credential,
-    remove_expired_zenoh_credentials,
 )
 
 __all__ = [
@@ -44,10 +39,7 @@ __all__ = [
     "add_telemetry_data_service",
     "create_user_service",
     "get_user_data_service",
-    "get_zenoh_jwt_service",
     "user_login_service",
     "update_user_email_service",
     "update_user_name_service",
-    "provision_zenoh_credential",
-    "remove_expired_zenoh_credentials",
 ]

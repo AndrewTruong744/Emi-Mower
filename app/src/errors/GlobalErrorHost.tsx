@@ -38,7 +38,7 @@ export function GlobalErrorHost() {
         </Modal>
       ) : (
         <Snackbar visible onDismiss={() => dismissError(error.id)} duration={TOAST_DURATION_MS}>
-          {error.title}: {message}
+          {`${error.title}: ${message}`}
         </Snackbar>
       )}
     </Portal>

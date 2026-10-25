@@ -47,7 +47,7 @@ async def test_add_mower_to_user_listener_verifies_token_and_assigns_to_user(
 async def test_update_user_name_listener_verifies_token_and_returns_reply(monkeypatch):
     listener = import_module("src.zenoh.listeners.update_user_name")
     verify = Mock(return_value={"user_id": "user-1"})
-    service = AsyncMock()
+    service = AsyncMock(return_value="NewName")
     monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
     monkeypatch.setattr(listener, "update_user_name_service", service)
     db = Mock()
@@ -107,34 +107,41 @@ async def test_update_mower_name_listener_rejects_a_mismatched_query_path(monkey
     service.assert_not_awaited()
 
 
-async def test_update_user_email_listener_verifies_token_and_returns_new_email(
+async def test_email_switch_verifies_both_accounts_and_returns_replacement(
     monkeypatch,
 ):
     listener = import_module("src.zenoh.listeners.update_user_email")
     verify = Mock(
         side_effect=[
             {"user_id": "user-1", "email": "old@example.test"},
-            {"user_id": "new-firebase-user", "email": "new@example.test"},
+            {
+                "user_id": "replacement-user",
+                "email": "new@example.test",
+                "email_verified": True,
+                "firebase": {"sign_in_provider": "google.com"},
+            },
         ]
     )
     monkeypatch.setattr("src.services.auth.auth.verify_id_token", verify)
-    update = AsyncMock()
-    monkeypatch.setattr(
-        user_service, "find_user_by_email", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(user_service, "update_user_email", update)
-    db = Mock()
-
+    stage = AsyncMock(return_value=["mower-1"])
+    scrub = AsyncMock()
+    admin = Mock(retire_user=AsyncMock())
+    monkeypatch.setattr(user_service, "stage_account_switch", stage)
+    monkeypatch.setattr(user_service, "invalidate_account_switch_cache", scrub)
+    monkeypatch.setattr(user_service, "ZenohAdminClient", lambda: admin)
+    db = AsyncMock()
     result = await listener.update_user_email(
         UpdateUserEmailRequest(
             id_token="original-google-token", new_id_token="new-google-token"
         ),
         db,
     )
-
     assert verify.call_count == 2
     assert verify.call_args_list[0].args == ("original-google-token",)
     assert verify.call_args_list[1].args == ("new-google-token",)
-    update.assert_awaited_once_with("user-1", "new@example.test", db=db)
+    stage.assert_awaited_once_with("user-1", "replacement-user", "new@example.test", db)
+    scrub.assert_awaited_once_with("user-1", "replacement-user", ["mower-1"])
+    admin.retire_user.assert_awaited_once_with("user-1")
     assert isinstance(result, UpdateUserEmailResponse)
     assert result.new_email == "new@example.test"
+    assert result.user_id == "replacement-user"

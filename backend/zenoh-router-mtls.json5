@@ -1,76 +1,88 @@
 {
   "mode": "router",
-
+  "scouting": {
+    "multicast": {
+      "enabled": false
+    }
+  },
   "listen": {
     "endpoints": [
-      "tls/0.0.0.0:7448" // Private mTLS listener for FastAPI & Router B
+      "tls/0.0.0.0:7448"
     ]
   },
-
   "transport": {
+    "unicast": {
+      "max_links": 1
+    },
     "link": {
       "tls": {
         "root_ca_certificate": "/run/emi-mower/identity/root_ca.pem",
         "listen_certificate": "/run/emi-mower/identity/current/router.crt",
         "listen_private_key": "/run/emi-mower/identity/current/router.key",
-        "enable_mtls": true // Forces client X.509 cert validation
+        "enable_mtls": true
       }
     }
   },
-
-  // 1. Enable Write Access to Admin Space
-  adminspace: {
-    permissions: {
-      read: true,
-      write: true  // Required to accept runtime PUTs to @/config/...
+  "adminspace": {
+    "permissions": {
+      "read": false,
+      "write": false
     }
   },
-
   "plugins": {
     "rest": {
-      "http_port": "127.0.0.1:8002"
+      "http_port": "127.0.0.1:8002",
+      "runtime_access_control": {
+        "token_file": "/run/emi-mower/admin/token",
+        "capture_query_keys": []
+      }
     }
   },
-
   "access_control": {
     "enabled": true,
     "default_permission": "deny",
-
     "rules": [
       {
-        "id": "full_access",
+        "id": "trusted",
         "permission": "allow",
-        "flows": ["ingress", "egress"],
+        "flows": [
+          "ingress",
+          "egress"
+        ],
         "messages": [
           "put",
-          "declare_subscriber",
-          "declare_liveliness_subscriber",
-          "liveliness_token",
-          "declare_queryable",
+          "delete",
           "query",
           "reply",
-          "delete"
+          "declare_subscriber",
+          "declare_queryable",
+          "declare_liveliness_subscriber",
+          "liveliness_token",
+          "liveliness_query"
         ],
-        "key_exprs": ["**"]
+        "key_exprs": [
+          "**"
+        ]
       }
     ],
-
     "subjects": [
       {
-        "id": "fastapi_admin",
-        "cert_common_names": ["Emi Mower Backend"]
-      },
-      {
-        "id": "router_b_peer",
-        "cert_common_names": ["Emi Mower Zenoh App"] // Cert used by Router B to link
+        "id": "mesh",
+        "cert_common_names": [
+          "Emi Mower Backend",
+          "Emi Mower Zenoh App"
+        ]
       }
     ],
-
     "policies": [
       {
-        "id": "internal_mesh_policy",
-        "subjects": ["fastapi_admin", "router_b_peer"],
-        "rules": ["full_access"]
+        "id": "mesh",
+        "subjects": [
+          "mesh"
+        ],
+        "rules": [
+          "trusted"
+        ]
       }
     ]
   }

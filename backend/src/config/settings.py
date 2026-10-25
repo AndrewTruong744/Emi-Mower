@@ -32,6 +32,9 @@ class Settings:
     VALKEY_PORT: int = int(os.getenv("VALKEY_PORT") or "6379")
     VALKEY_PASSWORD: str | None = os.getenv("VALKEY_PASSWORD") or None
 
+    ZENOH_ADMIN_TOKEN_FILE: str = (
+        os.getenv("ZENOH_ADMIN_TOKEN_FILE") or "/run/emi-mower/admin/token"
+    )
     ZENOH_APP_REST_URL: str = os.getenv("ZENOH_APP_REST_URL") or "http://127.0.0.1:8001"
     ZENOH_MTLS_ENDPOINT: str = os.getenv("ZENOH_MTLS_ENDPOINT") or "tls/127.0.0.1:7448"
     ZENOH_MTLS_REST_URL: str = (
@@ -45,12 +48,10 @@ class Settings:
         os.getenv("ZENOH_CA_CERT") or "/run/emi-mower/identity/root_ca.pem"
     )
     ZENOH_FASTAPI_CERT: str = (
-        os.getenv("ZENOH_FASTAPI_CERT")
-        or "/run/emi-mower/identity/current/fastapi.crt"
+        os.getenv("ZENOH_FASTAPI_CERT") or "/run/emi-mower/identity/current/fastapi.crt"
     )
     ZENOH_FASTAPI_KEY: str = (
-        os.getenv("ZENOH_FASTAPI_KEY")
-        or "/run/emi-mower/identity/current/fastapi.key"
+        os.getenv("ZENOH_FASTAPI_KEY") or "/run/emi-mower/identity/current/fastapi.key"
     )
     STEP_CA_URL: str = os.getenv("STEP_CA_URL") or "https://localhost:9000"
     STEP_CA_PROVISIONER_PASSWORD_FILE: str = (

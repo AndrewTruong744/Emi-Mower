@@ -1,33 +1,32 @@
-import {
-  Config,
-  Duration,
-  Encoding,
-  open,
-  ReplyError,
-  SampleKind,
-  type Session,
-} from '@eclipse-zenoh/zenoh-ts';
+import { open, type NativeSession, type Sample, type Cleanup } from '@/config/nativeZenoh';
 import { reportAppError } from '@/errors/reporter';
+import type { ErrorCode } from '@/errors/types';
 import { isOperationCancelled, OperationCancelled } from '@/errors/operationCancelled';
 import { useBoundStore } from '@/store/useBoundStore';
 import { env } from './env';
 
 const zenohQueryTimeoutMs = 5_000;
-const zenohLocator = env.zenohUrl;
+let sessionPromise: Promise<Connection> | null = null;
+let sessionGeneration: number | null = null;
+let closingPromise: Promise<void> | null = null;
+const activeSubscriberCleanups = new Set<Cleanup>();
 
-let sessionPromise: Promise<Session> | null = null;
-let sessionLocator: string | null = null;
-const activeSubscriberCleanups = new Set<() => Promise<void>>();
-
-function getZenohLifecycle(): { enabled: boolean; generation: number } {
-  const { zenohEnabled, authGeneration } = useBoundStore.getState();
-  return { enabled: zenohEnabled, generation: authGeneration };
+interface Connection {
+  session: NativeSession;
+  operation: ZenohOperation;
+  closed: boolean;
+  connected: boolean;
+  revision: number;
+  authorizedUntil: number;
+  refresh?: () => Promise<unknown>;
+  renewalTimer?: ReturnType<typeof setTimeout>;
+  recovering?: Promise<void>;
 }
 
 /** Whether a captured Zenoh auth generation still owns the active session. */
-export function isZenohOperationActive(operationGeneration: number): boolean {
-  const { enabled, generation } = getZenohLifecycle();
-  return enabled && generation === operationGeneration;
+export function isZenohOperationActive(generation: number): boolean {
+  const state = useBoundStore.getState();
+  return state.zenohEnabled && state.authGeneration === generation;
 }
 
 interface ZenohOperation {
@@ -36,14 +35,12 @@ interface ZenohOperation {
   waitFor: <T>(promise: Promise<T>) => Promise<T>;
 }
 
-/** Captures one auth generation for a finite Zenoh operation. */
 function createZenohOperation(): ZenohOperation {
-  const { generation } = getZenohLifecycle();
+  const generation = useBoundStore.getState().authGeneration;
   const isActive = () => isZenohOperationActive(generation);
   const assertActive = () => {
     if (!isActive()) throw new OperationCancelled('Zenoh operation cancelled');
   };
-
   assertActive();
   return {
     isActive,
@@ -56,230 +53,219 @@ function createZenohOperation(): ZenohOperation {
   };
 }
 
-function trackSubscriber(
-  subscriber: { undeclare(): Promise<void> },
-  onClose?: () => void
-): () => Promise<void> {
-  let cleanupPromise: Promise<void> | undefined;
+function isActive(connection: Connection): boolean {
+  return !connection.closed && connection.operation.isActive();
+}
+
+/** Zenoh reconnects the transport; the app reauthorizes before Rust replays declarations. */
+function transportChanged(connection: Connection, connected: boolean): void {
+  if (!isActive(connection)) return;
+  connection.connected = connected;
+  connection.revision++;
+  connection.authorizedUntil = 0;
+  if (!connected || !connection.refresh || connection.recovering) return;
+  connection.recovering = (async () => {
+    // A second disconnect/reconnect during login invalidates that login's transport.
+    while (isActive(connection) && connection.connected) {
+      const revision = connection.revision;
+      try {
+        await connection.refresh!();
+        if (!isActive(connection) || !connection.connected) return;
+        if (revision !== connection.revision) continue;
+        await connection.session.restoreSubscriptions();
+      } catch (error) {
+        if (isActive(connection) && connection.connected && revision !== connection.revision)
+          continue;
+        throw error;
+      }
+      if (revision === connection.revision) return;
+    }
+  })()
+    .catch((error) => {
+      connection.authorizedUntil = 0;
+      if (isActive(connection)) reportAppError('zenoh.request_failed', error);
+    })
+    .finally(() => {
+      connection.recovering = undefined;
+    });
+}
+
+async function openConnection(operation: ZenohOperation): Promise<Connection> {
+  const session = await open(env.zenohUrl);
+  try {
+    operation.assertActive();
+    const connection: Connection = {
+      session,
+      operation,
+      closed: false,
+      connected: true,
+      revision: 0,
+      authorizedUntil: 0,
+    };
+    session.onTransport = (connected) => transportChanged(connection, connected);
+    return connection;
+  } catch (error) {
+    await session.close().catch(() => {});
+    throw error;
+  }
+}
+
+async function getConnection(): Promise<Connection> {
+  const operation = createZenohOperation();
+  const generation = useBoundStore.getState().authGeneration;
+  if (closingPromise) await operation.waitFor(closingPromise);
+  if (sessionPromise && sessionGeneration !== generation) await operation.waitFor(closeZenoh());
+  if (!sessionPromise) {
+    const pending = openConnection(operation);
+    sessionPromise = pending;
+    sessionGeneration = generation;
+    void pending.catch(() => {
+      if (sessionPromise === pending) sessionPromise = null;
+    });
+  }
+  return operation.waitFor(sessionPromise);
+}
+
+export async function connectZenoh(): Promise<NativeSession> {
+  return (await getConnection()).session;
+}
+
+/** The app alone owns Firebase authorization, expiry and renewal. */
+export async function maintainZenohAuthorization(
+  seconds: number,
+  refresh: () => Promise<unknown>
+): Promise<void> {
+  const connection = await getConnection();
+  connection.refresh = refresh;
+  connection.authorizedUntil = connection.connected ? Date.now() + seconds * 1000 : 0;
+  if (connection.renewalTimer) clearTimeout(connection.renewalTimer);
+  connection.renewalTimer = setTimeout(
+    () => {
+      if (isActive(connection))
+        void refresh().catch(async (error) => {
+          if (!isActive(connection)) return;
+          reportAppError('zenoh.request_failed', error);
+          await closeZenoh();
+        });
+    },
+    Math.max(1, seconds * 0.8) * 1000
+  );
+  (connection.renewalTimer as unknown as { unref?: () => void }).unref?.();
+}
+
+export async function closeZenoh(): Promise<void> {
+  if (closingPromise) return closingPromise;
+  const pending = sessionPromise;
+  sessionPromise = null;
+  sessionGeneration = null;
+  const closing = (async () => {
+    const connection = await pending?.catch(() => undefined);
+    if (connection) {
+      connection.closed = true;
+      connection.authorizedUntil = 0;
+      if (connection.renewalTimer) clearTimeout(connection.renewalTimer);
+    }
+    await Promise.allSettled([...activeSubscriberCleanups].map((cleanup) => cleanup()));
+    await connection?.session.close().catch(() => {});
+  })();
+  closingPromise = closing;
+  try {
+    await closing;
+  } finally {
+    if (closingPromise === closing) closingPromise = null;
+  }
+}
+
+async function withConnection<T>(
+  code: ErrorCode,
+  work: (connection: Connection, operation: ZenohOperation) => Promise<T>
+): Promise<T> {
+  const operation = createZenohOperation();
+  try {
+    const connection = await operation.waitFor(getConnection());
+    if (connection.closed) throw new OperationCancelled('Zenoh operation cancelled');
+    const result = await operation.waitFor(work(connection, operation));
+    if (connection.closed) throw new OperationCancelled('Zenoh operation cancelled');
+    return result;
+  } catch (error) {
+    if (isOperationCancelled(error) || !operation.isActive())
+      throw new OperationCancelled('Zenoh operation cancelled');
+    reportAppError(code, error);
+    throw error;
+  }
+}
+
+export function zenohQuery<T>(key: string, payload: unknown): Promise<T> {
+  return withConnection('zenoh.request_failed', async ({ session }) => {
+    const text = await session.query(key, JSON.stringify(payload), zenohQueryTimeoutMs);
+    if (!text) throw new Error(`Zenoh returned an empty response for ${key}`);
+    return JSON.parse(text) as T;
+  });
+}
+
+/** Publish a JSON command without waiting for a reply from the mower. */
+export function zenohPut(key: string, payload: unknown): Promise<void> {
+  return withConnection('zenoh.command_failed', async (connection) => {
+    if (!connection.connected || connection.recovering || Date.now() >= connection.authorizedUntil)
+      throw new Error('Zenoh transport is not authorized');
+    await connection.session.put(key, JSON.stringify(payload));
+  });
+}
+
+function trackSubscriber(unsubscribe: Cleanup, onClose?: () => void): Cleanup {
+  let pending: Promise<void> | undefined;
   const cleanup = () => {
-    cleanupPromise ??= (async () => {
+    pending ??= (async () => {
       try {
         onClose?.();
       } catch {
-        // Local cleanup must not prevent the Zenoh declaration from closing.
+        /* Continue native cleanup. */
       }
-      try {
-        await subscriber.undeclare();
-      } catch {
-        // Session shutdown can undeclare the subscriber before local cleanup.
-      }
+      await unsubscribe().catch(() => {});
     })().finally(() => activeSubscriberCleanups.delete(cleanup));
-    return cleanupPromise;
+    return pending;
   };
   activeSubscriberCleanups.add(cleanup);
   return cleanup;
 }
 
-async function openZenohSession(locator: string, operation: ZenohOperation): Promise<Session> {
-  const session = await open(new Config(locator, zenohQueryTimeoutMs));
-  try {
-    operation.assertActive();
-    return session;
-  } catch (error) {
+function subscribe(
+  key: string,
+  onSample: (sample: Sample) => void,
+  kind: 'data' | 'liveliness',
+  onClose?: () => void
+): Promise<void> {
+  return withConnection('zenoh.subscription_failed', async (connection, operation) => {
+    const handler = (sample: Sample) => {
+      if (isActive(connection)) onSample(sample);
+    };
+    const unsubscribe = await (kind === 'data'
+      ? connection.session.subscribe(key, handler)
+      : connection.session.subscribeLiveliness(key, handler));
+    const cleanup = trackSubscriber(unsubscribe, onClose);
     try {
-      await session.close();
-    } catch {
-      // The connection is already invalidated; preserve the cancellation error.
-    }
-    throw error;
-  }
-}
-
-async function clearFailedSession(pendingSession: Promise<Session>): Promise<void> {
-  try {
-    await pendingSession;
-  } catch {
-    if (sessionPromise === pendingSession) {
-      sessionPromise = null;
-      sessionLocator = null;
-    }
-  }
-}
-
-export async function connectZenoh(username?: string, password?: string): Promise<Session> {
-  const hasCredentials = username !== undefined;
-  if (hasCredentials !== (password !== undefined)) {
-    throw new Error('Zenoh username and token must be provided together');
-  }
-  const operation = createZenohOperation();
-
-  // A no-credential call reuses whichever session is active. This keeps all
-  // post-login queries on the authenticated session established below.
-  if (sessionPromise && !hasCredentials) {
-    return operation.waitFor(sessionPromise);
-  }
-
-  let targetLocator = zenohLocator;
-  if (hasCredentials) {
-    const authenticatedUrl = new URL(zenohLocator);
-    authenticatedUrl.username = username!;
-    authenticatedUrl.password = password!;
-    targetLocator = authenticatedUrl.toString();
-  }
-
-  if (sessionPromise && sessionLocator !== targetLocator) {
-    await closeZenoh();
-    operation.assertActive();
-  }
-
-  if (!sessionPromise) {
-    sessionLocator = targetLocator;
-    const pendingSession = openZenohSession(targetLocator, operation);
-    sessionPromise = pendingSession;
-    void clearFailedSession(pendingSession);
-  }
-
-  return operation.waitFor(sessionPromise!);
-}
-
-export async function closeZenoh(): Promise<void> {
-  await Promise.allSettled([...activeSubscriberCleanups].map((cleanup) => cleanup()));
-
-  const pendingSession = sessionPromise;
-  sessionPromise = null;
-  sessionLocator = null;
-
-  try {
-    await (await pendingSession)?.close();
-  } catch {
-    // A failed connection or closed transport must not block local logout.
-  }
-}
-
-export async function zenohQuery<T>(keyExpr: string, payload: unknown): Promise<T> {
-  const operation = createZenohOperation();
-  try {
-    const session = await operation.waitFor(connectZenoh());
-    const receiver = await operation.waitFor(
-      session.get(keyExpr, {
-        encoding: Encoding.APPLICATION_JSON,
-        payload: JSON.stringify(payload),
-        timeout: Duration.milliseconds.of(zenohQueryTimeoutMs),
-      })
-    );
-
-    if (!receiver) {
-      throw new Error(`Zenoh returned no receiver for ${keyExpr}`);
-    }
-
-    for await (const reply of receiver) {
+      if (connection.closed) throw new OperationCancelled('Zenoh operation cancelled');
       operation.assertActive();
-      const result = reply.result();
-      if (result instanceof ReplyError) {
-        throw new Error(result.payload().toString() || `Zenoh request failed: ${keyExpr}`);
-      }
-
-      const text = result.payload().toString();
-      if (!text) {
-        throw new Error(`Zenoh returned an empty response for ${keyExpr}`);
-      }
-
-      return JSON.parse(text) as T;
+    } catch (error) {
+      await cleanup();
+      throw error;
     }
-
-    throw new Error(`Zenoh returned no response for ${keyExpr}`);
-  } catch (error) {
-    if (isOperationCancelled(error) || !operation.isActive()) {
-      throw new OperationCancelled('Zenoh operation cancelled');
-    }
-    reportAppError('zenoh.request_failed', error);
-    throw error;
-  }
+  });
 }
 
-/** Publish a JSON command without waiting for a reply from the mower. */
-export async function zenohPut(keyExpr: string, payload: unknown): Promise<void> {
-  const operation = createZenohOperation();
-  try {
-    const session = await operation.waitFor(connectZenoh());
-
-    await operation.waitFor(
-      session.put(keyExpr, JSON.stringify(payload), {
-        encoding: Encoding.APPLICATION_JSON,
-      })
-    );
-  } catch (error) {
-    if (isOperationCancelled(error) || !operation.isActive()) {
-      throw new OperationCancelled('Zenoh operation cancelled');
-    }
-    reportAppError('zenoh.command_failed', error);
-    throw error;
-  }
-}
-
-/** Declare a JSON subscriber; closeZenoh owns its registered cleanup. */
-export async function zenohSubscribe(
-  keyExpr: string,
+export function zenohSubscribe(
+  key: string,
   onPayload: (payload: string) => void,
   onClose?: () => void
 ): Promise<void> {
-  const operation = createZenohOperation();
-  try {
-    const session = await operation.waitFor(connectZenoh());
-    const subscriber = await session.declareSubscriber(keyExpr, {
-      handler: (sample) => {
-        if (operation.isActive()) {
-          onPayload(sample.payload().toString());
-        }
-      },
-    });
-
-    const cleanup = trackSubscriber(subscriber, onClose);
-    try {
-      operation.assertActive();
-    } catch (error) {
-      await cleanup();
-      throw error;
-    }
-  } catch (error) {
-    if (isOperationCancelled(error) || !operation.isActive()) {
-      throw new OperationCancelled('Zenoh operation cancelled');
-    }
-    reportAppError('zenoh.subscription_failed', error);
-    throw error;
-  }
+  return subscribe(key, (sample) => onPayload(sample.payload), 'data', onClose);
 }
 
-/** Subscribe to payload-less Zenoh liveliness tokens with their current history. */
-export async function zenohSubscribeLiveliness(
-  keyExpr: string,
-  onChange: (keyExpr: string, connected: boolean) => void,
+/** Rust declares historical liveliness subscribers and emits plain token changes. */
+export function zenohSubscribeLiveliness(
+  key: string,
+  onChange: (key: string, connected: boolean) => void,
   onClose?: () => void
 ): Promise<void> {
-  const operation = createZenohOperation();
-  try {
-    const session = await operation.waitFor(connectZenoh());
-    const subscriber = await session.liveliness().declareSubscriber(keyExpr, {
-      history: true,
-      handler: (sample) => {
-        if (operation.isActive()) {
-          onChange(sample.keyexpr().toString(), sample.kind() === SampleKind.PUT);
-        }
-      },
-    });
-
-    const cleanup = trackSubscriber(subscriber, onClose);
-    try {
-      operation.assertActive();
-    } catch (error) {
-      await cleanup();
-      throw error;
-    }
-  } catch (error) {
-    if (isOperationCancelled(error) || !operation.isActive()) {
-      throw new OperationCancelled('Zenoh operation cancelled');
-    }
-    reportAppError('zenoh.subscription_failed', error);
-    throw error;
-  }
+  return subscribe(key, (sample) => onChange(sample.key, sample.put), 'liveliness', onClose);
 }

@@ -15,7 +15,7 @@ export const usePatchUsername = () => {
       const idToken = await getFirebaseIdToken(true);
       const request: UpdateUserNameRequest = {
         id_token: idToken,
-        new_user_name: newUserName,
+        new_user_name: newUserName.trim(),
       };
       return zenohQuery<UpdateUserNameResponse>(updateUserNamePath(), request);
     },

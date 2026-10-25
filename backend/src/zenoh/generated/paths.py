@@ -14,6 +14,20 @@ def add_mower_to_user_path() -> str:
     return ADD_MOWER_TO_USER_ADDRESS
 
 
+REMOVE_MOWER_FROM_USER_ADDRESS = "user/remove_mower"
+
+
+def remove_mower_from_user_path() -> str:
+    return REMOVE_MOWER_FROM_USER_ADDRESS
+
+
+TRANSFER_MOWER_ADDRESS = "user/transfer_mower"
+
+
+def transfer_mower_path() -> str:
+    return TRANSFER_MOWER_ADDRESS
+
+
 UPDATE_USER_NAME_ADDRESS = "user/update_name"
 
 

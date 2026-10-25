@@ -1,8 +1,9 @@
-import { jest, describe, expect, it, beforeEach } from '@jest/globals';
-import { Config, Encoding, ReplyError, SampleKind, open } from '@eclipse-zenoh/zenoh-ts';
+import { jest, describe, expect, it, beforeEach, afterEach } from '@jest/globals';
+import { open } from '@/config/nativeZenoh';
 import {
   closeZenoh,
   connectZenoh,
+  maintainZenohAuthorization,
   zenohPut,
   zenohSubscribe,
   zenohSubscribeLiveliness,
@@ -12,300 +13,345 @@ import { OperationCancelled } from '@/errors/operationCancelled';
 import { useBoundStore } from '@/store/useBoundStore';
 
 const mockedOpen = open as jest.Mock<(...args: any[]) => any>;
-
-function reply(payload: unknown) {
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+};
+const settle = async () => {
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+};
+function nativeSession() {
   return {
-    result: () => ({
-      payload: () => ({ toString: () => JSON.stringify(payload) }),
-    }),
+    query: jest.fn<(...args: any[]) => Promise<string>>().mockResolvedValue('{"ok":true}'),
+    put: jest.fn<(...args: any[]) => Promise<void>>().mockResolvedValue(),
+    subscribe: jest
+      .fn<(...args: any[]) => Promise<() => Promise<void>>>()
+      .mockImplementation(async () => jest.fn<() => Promise<void>>().mockResolvedValue()),
+    subscribeLiveliness: jest
+      .fn<(...args: any[]) => Promise<() => Promise<void>>>()
+      .mockImplementation(async () => jest.fn<() => Promise<void>>().mockResolvedValue()),
+    restoreSubscriptions: jest.fn<() => Promise<void>>().mockResolvedValue(),
+    close: jest.fn<() => Promise<void>>().mockResolvedValue(),
+    onTransport: undefined as undefined | ((connected: boolean) => void),
   };
 }
 
-describe('Zenoh client', () => {
+describe('Zenoh app lifecycle', () => {
   beforeEach(async () => {
     await closeZenoh();
     mockedOpen.mockReset();
     useBoundStore.getState().enableZenoh();
     useBoundStore.getState().clearErrors();
   });
+  afterEach(async () => {
+    await closeZenoh();
+    jest.useRealTimers();
+  });
 
-  it('connects once and sends typed JSON queries', async () => {
-    const session = {
-      get: jest.fn<(...args: any[]) => any>().mockImplementation(() =>
-        (async function* () {
-          yield reply({ ok: true });
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
+  it('opens once and parses one JSON payload per query', async () => {
+    const session = nativeSession();
     mockedOpen.mockResolvedValue(session);
     await expect(zenohQuery('user/login', { id_token: 'token' })).resolves.toEqual({ ok: true });
     await expect(zenohQuery('user/login', { id_token: 'token-2' })).resolves.toEqual({ ok: true });
     expect(mockedOpen).toHaveBeenCalledTimes(1);
-    expect(session.get).toHaveBeenCalledWith('user/login', {
-      encoding: Encoding.APPLICATION_JSON,
-      payload: JSON.stringify({ id_token: 'token-2' }),
-      timeout: expect.objectContaining({ value: 5_000, unit: 'ms' }),
-    });
-    expect(mockedOpen.mock.calls[0][0]).toBeInstanceOf(Config);
+    expect(mockedOpen).toHaveBeenCalledWith(expect.stringMatching(/^(tcp|tls)\//));
+    expect(session.query).toHaveBeenLastCalledWith('user/login', '{"id_token":"token-2"}', 5000);
+    expect(await connectZenoh()).toBe(session);
   });
 
-  it('closes the active WebSocket session', async () => {
-    const session = {
-      get: jest.fn(),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
+  it('keeps overlapping replies and errors independent', async () => {
+    const session = nativeSession();
+    const slow = deferred<string>();
+    const failed = deferred<string>();
+    session.query
+      .mockReturnValueOnce(slow.promise)
+      .mockReturnValueOnce(failed.promise)
+      .mockResolvedValueOnce('{"fast":true}');
     mockedOpen.mockResolvedValue(session);
+    const first = zenohQuery('slow', {});
+    const failure = expect(zenohQuery('failed', {})).rejects.toThrow('Timeout');
+    await expect(zenohQuery('fast', {})).resolves.toEqual({ fast: true });
+    failed.reject(new Error('Timeout'));
+    await failure;
+    slow.resolve('{"slow":true}');
+    await expect(first).resolves.toEqual({ slow: true });
+  });
 
-    await connectZenoh();
-    await closeZenoh();
+  it('owns command authorization and expiry without adding native auth state', async () => {
+    jest.useFakeTimers();
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+    await maintainZenohAuthorization(300, jest.fn<() => Promise<void>>().mockResolvedValue());
+    await zenohPut('mower/A/joystick', { x: 0.5, y: -0.25 });
+    expect(session.put).toHaveBeenCalledWith('mower/A/joystick', '{"x":0.5,"y":-0.25}');
+    jest.setSystemTime(Date.now() + 301000);
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+  });
 
+  it('reauthorizes before asking Rust to replay subscriptions on the same session', async () => {
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const login = deferred<void>();
+    const restore = deferred<void>();
+    const refresh = jest.fn(async () => {
+      await login.promise;
+      await maintainZenohAuthorization(300, refresh);
+    });
+    session.restoreSubscriptions.mockReturnValue(restore.promise);
+    await maintainZenohAuthorization(300, refresh);
+    session.onTransport!(false);
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+    session.onTransport!(true);
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(session.restoreSubscriptions).not.toHaveBeenCalled();
+    login.resolve();
+    await settle();
+    expect(session.restoreSubscriptions).toHaveBeenCalledTimes(1);
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+    restore.resolve();
+    await settle();
+    await zenohPut('mower/A/joystick', {});
+    expect(mockedOpen).toHaveBeenCalledTimes(1);
+    expect(session.subscribe).not.toHaveBeenCalled();
+  });
+
+  it('coalesces recovery and retries authorization if the transport changes during login', async () => {
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const oldLogin = deferred<void>();
+    const refresh = jest
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => oldLogin.promise)
+      .mockImplementation(async () => maintainZenohAuthorization(300, refresh));
+    await maintainZenohAuthorization(300, refresh);
+    session.onTransport!(false);
+    session.onTransport!(true);
+    session.onTransport!(false);
+    session.onTransport!(true);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    oldLogin.reject(new Error('old transport lost'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(session.restoreSubscriptions).toHaveBeenCalledTimes(1);
+    await zenohPut('mower/A/joystick', {});
+  });
+
+  it('keeps commands blocked when reconnect authorization or replay fails', async () => {
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const refresh = jest
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('login failed'))
+      .mockImplementation(async () => maintainZenohAuthorization(300, refresh));
+    await maintainZenohAuthorization(300, refresh);
+    session.onTransport!(false);
+    session.onTransport!(true);
+    await settle();
+    expect(session.restoreSubscriptions).not.toHaveBeenCalled();
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+    session.restoreSubscriptions.mockRejectedValueOnce(new Error('replay failed'));
+    session.onTransport!(false);
+    session.onTransport!(true);
+    await settle();
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('not authorized');
+  });
+
+  it('restarts authorization if the connection drops during native subscription replay', async () => {
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const replay = deferred<void>();
+    session.restoreSubscriptions.mockReturnValueOnce(replay.promise);
+    const refresh = jest.fn(async () => maintainZenohAuthorization(300, refresh));
+    await maintainZenohAuthorization(300, refresh);
+    session.onTransport!(false);
+    session.onTransport!(true);
+    await settle();
+    expect(session.restoreSubscriptions).toHaveBeenCalledTimes(1);
+    session.onTransport!(false);
+    session.onTransport!(true);
+    replay.reject(new Error('transport lost during replay'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(session.restoreSubscriptions).toHaveBeenCalledTimes(2);
+    await zenohPut('mower/A/joystick', {});
+  });
+
+  it('renews at 80 percent of the authorization lifetime and closes on renewal failure', async () => {
+    jest.useFakeTimers();
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const refresh = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('expired login'));
+    await maintainZenohAuthorization(10, refresh);
+    await jest.advanceTimersByTimeAsync(7999);
+    expect(refresh).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
-  it('awaits active subscriber cleanup before closing the session', async () => {
-    let finishUndeclare: (() => void) | undefined;
-    const onClose = jest.fn();
-    const undeclare = jest.fn<() => Promise<void>>(
-      () =>
-        new Promise<void>((resolve) => {
-          finishUndeclare = resolve;
-        })
-    );
-    const session = {
-      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
+  it('maps plain telemetry and liveliness events and cleans callbacks before closing', async () => {
+    const session = nativeSession();
     mockedOpen.mockResolvedValue(session);
-    await zenohSubscribe('mower/*/telemetry', jest.fn(), onClose);
-
-    const closing = closeZenoh();
-    await Promise.resolve();
-
-    expect(undeclare).toHaveBeenCalledTimes(1);
+    const onPayload = jest.fn();
+    const onChange = jest.fn();
+    const onClose = jest.fn();
+    await zenohSubscribe('mower/*/telemetry', onPayload, onClose);
+    await zenohSubscribeLiveliness('mower/*/liveliness', onChange);
+    expect(session.subscribe.mock.calls[0]).toEqual(['mower/*/telemetry', expect.any(Function)]);
+    expect(session.subscribeLiveliness.mock.calls[0]).toEqual([
+      'mower/*/liveliness',
+      expect.any(Function),
+    ]);
+    const telemetry = session.subscribe.mock.calls[0][1];
+    const liveliness = session.subscribeLiveliness.mock.calls[0][1];
+    telemetry({ key: 'mower/A/telemetry', payload: '草🌱', put: true });
+    liveliness({ key: 'mower/A/liveliness', payload: '', put: true });
+    liveliness({ key: 'mower/A/liveliness', payload: '', put: false });
+    expect(onPayload).toHaveBeenCalledWith('草🌱');
+    expect(onChange.mock.calls).toEqual([
+      ['mower/A/liveliness', true],
+      ['mower/A/liveliness', false],
+    ]);
+    await closeZenoh();
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(session.close).not.toHaveBeenCalled();
+    telemetry({ payload: 'stale' });
+    expect(onPayload).toHaveBeenCalledTimes(1);
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
 
-    finishUndeclare?.();
+  it('waits for subscription cleanup and tolerates cleanup failures', async () => {
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    const undeclared = deferred<void>();
+    const unsubscribe = jest.fn(() => undeclared.promise);
+    session.subscribe.mockResolvedValue(unsubscribe);
+    session.close.mockRejectedValue(new Error('closed'));
+    await zenohSubscribe('mower/*/telemetry', jest.fn(), () => {
+      throw new Error('local cleanup');
+    });
+    const closing = closeZenoh();
+    await settle();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(session.close).not.toHaveBeenCalled();
+    undeclared.reject(new Error('already closed'));
     await closing;
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
-  it('publishes JSON commands without waiting for a reply', async () => {
-    const session = {
-      put: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValue(session);
-
-    await zenohPut('mower/mower-1/joystick', { x: 0.5, y: -0.25 });
-
-    expect(session.put).toHaveBeenCalledWith(
-      'mower/mower-1/joystick',
-      JSON.stringify({ x: 0.5, y: -0.25 }),
-      {
-        encoding: Encoding.APPLICATION_JSON,
-      }
-    );
-  });
-
-  it('does not open or publish while Zenoh is disabled', async () => {
+  it('rejects disabled and stale-account operations without reporting errors', async () => {
     useBoundStore.getState().disableZenoh();
-
-    await expect(zenohPut('mower/mower-1/joystick', { x: 0, y: 0 })).rejects.toBeInstanceOf(
-      OperationCancelled
-    );
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toBeInstanceOf(OperationCancelled);
     expect(mockedOpen).not.toHaveBeenCalled();
-  });
-
-  it('declares JSON subscriptions and lets closeZenoh clean them up', async () => {
-    const undeclare = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
-    const session = {
-      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
+    useBoundStore.getState().enableZenoh();
+    const session = nativeSession();
+    const reply = deferred<string>();
+    session.query.mockReturnValue(reply.promise);
     mockedOpen.mockResolvedValue(session);
-    const onPayload = jest.fn();
-
-    await zenohSubscribe('mower/*/telemetry', onPayload);
-    expect(session.declareSubscriber).toHaveBeenCalledWith('mower/*/telemetry', {
-      handler: expect.any(Function),
-    });
-    const handler = session.declareSubscriber.mock.calls[0][1].handler;
-    handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
-    expect(onPayload).toHaveBeenCalledWith('[{"mower_id":"mower-1"}]');
-
-    useBoundStore.getState().disableZenoh();
-    handler({ payload: () => ({ toString: () => '[{"mower_id":"mower-1"}]' }) });
-    expect(onPayload).toHaveBeenCalledTimes(1);
-
-    await closeZenoh();
-    expect(undeclare).toHaveBeenCalledTimes(1);
+    const pending = zenohQuery('old', {});
+    const cancelled = expect(pending).rejects.toBeInstanceOf(OperationCancelled);
+    await settle();
+    useBoundStore.getState().startZenohSession();
+    reply.resolve('{"old":true}');
+    await cancelled;
+    expect(useBoundStore.getState().errorQueue).toEqual([]);
   });
 
-  it('declares historical liveliness subscriptions and maps token changes', async () => {
-    const undeclare = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
-    const declareSubscriber = jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare });
-    const session = {
-      liveliness: () => ({ declareSubscriber }),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
+  it('cleans up a subscription that finishes while its session is closing', async () => {
+    const session = nativeSession();
     mockedOpen.mockResolvedValue(session);
-    const onChange = jest.fn();
-
-    await zenohSubscribeLiveliness('mower/*/liveliness', onChange);
-    expect(declareSubscriber).toHaveBeenCalledWith('mower/*/liveliness', {
-      history: true,
-      handler: expect.any(Function),
-    });
-    const handler = declareSubscriber.mock.calls[0][1].handler;
-    handler({ keyexpr: () => ({ toString: () => 'mower/mower-1/liveliness' }), kind: () => SampleKind.PUT });
-    handler({ keyexpr: () => ({ toString: () => 'mower/mower-1/liveliness' }), kind: () => SampleKind.DELETE });
-    expect(onChange).toHaveBeenNthCalledWith(1, 'mower/mower-1/liveliness', true);
-    expect(onChange).toHaveBeenNthCalledWith(2, 'mower/mower-1/liveliness', false);
-
+    const declared = deferred<() => Promise<void>>();
+    session.subscribe.mockReturnValueOnce(declared.promise);
+    const onClose = jest.fn();
+    const pending = zenohSubscribe('mower/A/telemetry', jest.fn(), onClose);
+    const cancelled = expect(pending).rejects.toBeInstanceOf(OperationCancelled);
+    await settle();
     await closeZenoh();
-    expect(undeclare).toHaveBeenCalledTimes(1);
+    const unsubscribe = jest.fn<() => Promise<void>>().mockResolvedValue();
+    declared.resolve(unsubscribe);
+    await cancelled;
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('maps Zenoh errors and response edge cases', async () => {
-    const errorSession = {
-      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(
-        (async function* () {
-          yield {
-            result: () =>
-              new (ReplyError as unknown as new (message: string) => ReplyError)(
-                'backend unavailable'
-              ),
-          };
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValue(errorSession);
-    await expect(zenohQuery('user/login', {})).rejects.toThrow('backend unavailable');
-    expect(useBoundStore.getState().errorQueue).toEqual([
-      expect.objectContaining({
-        code: 'zenoh.request_failed',
-        message: 'backend unavailable',
-      }),
-    ]);
+  it('closes an open that completes after an account switch', async () => {
+    const opened = deferred<ReturnType<typeof nativeSession>>();
+    const session = nativeSession();
+    mockedOpen.mockReturnValueOnce(opened.promise);
+    const pending = connectZenoh();
+    const cancelled = expect(pending).rejects.toBeInstanceOf(OperationCancelled);
+    useBoundStore.getState().startZenohSession();
+    opened.resolve(session);
+    await cancelled;
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
 
+  it('serializes replacement sessions behind the previous identity close', async () => {
+    const previous = nativeSession();
+    const current = nativeSession();
+    const closed = deferred<void>();
+    previous.close.mockReturnValue(closed.promise);
+    mockedOpen.mockResolvedValueOnce(previous).mockResolvedValueOnce(current);
+    await connectZenoh();
+    useBoundStore.getState().startZenohSession();
+    const first = connectZenoh();
+    const second = connectZenoh();
+    await settle();
+    expect(previous.close).toHaveBeenCalledTimes(1);
+    expect(mockedOpen).toHaveBeenCalledTimes(1);
+    closed.resolve();
+    expect(await first).toBe(current);
+    expect(await second).toBe(current);
+    expect(mockedOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not restore subscriptions after logout during reauthorization', async () => {
+    const session = nativeSession();
+    const login = deferred<void>();
+    mockedOpen.mockResolvedValue(session);
+    await maintainZenohAuthorization(300, () => login.promise);
+    const transport = session.onTransport!;
+    transport(false);
+    transport(true);
     await closeZenoh();
+    login.resolve();
+    await settle();
+    transport(true);
+    expect(session.restoreSubscriptions).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports query, publication and subscription errors and allows retrying an initial open', async () => {
     mockedOpen.mockRejectedValueOnce(new Error('connection failed'));
     await expect(connectZenoh()).rejects.toThrow('connection failed');
-
-    const emptySession = {
-      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValueOnce(emptySession);
-    await expect(zenohQuery('user/login', {})).rejects.toThrow(
-      'Zenoh returned no receiver for user/login'
-    );
-
-    const blankSession = {
-      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(
-        (async function* () {
-          yield { result: () => ({ payload: () => ({ toString: () => '' }) }) };
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    await closeZenoh();
-    mockedOpen.mockResolvedValueOnce(blankSession);
-    await expect(zenohQuery('user/login', {})).rejects.toThrow(
-      'Zenoh returned an empty response for user/login'
-    );
-
-    const noReplySession = {
-      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(
-        (async function* () {
-          return;
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    await closeZenoh();
-    mockedOpen.mockResolvedValueOnce(noReplySession);
-    await expect(zenohQuery('user/login', {})).rejects.toThrow(
-      'Zenoh returned no response for user/login'
-    );
-  });
-
-  it('requires credentials as a complete pair and switches authenticated sessions', async () => {
-    await expect(connectZenoh('user-only')).rejects.toThrow(
-      'Zenoh username and token must be provided together'
-    );
-
-    const firstSession = {
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    const secondSession = {
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValueOnce(firstSession).mockResolvedValueOnce(secondSession);
-
-    await connectZenoh();
-    await connectZenoh('user-1', 'jwt-token');
-
-    expect(firstSession.close).toHaveBeenCalledTimes(1);
-    expect(mockedOpen).toHaveBeenCalledTimes(2);
-    expect(mockedOpen.mock.calls[1][0].locator).toContain('user-1');
-  });
-
-  it('reports malformed query responses and put/subscription failures', async () => {
-    const malformedSession = {
-      get: jest.fn<(...args: any[]) => any>().mockResolvedValue(
-        (async function* () {
-          yield { result: () => ({ payload: () => ({ toString: () => '{' }) }) };
-        })()
-      ),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValueOnce(malformedSession);
-    await expect(zenohQuery('bad/json', {})).rejects.toThrow();
-    expect(useBoundStore.getState().errorQueue[0]).toEqual(
-      expect.objectContaining({ code: 'zenoh.request_failed' })
-    );
-
-    await closeZenoh();
-    const putSession = {
-      put: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('put failed')),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValueOnce(putSession);
-    await expect(zenohPut('mower/mower-1/command', {})).rejects.toThrow('put failed');
-
-    await closeZenoh();
-    const subscribeSession = {
-      declareSubscriber: jest
-        .fn<(...args: any[]) => any>()
-        .mockRejectedValue(new Error('subscribe failed')),
-      close: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
-    };
-    mockedOpen.mockResolvedValueOnce(subscribeSession);
+    const session = nativeSession();
+    mockedOpen.mockResolvedValue(session);
+    session.query
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce('{')
+      .mockRejectedValueOnce(new Error('backend unavailable'));
+    await expect(zenohQuery('blank', {})).rejects.toThrow('empty response');
+    await expect(zenohQuery('bad', {})).rejects.toThrow();
+    await expect(zenohQuery('error', {})).rejects.toThrow('backend unavailable');
+    await maintainZenohAuthorization(300, async () => {});
+    session.put.mockRejectedValueOnce(new Error('put failed'));
+    await expect(zenohPut('mower/A/joystick', {})).rejects.toThrow('put failed');
+    session.subscribe.mockRejectedValueOnce(new Error('subscribe failed'));
     await expect(zenohSubscribe('mower/*/telemetry', jest.fn())).rejects.toThrow(
       'subscribe failed'
     );
-  });
-
-  it('tolerates cleanup callbacks and undeclare failures during shutdown', async () => {
-    const undeclare = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('already closed'));
-    const session = {
-      declareSubscriber: jest.fn<(...args: any[]) => any>().mockResolvedValue({ undeclare }),
-      close: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('closed')),
-    };
-    mockedOpen.mockResolvedValueOnce(session);
-    const onClose = jest.fn(() => {
-      throw new Error('local cleanup failed');
-    });
-
-    await zenohSubscribe('mower/*/telemetry', jest.fn(), onClose);
-    await closeZenoh();
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(undeclare).toHaveBeenCalledTimes(1);
-    expect(session.close).toHaveBeenCalledTimes(1);
+    expect(useBoundStore.getState().errorQueue.map((e) => e.code)).toEqual(
+      expect.arrayContaining([
+        'zenoh.request_failed',
+        'zenoh.command_failed',
+        'zenoh.subscription_failed',
+      ])
+    );
   });
 });

@@ -24,6 +24,10 @@ async def test_add_mower_to_user_listener_updates_real_database(
     monkeypatch, db_session, seed_user, seed_mower
 ):
     await seed_user()
+    monkeypatch.setattr(
+        "src.services.mower.ZenohAdminClient",
+        lambda: Mock(configure_user_app=AsyncMock(), revoke_user=AsyncMock()),
+    )
     mower = await seed_mower(owner_id=None)
     listener = import_module("src.zenoh.listeners.add_mower_to_user")
     monkeypatch.setattr(
@@ -56,9 +60,7 @@ async def test_update_user_name_listener_updates_real_database(
         db_session,
     )
 
-    assert (
-        await db_session.execute(select(UserModel.name))
-    ).scalar_one() == "NewName"
+    assert (await db_session.execute(select(UserModel.name))).scalar_one() == "NewName"
 
 
 async def test_update_mower_name_listener_extracts_path_id_and_updates_real_database(
@@ -87,7 +89,12 @@ async def test_update_user_email_listener_updates_real_database(
     monkeypatch, db_session, seed_user
 ):
     await seed_user()
-    identity = {"user_id": "user-1", "email": "new@example.test"}
+    identity = {
+        "user_id": "user-1",
+        "email": "new@example.test",
+        "email_verified": True,
+        "firebase": {"sign_in_provider": "google.com"},
+    }
     listener = import_module("src.zenoh.listeners.update_user_email")
     monkeypatch.setattr(
         "src.services.auth.auth.verify_id_token",
@@ -115,10 +122,13 @@ async def test_update_user_email_rejects_a_duplicate_email_in_real_database(
     monkeypatch, db_session, seed_user
 ):
     await seed_user()
-    await seed_user(
-        user_id="user-2", email="taken@example.test", name="OtherUser"
-    )
-    identity = {"user_id": "user-1", "email": "taken@example.test"}
+    await seed_user(user_id="user-2", email="taken@example.test", name="OtherUser")
+    identity = {
+        "user_id": "user-1",
+        "email": "taken@example.test",
+        "email_verified": True,
+        "firebase": {"sign_in_provider": "google.com"},
+    }
     monkeypatch.setattr(
         user_service,
         "verify_firebase_id_token",

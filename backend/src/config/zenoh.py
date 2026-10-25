@@ -14,13 +14,13 @@ def get_zenoh_config() -> zenoh.Config:
     """
     config = zenoh.Config()
     config.insert_json5("mode", '"client"')
+    config.insert_json5("scouting/multicast/enabled", "false")
+    config.insert_json5("scouting/gossip/enabled", "false")
 
     # Containerized deployments cannot rely on Zenoh multicast discovery.
     # Connect to the mTLS router explicitly; the application router already
     # bridges its client-facing TCP transport to this router.
-    config.insert_json5(
-        "connect/endpoints", f'[{settings.ZENOH_MTLS_ENDPOINT!r}]'
-    )
+    config.insert_json5("connect/endpoints", f"[{settings.ZENOH_MTLS_ENDPOINT!r}]")
 
     ca_cert = Path(settings.ZENOH_CA_CERT)
     fastapi_cert = Path(settings.ZENOH_FASTAPI_CERT)
@@ -54,9 +54,9 @@ def get_zenoh_bootstrap_config() -> zenoh.Config:
     """Connect to the isolated renewal router with server-authenticated TLS only."""
     config = zenoh.Config()
     config.insert_json5("mode", '"client"')
-    config.insert_json5(
-        "connect/endpoints", f'[{settings.ZENOH_BOOTSTRAP_ENDPOINT!r}]'
-    )
+    config.insert_json5("scouting/multicast/enabled", "false")
+    config.insert_json5("scouting/gossip/enabled", "false")
+    config.insert_json5("connect/endpoints", f"[{settings.ZENOH_BOOTSTRAP_ENDPOINT!r}]")
     ca_cert = Path(settings.ZENOH_CA_CERT)
     if not ca_cert.exists():
         raise FileNotFoundError(f"Zenoh CA certificate not found: {ca_cert}")

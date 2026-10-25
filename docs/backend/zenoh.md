@@ -31,8 +31,10 @@ Telemetry and cutout-upload completion use this pattern.
 
 | Path                                                     | Pattern                        | Backend action                                                                                                                     |
 | -------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `user/login`                                             | Query/reply                    | Verifies Firebase identity, creates the user if needed, provisions a five-minute app-router credential/ACL, and returns user data. |
+| `user/login`                                             | Query/reply                    | Verifies Firebase identity, creates the user if needed, authorizes the captured connection for five minutes with owned-mower permissions, and returns user data. |
 | `user/add_mower`                                         | Query/reply                    | Validates Firebase identity and assigns an unowned mower to the caller.                                                            |
+| `user/remove_mower`                                      | Query/reply                    | Validates the caller owns the mower, revokes its routes, and unassigns it without deleting records. |
+| `user/transfer_mower`                                    | Query/reply                    | Validates current ownership and an existing recipient Firebase UID, then transfers ownership and live permissions. |
 | `user/update_name`                                       | Query/reply                    | Validates Firebase identity and changes the caller's display name.                                                                 |
 | `user/update_email`                                      | Query/reply                    | Validates old/new identity tokens and changes the user's email.                                                                    |
 | `mower/{mower_id}/update_name`                           | Query/reply                    | Extracts the mower ID from the key expression, verifies ownership, and updates the nickname.                                       |
@@ -59,6 +61,23 @@ observe tokens only below its owned mower paths. Token presence means the
 gateway's Zenoh session is active, not that the mower is safe or healthy.
 
 ## Path handling rules
+
+Single-mower ownership changes lock account rows in sorted order and then the
+mower row, sharing the account-switch/login lock order. They check the actual
+PostgreSQL owner and reject unknown UUIDs, owned-mower claims, inactive-mower
+claims, and unknown or identical recipients. Before commit, the source's live
+principal policy loses only the affected mower; `user/**` confirmation replies
+and other mower traffic remain permitted. Recipient grants are published only
+after commit from a fresh locked ownership snapshot. Cache entries for both
+owners and the mower are invalidated before and after commit.
+
+Failure before commit rolls back ownership and attempts to restore the source
+policy from current SQL data. Failure after commit reports that ownership was
+saved and access must be refreshed; ownership is not silently reversed. The app
+can use **Refresh fleet** to reload its authoritative list and retry login-based
+authorization. No mower record, certificate, or telemetry is deleted by removal
+or transfer. These operations do not require a router restart or disconnecting
+the source's other mower traffic.
 
 Listener constants come from generated path functions, with `*` only for a
 backend declaration that accepts a parameterized route. The listener parses the

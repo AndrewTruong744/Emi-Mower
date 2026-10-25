@@ -16,6 +16,7 @@ from src.config import (
     init_http_client,
 )
 from src.config.settings import settings
+from src.scripts.add_all_acls import add_all_acls
 from src.services import initialize_backend_auth
 from src.zenoh import ZenohMessageHandler, ZenohQueryHandler
 from src.zenoh.register_handlers import register_bootstrap_handlers, register_handlers
@@ -57,6 +58,10 @@ async def lifespan(app: FastAPI):
         logger.info("Valkey connection verified successfully.")
     except Exception as e:
         logger.error(f"Valkey connection failed: {e}")
+
+    # Policies are in-memory router state. Restore certificate and user policy
+    # sources before publishing backend queryables after a process/router restart.
+    await add_all_acls()
 
     # Startup: Initialize Zenoh session
     logger.info("Starting Zenoh client connection...")

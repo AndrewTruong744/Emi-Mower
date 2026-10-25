@@ -49,9 +49,8 @@ creates a self-contained local simulator under
    for physical mowers, with simulation launch mode and TLS-name verification
    enabled. Initial certificate signing runs through the local `step-ca`
    container; its issuance credential and CA private keys remain in its volumes.
-   The provisioner writes a scoped local router configuration and recreates
-   the mTLS router because Zenoh 1.9 cannot update ACLs at runtime. Existing
-   local clients reconnect after this brief router interruption.
+   The provisioner adds the mower identity to the live mTLS router policy
+   through the protected runtime API. The router keeps existing clients connected.
 4. Starts the ROS simulator container after the operational credentials and ACL
    have been created.
 

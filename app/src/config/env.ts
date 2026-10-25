@@ -7,23 +7,9 @@ function required(value: string | undefined, name: string): string {
 }
 
 function validateZenohUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must be a valid ws:// or wss:// URL');
+  if (!/^(tls|tcp)\/[^\s/@]+:\d+$/.test(value)) {
+    throw new Error('EXPO_PUBLIC_ZENOH_URL must be a native tls/ or tcp/ endpoint');
   }
-
-  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must use ws:// or wss://');
-  }
-  if (!url.hostname) {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must include a host');
-  }
-  if (url.username || url.password) {
-    throw new Error('EXPO_PUBLIC_ZENOH_URL must not include credentials');
-  }
-
   return value;
 }
 

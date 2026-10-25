@@ -10,7 +10,7 @@ const mockGesture = {
   enabled() {
     return this;
   },
-  onEnd(callback) {
+  onFinalize(callback) {
     this.endCallback = callback;
     return this;
   },

@@ -17,9 +17,9 @@ async def update_user_name(
     identity = await verify_firebase_id_token(payload.id_token)
     user_id = identity["user_id"]
 
-    await update_user_name_service(user_id, payload.new_user_name, db=db)
+    stored_name = await update_user_name_service(user_id, payload.new_user_name, db=db)
     return UpdateUserNameResponse(
         message="User name updated successfully",
         user_id=user_id,
-        new_user_name=payload.new_user_name,
+        new_user_name=stored_name,
     )

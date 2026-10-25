@@ -8,7 +8,6 @@ not treat either as a fleet deployment recipe.
 
 | File                                                         | Image purpose                                                                                                                                                                                             |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`Dockerfile.zenoh-app`](../../backend/Dockerfile.zenoh-app) | Starts from the official Zenoh 1.9 image and installs the matching remote-API plugin for `amd64` or `arm64`. The download is checksum-verified because the plugin enables the app's WebSocket connection. |
 | [`Dockerfile.test`](../../backend/Dockerfile.test)           | A Python 3.12 backend image with `uv`, locked runtime dependencies, and the source tree. The disposable Compose test stack uses it for FastAPI.                                                           |
 
 The local backend and worker services use `python:3.12-slim`, mount the working
@@ -54,7 +53,11 @@ automatically because the stack is disposable.
 
 PostgreSQL and Valkey expose health checks. FastAPI waits for those services and
 the three routers, applies Alembic migrations, then serves `/health`. The
-telemetry worker, expired-password worker, and ACL reconciler wait for the
+telemetry worker and ACL reconciler wait for the
 backend health check. This ordering avoids starting a worker before its storage
 and router dependencies exist, but an already-running system still needs normal
 operational monitoring and retries.
+
+All Zenoh images now build from the sibling fork with `ci/Dockerfile.runtime-access`.
+A dedicated `zenoh-admin-init` service creates the management token volume before
+routers start. It does not contain the CA private key.

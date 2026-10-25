@@ -9,12 +9,14 @@ from src.zenoh.generated.paths import user_login_path
 LOGIN_KEY_EXPR = user_login_path()
 
 
-async def user_login(payload: UserLoginRequest, db: AsyncSession) -> UserLoginResponse:
+async def user_login(
+    payload: UserLoginRequest, db: AsyncSession, connection_context: dict
+) -> UserLoginResponse:
     """Map the login result to the generated Zenoh response."""
-    result = await user_login_service(payload, db)
+    result = await user_login_service(payload, db, connection_context)
     return UserLoginResponse(
         user_id=result["user_id"],
-        token=result["token"],
+        authorized=result["authorized"],
         expires_in=result["expires_in"],
         user_data=UserData.model_validate(result["user_data"]),
     )

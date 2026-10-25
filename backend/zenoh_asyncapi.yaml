@@ -3,8 +3,8 @@ info:
   title: Emi Mower Zenoh API
   version: 1.0.0
   description: >-
-    The user/login exchange accepts a Firebase ID token and returns an
-    application JWT signed with JWT_SECRET. Authenticated user and mower
+    The user/login exchange accepts a Firebase ID token and authorizes the
+    existing native Zenoh connection with scoped, short-lived permissions. Authenticated user and mower
     operations accept a Firebase ID token and return a typed reply. LiveKit
     query paths issue room-scoped tokens for either an app consumer or a mower
     publisher.
@@ -20,6 +20,18 @@ channels:
     messages:
       addMowerToUserRequest: {$ref: '#/components/messages/AddMowerToUserRequest'}
       addMowerToUserResponse: {$ref: '#/components/messages/AddMowerToUserResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  removeMowerFromUser:
+    address: user/remove_mower
+    messages:
+      removeMowerFromUserRequest: {$ref: '#/components/messages/RemoveMowerFromUserRequest'}
+      removeMowerFromUserResponse: {$ref: '#/components/messages/RemoveMowerFromUserResponse'}
+      problemDetails: {$ref: '#/components/messages/ProblemDetails'}
+  transferMower:
+    address: user/transfer_mower
+    messages:
+      transferMowerRequest: {$ref: '#/components/messages/TransferMowerRequest'}
+      transferMowerResponse: {$ref: '#/components/messages/TransferMowerResponse'}
       problemDetails: {$ref: '#/components/messages/ProblemDetails'}
   updateUserName:
     address: user/update_name
@@ -140,7 +152,7 @@ operations:
   userLogin:
     action: receive
     channel: {$ref: '#/channels/userLogin'}
-    summary: Exchange a Firebase ID token for an Emi Mower JWT
+    summary: Authorize a captured native connection using a Firebase ID token
     messages:
       - {$ref: '#/channels/userLogin/messages/userLoginRequest'}
     reply:
@@ -159,6 +171,28 @@ operations:
       messages:
         - {$ref: '#/channels/addMowerToUser/messages/addMowerToUserResponse'}
         - {$ref: '#/channels/addMowerToUser/messages/problemDetails'}
+  removeMowerFromUser:
+    action: receive
+    channel: {$ref: '#/channels/removeMowerFromUser'}
+    summary: Remove an owned mower from the authenticated account without deleting it
+    messages:
+      - {$ref: '#/channels/removeMowerFromUser/messages/removeMowerFromUserRequest'}
+    reply:
+      channel: {$ref: '#/channels/removeMowerFromUser'}
+      messages:
+        - {$ref: '#/channels/removeMowerFromUser/messages/removeMowerFromUserResponse'}
+        - {$ref: '#/channels/removeMowerFromUser/messages/problemDetails'}
+  transferMower:
+    action: receive
+    channel: {$ref: '#/channels/transferMower'}
+    summary: Transfer an owned mower to an existing Firebase user ID
+    messages:
+      - {$ref: '#/channels/transferMower/messages/transferMowerRequest'}
+    reply:
+      channel: {$ref: '#/channels/transferMower'}
+      messages:
+        - {$ref: '#/channels/transferMower/messages/transferMowerResponse'}
+        - {$ref: '#/channels/transferMower/messages/problemDetails'}
   updateUserName:
     action: receive
     channel: {$ref: '#/channels/updateUserName'}
@@ -313,6 +347,18 @@ components:
     AddMowerToUserResponse:
       name: AddMowerToUserResponse
       payload: {$ref: '#/components/schemas/AddMowerToUserResponse'}
+    RemoveMowerFromUserRequest:
+      name: RemoveMowerFromUserRequest
+      payload: {$ref: '#/components/schemas/RemoveMowerFromUserRequest'}
+    RemoveMowerFromUserResponse:
+      name: RemoveMowerFromUserResponse
+      payload: {$ref: '#/components/schemas/RemoveMowerFromUserResponse'}
+    TransferMowerRequest:
+      name: TransferMowerRequest
+      payload: {$ref: '#/components/schemas/TransferMowerRequest'}
+    TransferMowerResponse:
+      name: TransferMowerResponse
+      payload: {$ref: '#/components/schemas/TransferMowerResponse'}
     UpdateUserNameRequest:
       name: UpdateUserNameRequest
       payload: {$ref: '#/components/schemas/UpdateUserNameRequest'}
@@ -411,6 +457,42 @@ components:
         message: {type: string}
         user_id: {type: string}
         mower_id: {type: string}
+    RemoveMowerFromUserRequest:
+      type: object
+      required: [id_token, mower_id]
+      properties:
+        id_token: {type: string}
+        mower_id: {type: string}
+    RemoveMowerFromUserResponse:
+      type: object
+      required: [message, user_id, mower_id]
+      properties:
+        message: {type: string}
+        user_id: {type: string}
+        mower_id: {type: string}
+    TransferMowerRequest:
+      type: object
+      required: [id_token, mower_id, new_owner_id]
+      properties:
+        id_token: {type: string}
+        mower_id: {type: string}
+        new_owner_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Existing recipient Firebase UID shown as User ID in Settings.
+    TransferMowerResponse:
+      type: object
+      required: [message, user_id, mower_id, new_owner_id]
+      properties:
+        message: {type: string}
+        user_id: {type: string}
+        mower_id: {type: string}
+        new_owner_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Existing recipient Firebase UID shown as User ID in Settings.
     UpdateUserNameRequest:
       type: object
       required: [id_token, new_user_name]
@@ -418,14 +500,22 @@ components:
         id_token:
           type: string
           description: Firebase Identity Platform ID token.
-        new_user_name: {type: string}
+        new_user_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Display name; spaces and punctuation are supported.
     UpdateUserNameResponse:
       type: object
       required: [message, user_id, new_user_name]
       properties:
         message: {type: string}
         user_id: {type: string}
-        new_user_name: {type: string}
+        new_user_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Display name; spaces and punctuation are supported.
     UpdateMowerNameRequest:
       type: object
       required: [id_token, new_name]
@@ -447,11 +537,12 @@ components:
       properties:
         id_token:
           type: string
-          description: Firebase Identity Platform ID token for the current account email.
+          description: Firebase ID token proving ownership of the original Google account.
         new_id_token:
           type: string
-          description: Firebase Identity Platform ID token containing the new email.
+          description: Firebase ID token for the verified replacement Google account. All mower ownership moves to its UID; the original backend account is removed.
     UpdateUserEmailResponse:
+      description: Confirms the Google-account switch; user_id is the replacement Firebase UID.
       type: object
       required: [message, user_id, new_email]
       properties:
@@ -460,12 +551,13 @@ components:
         new_email: {type: string}
     UserLoginResponse:
       type: object
-      required: [user_id, token, expires_in, user_data]
+      required: [user_id, authorized, expires_in, user_data]
       properties:
         user_id: {type: string}
-        token:
-          type: string
-          description: Application JWT signed with JWT_SECRET.
+        authorized:
+          type: boolean
+          const: true
+          description: Router has authorized the current connection before this reply.
         expires_in: {type: integer, example: 300}
         user_data:
           $ref: '#/components/schemas/UserData'

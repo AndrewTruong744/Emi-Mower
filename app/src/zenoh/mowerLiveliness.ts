@@ -17,17 +17,43 @@ export function mowerIdFromLivelinessKey(keyExpr: string): string | null {
  * This reports connectivity to Zenoh only; it is not a health, safety, or
  * telemetry-freshness signal.
  */
-export async function initializeMowerLivelinessSubscription(authGeneration: number): Promise<void> {
-  if (useBoundStore.getState().mowers.length === 0) return;
+let activeGeneration: number | undefined;
+const activeSubscriptions = new Map<string, Promise<void>>();
 
-  await zenohSubscribeLiveliness(mowerLivelinessPath('*'), (keyExpr, connected) => {
-    if (!isZenohOperationActive(authGeneration)) return;
+export function initializeMowerLivelinessSubscription(authGeneration: number): Promise<void> {
+  if (activeGeneration !== authGeneration) {
+    activeSubscriptions.clear();
+    activeGeneration = authGeneration;
+  }
+  // Router ACLs grant exact owned keys. A wildcard declaration can be denied
+  // even when every token it would currently match belongs to this user.
+  return Promise.all(useBoundStore.getState().mowers.map((mowerId) => {
+    const existing = activeSubscriptions.get(mowerId);
+    if (existing) return existing;
+    const clear = () => {
+      if (activeSubscriptions.get(mowerId) === promise) activeSubscriptions.delete(mowerId);
+    };
+    const promise = subscribe(authGeneration, mowerId, clear).catch((error) => {
+      clear();
+      throw error;
+    });
+    activeSubscriptions.set(mowerId, promise);
+    return promise;
+  })).then(() => undefined);
+}
 
-    const mowerId = mowerIdFromLivelinessKey(keyExpr);
-    if (!mowerId || !useBoundStore.getState().mowers.includes(mowerId)) return;
-    useBoundStore.getState().setMowerConnection(
-      mowerId,
-      connected ? 'connected' : 'disconnected'
-    );
-  });
+async function subscribe(authGeneration: number, mowerId: string, onClose: () => void): Promise<void> {
+  await zenohSubscribeLiveliness(
+    mowerLivelinessPath(mowerId),
+    (keyExpr, connected) => {
+      if (!isZenohOperationActive(authGeneration)) return;
+
+      const mowerId = mowerIdFromLivelinessKey(keyExpr);
+      if (!mowerId || !useBoundStore.getState().mowers.includes(mowerId)) return;
+      useBoundStore
+        .getState()
+        .setMowerConnection(mowerId, connected ? 'connected' : 'disconnected');
+    },
+    onClose
+  );
 }

@@ -18,7 +18,10 @@ cp .env.example .env
 the sole place backend code reads environment variables. Copy the template,
 then set `JWT_SECRET` and only the local overrides you need; blank optional
 values defer to the local-safe defaults in `Settings`. Startup rejects a
-missing JWT secret and a partially configured LiveKit integration. Never
+missing JWT secret and a partially configured LiveKit integration.
+Set `GCP_PROJECT_ID` to the Firebase project used by the Android app; Firebase
+Admin uses it explicitly when verifying token audiences, including when the
+mounted user ADC file does not identify a project. Never
 commit an `.env`, Google service credential, Zenoh password, mower private key,
 or CA private key.
 
@@ -47,7 +50,7 @@ and FastAPI, then run:
 docker compose -f local-docker-compose.yml run --rm add-all-acls
 ```
 
-Start `upload-telemetry` and `remove-usrpwds` when exercising their respective
+Start `upload-telemetry` when exercising its
 background lifecycles. See [Docker](docker.md) and
 [Zenoh routers](zenoh-routers.md) for service details.
 

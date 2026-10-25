@@ -1,0 +1,4 @@
+/rust/target/
+/android/build/
+/android/.cxx/
+/android/.gradle/

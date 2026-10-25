@@ -1,28 +1,136 @@
 {
-  mode: "router",
-  listen: { endpoints: ["tcp/0.0.0.0:7447"] },
-  connect: {
-    endpoints: ["tls/zenoh-mtls:7448"],
-    exit_on_failure: true,
-    timeout_ms: 10000
+  "mode": "router",
+  "scouting": {
+    "multicast": {
+      "enabled": false
+    }
   },
-  transport: {
-    // These tests exercise application token validation. Transport passwords
-    // belong to the production app-router configuration, not this test plane.
-    link: {
-      tls: {
-        root_ca_certificate: "/run/emi-mower/identity/root_ca.pem",
-        connect_certificate: "/run/emi-mower/identity/current/router.crt",
-        connect_private_key: "/run/emi-mower/identity/current/router.key",
-        listen_certificate: "/run/emi-mower/identity/current/router.crt",
-        listen_private_key: "/run/emi-mower/identity/current/router.key",
-        enable_mtls: true
+  "listen": {
+    "endpoints": [
+      "tcp/0.0.0.0:7447"
+    ]
+  },
+  "transport": {
+    "unicast": {
+      "max_links": 1
+    },
+    "link": {
+      "tls": {
+        "root_ca_certificate": "/run/emi-mower/identity/root_ca.pem",
+        "listen_certificate": "/run/emi-mower/identity/current/router.crt",
+        "listen_private_key": "/run/emi-mower/identity/current/router.key",
+        "enable_mtls": true,
+        "connect_certificate": "/run/emi-mower/identity/current/router.crt",
+        "connect_private_key": "/run/emi-mower/identity/current/router.key"
       }
     }
   },
-  adminspace: { permissions: { read: true, write: true } },
-  plugins: {
-    remote_api: { websocket_port: "10000" },
-    rest: { http_port: "0.0.0.0:8001" }
+  "adminspace": {
+    "permissions": {
+      "read": false,
+      "write": false
+    }
+  },
+  "plugins": {
+    "rest": {
+      "http_port": "0.0.0.0:8001",
+      "runtime_access_control": {
+        "token_file": "/run/emi-mower/admin/token",
+        "capture_query_keys": [
+          "user/login"
+        ]
+      }
+    }
+  },
+  "access_control": {
+    "enabled": true,
+    "default_permission": "deny",
+    "rules": [
+      {
+        "id": "trusted",
+        "permission": "allow",
+        "flows": [
+          "ingress",
+          "egress"
+        ],
+        "messages": [
+          "put",
+          "delete",
+          "query",
+          "reply",
+          "declare_subscriber",
+          "declare_queryable",
+          "declare_liveliness_subscriber",
+          "liveliness_token",
+          "liveliness_query"
+        ],
+        "key_exprs": [
+          "**"
+        ]
+      },
+      {
+        "id": "guest-query",
+        "permission": "allow",
+        "flows": [
+          "ingress"
+        ],
+        "messages": [
+          "query"
+        ],
+        "key_exprs": [
+          "user/login"
+        ]
+      },
+      {
+        "id": "guest-reply",
+        "permission": "allow",
+        "flows": [
+          "egress"
+        ],
+        "messages": [
+          "reply"
+        ],
+        "key_exprs": [
+          "user/login"
+        ]
+      }
+    ],
+    "subjects": [
+      {
+        "id": "guest"
+      },
+      {
+        "id": "mesh",
+        "cert_common_names": [
+          "Emi Mower Zenoh mTLS"
+        ]
+      }
+    ],
+    "policies": [
+      {
+        "id": "guest",
+        "subjects": [
+          "guest"
+        ],
+        "rules": [
+          "guest-query",
+          "guest-reply"
+        ]
+      },
+      {
+        "id": "mesh",
+        "subjects": [
+          "mesh"
+        ],
+        "rules": [
+          "trusted"
+        ]
+      }
+    ]
+  },
+  "connect": {
+    "endpoints": [
+      "tls/zenoh-mtls:7448"
+    ]
   }
 }

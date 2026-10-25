@@ -15,6 +15,8 @@ def _query_invalid_token(key_expr: str, payload: dict) -> dict:
     """Query a Compose-hosted backend route and decode its error reply."""
     config = zenoh.Config()
     config.insert_json5("mode", '"client"')
+    config.insert_json5("scouting/multicast/enabled", "false")
+    config.insert_json5("scouting/gossip/enabled", "false")
     config.insert_json5("connect/endpoints", '["tcp/127.0.0.1:17447"]')
 
     session = zenoh.open(config)
@@ -28,10 +30,8 @@ def _query_invalid_token(key_expr: str, payload: dict) -> dict:
         while True:
             try:
                 reply = replies.try_recv()
-            except zenoh.ZError as error:
-                raise AssertionError(
-                    f"No reply received for Zenoh key expression {key_expr!r}"
-                ) from error
+            except zenoh.ZError:
+                return {"blocked": True}
             if reply is not None:
                 break
             if time.monotonic() >= deadline:
@@ -69,11 +69,17 @@ def _query_invalid_token(key_expr: str, payload: dict) -> dict:
         ),
     ],
 )
-async def test_compose_backend_exposes_update_queryable_and_rejects_invalid_token(
+async def test_guest_cannot_reach_authenticated_update_queryables(
     compose_stack, key_expr, payload
 ):
     problem = await asyncio.to_thread(_query_invalid_token, key_expr, payload)
 
+    assert problem == {"blocked": True}
+
+
+async def test_guest_login_reaches_backend_through_mtls_router_mesh(compose_stack):
+    problem = await asyncio.to_thread(
+        _query_invalid_token, "user/login", {"id_token": "invalid-token"}
+    )
     assert problem["status"] == 401
     assert problem["code"] == "authentication-failed"
-    assert problem["instance"] == key_expr

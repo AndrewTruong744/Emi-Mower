@@ -35,9 +35,13 @@ certificate includes the same DNS SAN.
 For a visual physics simulation, start
 [`simulation/mujoco`](../simulation/mujoco/README.md) before the Jetson
 simulation containers. Each Jetson's ROS bridge connects to MuJoCo through
-`host.docker.internal:8765`, and the viewer is at `http://localhost:8080`.
+`host.docker.internal:8765`. Open the native desktop viewer using the macOS or
+Linux instructions in [`simulation/mujoco/README.md`](../simulation/mujoco/README.md).
 The simulation launch scopes ROS command topics by `MOWER_ID` so multiple
 containers on one router do not share drive commands.
+The simulation gateway defaults to 5 m/s linear and 5 rad/s angular speed;
+the physical gateway defaults remain 1 m/s and 1 rad/s. Set
+`MAX_LINEAR_MPS` and `MAX_ANGULAR_RADPS` to override either gateway limit.
 
 For a physical Jetson, initialize the OAK-D and SLLidar submodules before the
 first image build. The override then builds those drivers, exposes USB and

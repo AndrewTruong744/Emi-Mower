@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import type { ReactNativeFirebase } from '@react-native-firebase/app';
 
 export const mockFirebaseUser = {
   uid: 'firebase-user',
@@ -10,11 +11,33 @@ export const mockFirebaseUser = {
 
 export const mockFirebaseAuth = {
   currentUser: mockFirebaseUser as typeof mockFirebaseUser | null,
-  signInWithCredential: jest.fn<(...args: any[]) => any>().mockResolvedValue({ user: mockFirebaseUser }),
+  signInWithCredential: jest
+    .fn<(...args: any[]) => any>()
+    .mockResolvedValue({ user: mockFirebaseUser }),
   signOut: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
   onAuthStateChanged: jest.fn(() => jest.fn()),
 };
 
+export const mockSecondaryUser = {
+  uid: 'replacement-user',
+  email: 'replacement@example.com',
+  getIdToken: jest.fn<(...args: any[]) => any>().mockResolvedValue('replacement-token'),
+};
+export const mockSecondaryAuth = {
+  currentUser: mockSecondaryUser,
+  signInWithCredential: jest
+    .fn<(...args: any[]) => any>()
+    .mockResolvedValue({ user: mockSecondaryUser }),
+  signOut: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+};
+export const firebaseApp = {
+  name: '[DEFAULT]',
+  options: {
+    apiKey: 'test-api-key',
+    appId: 'test-app-id',
+    projectId: 'test-project',
+  } as ReactNativeFirebase.FirebaseAppOptions,
+};
 export const firebaseAuth = mockFirebaseAuth;
 
 export async function getFirebaseIdToken(forceRefresh = false): Promise<string> {

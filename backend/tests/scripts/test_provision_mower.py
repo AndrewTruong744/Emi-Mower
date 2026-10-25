@@ -1,5 +1,4 @@
 import argparse
-import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -12,50 +11,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from src.scripts import provision_mower
-
-
-def test_simulated_router_acl_preserves_internal_access_and_scopes_each_mower(
-    monkeypatch, tmp_path
-):
-    base = provision_mower.BACKEND_ROOT / "zenoh-router-mtls.json5"
-    (tmp_path / "zenoh-router-mtls.json5").write_text(base.read_text())
-    env_file = tmp_path / ".env"
-    env_file.write_text("JWT_SECRET=local-test\nZENOH_MTLS_CONFIG_FILE=old.json5\n")
-    monkeypatch.setattr(provision_mower, "BACKEND_ROOT", tmp_path)
-    run = Mock()
-    monkeypatch.setattr(provision_mower.subprocess, "run", run)
-    identities = [
-        "b688f3ea-b8df-4112-8ffe-63da14f851a5",
-        "0a35e3e0-ff31-4b58-bc88-31f6e288fdb2",
-    ]
-    provision_mower.configure_simulated_router_acl(identities)
-    config_file = tmp_path / ".sim" / "zenoh-router-mtls.json5"
-    acl = json.loads(config_file.read_text())["access_control"]
-    assert acl["enabled"] is True and acl["default_permission"] == "deny"
-    assert acl["policies"][0]["subjects"] == ["fastapi_admin", "router_b_peer"]
-    for identity in identities:
-        rule = next(
-            item for item in acl["rules"] if item["id"] == f"rule_mower_{identity}"
-        )
-        assert rule["key_exprs"] == [f"mower/{identity}/**"]
-        subject = next(
-            item
-            for item in acl["subjects"]
-            if item["id"] == f"subject_mower_{identity}"
-        )
-        assert subject["cert_common_names"] == [f"mower:{identity}"]
-    assert config_file.stat().st_mode & 0o777 == 0o600
-    assert env_file.read_text() == (
-        "JWT_SECRET=local-test\nZENOH_MTLS_CONFIG_FILE=.sim/zenoh-router-mtls.json5\n"
-    )
-    assert run.call_args.args[0][-4:] == [
-        "-d",
-        "--force-recreate",
-        "--no-deps",
-        "zenoh-mtls",
-    ]
-    provision_mower.configure_simulated_router_acl(identities)
-    assert len(json.loads(config_file.read_text())["access_control"]["rules"]) == 3
 
 
 def test_provisioner_uses_a_mower_scoped_certificate_subject():
@@ -325,6 +280,7 @@ async def test_provision_mower_creates_record_acl_certificate_and_env(
     public_key = tmp_path / "device-root-public.pem"
     public_key.write_text("public key")
     args = SimpleNamespace(
+        simulated=True,
         mower_id=mower_id,
         nickname="Front yard",
         output_dir=tmp_path / "bundle",

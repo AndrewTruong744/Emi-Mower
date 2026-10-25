@@ -115,38 +115,52 @@ async function subscribeToMowerTelemetry(
  * session. zenohClient owns subscriber teardown; this module owns the
  * telemetry buffer and its flush timer.
  */
-export async function initializeMowerTelemetrySubscription(authGeneration: number): Promise<void> {
+let activeSubscription: { generation: number; promise: Promise<void> } | undefined;
+
+export function initializeMowerTelemetrySubscription(authGeneration: number): Promise<void> {
+  if (useBoundStore.getState().mowers.length === 0) return Promise.resolve();
+  if (activeSubscription?.generation === authGeneration) return activeSubscription.promise;
+  const clear = () => {
+    if (activeSubscription?.promise === promise) activeSubscription = undefined;
+  };
+  const promise = subscribe(authGeneration, clear).catch((error) => {
+    clear();
+    throw error;
+  });
+  activeSubscription = { generation: authGeneration, promise };
+  return promise;
+}
+
+async function subscribe(authGeneration: number, onClose: () => void): Promise<void> {
   if (useBoundStore.getState().mowers.length === 0) return;
 
   const buffer = new TelemetryBuffer();
   let flushInterval: ReturnType<typeof setInterval> | undefined;
   let stopped = false;
   const stopBuffer = () => {
+    onClose();
     stopped = true;
     if (flushInterval) clearInterval(flushInterval);
     flushInterval = undefined;
     buffer.clear();
   };
 
-  await subscribeToMowerTelemetry(
-    (messages) => {
-      if (!isZenohOperationActive(authGeneration)) return;
+  await subscribeToMowerTelemetry((messages) => {
+    if (!isZenohOperationActive(authGeneration)) return;
 
-      const { mowers } = useBoundStore.getState();
-      const mowerIds = new Set(mowers);
-      for (const { mowerId, sample } of messages) {
-        if (!mowerIds.has(mowerId)) continue;
-        if (buffer.enqueue(mowerId, sample)) {
-          reportAppError(
-            'telemetry.delayed',
-            new Error(`Telemetry queue reached its limit for mower ${mowerId}`),
-            { dedupeKey: `telemetry.delayed:${mowerId}` }
-          );
-        }
+    const { mowers } = useBoundStore.getState();
+    const mowerIds = new Set(mowers);
+    for (const { mowerId, sample } of messages) {
+      if (!mowerIds.has(mowerId)) continue;
+      if (buffer.enqueue(mowerId, sample)) {
+        reportAppError(
+          'telemetry.delayed',
+          new Error(`Telemetry queue reached its limit for mower ${mowerId}`),
+          { dedupeKey: `telemetry.delayed:${mowerId}` }
+        );
       }
-    },
-    stopBuffer
-  );
+    }
+  }, stopBuffer);
 
   // closeZenoh can finish while the declaration resolves. Its registered
   // cleanup calls stopBuffer, so do not start a timer for that closed session.
